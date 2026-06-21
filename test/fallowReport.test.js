@@ -35,6 +35,7 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
         findings: [],
         summary: {
           files_analyzed: 10,
+          files_scored: 2,
           functions_analyzed: 20,
           functions_above_threshold: 0,
           average_maintainability: 91.5
@@ -42,7 +43,8 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
         vital_signs: {
           avg_cyclomatic: 1.7,
           p90_cyclomatic: 4,
-          coupling_high_pct: 2,
+          p95_fan_in: 3,
+          coupling_high_pct: 50,
           total_loc: 500
         },
         file_scores: [
@@ -54,6 +56,15 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
             fan_in: 2,
             fan_out: 3,
             lines: 44
+          },
+          {
+            path: "b.js",
+            maintainability_index: 90,
+            total_cyclomatic: 3,
+            total_cognitive: 2,
+            fan_in: 4,
+            fan_out: 1,
+            lines: 20
           }
         ],
         targets: [
@@ -92,6 +103,11 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
   assert.equal(report.check.sections[0].records[0].detail, "a.js:3 | b.js:7");
   assert.equal(report.health.summary.averageMaintainability, 91.5);
   assert.equal(report.health.fileScores[0].path, "a.js");
+  assert.equal(report.health.coupling.scoredFileCount, 2);
+  assert.equal(report.health.coupling.estimatedHighFileCount, 1);
+  assert.equal(report.health.coupling.candidateCount, 1);
+  assert.equal(report.health.coupling.candidates[0].path, "b.js");
+  assert.equal(report.health.coupling.fanInThreshold, 3);
   assert.equal(report.health.targets[0].effort, "medium");
 });
 
@@ -105,6 +121,36 @@ test("marks reports without attention issues as clear", () => {
 
   assert.equal(report.status, "clear");
   assert.equal(report.hardFindings.count, 0);
+});
+
+test("limits maintainability list while keeping all high-coupling candidates", () => {
+  const fileScores = Array.from({ length: 10 }, (_value, index) => ({
+    path: `file-${index + 1}.js`,
+    maintainability_index: 70 + index,
+    total_cyclomatic: 1,
+    total_cognitive: 1,
+    fan_in: index + 1,
+    fan_out: 0,
+    lines: 20
+  }));
+  const report = normalizeFallowReport({
+    check: { total_issues: 0, summary: {} },
+    dupes: { clone_groups: [], stats: { clone_groups: 0 } },
+    health: {
+      findings: [],
+      summary: { files_scored: 10 },
+      vital_signs: { p95_fan_in: 7, coupling_high_pct: 30 },
+      file_scores: fileScores,
+      targets: []
+    }
+  });
+
+  assert.equal(report.health.fileScores.length, 8);
+  assert.equal(report.health.coupling.candidateCount, 3);
+  assert.deepEqual(
+    report.health.coupling.candidates.map((candidate) => candidate.path),
+    ["file-10.js", "file-9.js", "file-8.js"]
+  );
 });
 
 test("combines dead code, duplication, and complexity into hard findings", () => {

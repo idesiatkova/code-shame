@@ -60,9 +60,56 @@
       "Risk signals",
       `Functions over complexity limit: ${formatNumber(health.summary.functionsAboveThreshold)}`,
       `90th percentile function complexity: ${formatNumber(health.vitalSigns.p90Cyclomatic)}`,
-      `Files with high coupling: ${health.vitalSigns.couplingHighPercent}% of scored files`
+      `Unusually reused files: ${formatCouplingSummary(health)}`
     ];
     return `${lines.join("\n")}\n`;
+  }
+
+  function formatCouplingSummary(health) {
+    const coupling = health.coupling || {};
+    const highPercent = numberOr(coupling.highPercent, health.vitalSigns.couplingHighPercent);
+    const scoredFileCount = numberOr(coupling.scoredFileCount, health.summary.filesScored);
+    const thresholdText = couplingThresholdText(coupling);
+    const displayCount = couplingDisplayCount(coupling, Boolean(thresholdText));
+    const details = [];
+
+    if (highPercent > 0) details.push(`${highPercent}%`);
+    if (thresholdText) details.push(`unusual means ${thresholdText}`);
+    if (scoredFileCount > 0) {
+      const summary = displayCount === 0
+        ? `No unusually reused files among ${formatNumber(scoredFileCount)} files`
+        : `${formatNumber(displayCount)} ${pluralize("file", displayCount)} unusually reused among ${formatNumber(scoredFileCount)} files`;
+      return details.length > 0 ? `${summary} (${details.join("; ")})` : summary;
+    }
+    return highPercent > 0 ? `${highPercent}% of files are unusually reused` : "No unusually reused files";
+  }
+
+  function couplingDisplayCount(coupling, hasThreshold) {
+    if (hasThreshold && coupling && Array.isArray(coupling.candidates)) {
+      return numberOr(coupling.candidateCount, coupling.candidates.length);
+    }
+    return numberOr(coupling.estimatedHighFileCount, 0);
+  }
+
+  function couplingThresholdText(coupling) {
+    if (!coupling) return "";
+    const thresholds = [];
+    if (coupling.fanInThreshold !== null && coupling.fanInThreshold !== undefined && Number.isFinite(Number(coupling.fanInThreshold))) {
+      thresholds.push(`more than ${formatNumber(coupling.fanInThreshold)} other files depend on it`);
+    }
+    if (coupling.fanOutThreshold !== null && coupling.fanOutThreshold !== undefined && Number.isFinite(Number(coupling.fanOutThreshold))) {
+      thresholds.push(`it depends on more than ${formatNumber(coupling.fanOutThreshold)} other files`);
+    }
+    return thresholds.join(" or ");
+  }
+
+  function pluralize(word, count) {
+    return count === 1 ? word : `${word}s`;
+  }
+
+  function numberOr(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
   }
 
   function formatRefactoringSuggestionsText(report) {
@@ -136,6 +183,7 @@
     effortTone,
     formatBlockingFindingsText,
     formatNumber,
+    formatCouplingSummary,
     formatRecommendation,
     formatRefactoringSuggestionsText,
     formatRiskSignalsText,

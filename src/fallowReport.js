@@ -16,6 +16,7 @@ const CHECK_SECTIONS = [
 
 const SUMMARY_FIELDS = [
   ["filesAnalyzed", "files_analyzed"],
+  ["filesScored", "files_scored"],
   ["functionsAnalyzed", "functions_analyzed"],
   ["functionsAboveThreshold", "functions_above_threshold"],
   ["averageMaintainability", "average_maintainability"],
@@ -66,7 +67,7 @@ function normalizeFallowReport(report, meta = {}) {
 }
 
 function splitReport(report) {
-  const health = objectValue(report.health);
+  const health = objectValue(report.health || (isStandaloneHealthReport(report) ? report : null));
   return {
     check: objectValue(report.check),
     dupes: objectValue(report.dupes),
@@ -133,14 +134,65 @@ function buildDuplicationSummary(dupes, cloneGroups) {
 }
 
 function buildHealthSummary(parts) {
+  const summary = normalizeNumberFields(parts.health.summary, SUMMARY_FIELDS);
+  const vitalSigns = normalizeNumberFields(parts.health.vital_signs, VITAL_SIGN_FIELDS);
+  const fileScores = asArray(parts.health.file_scores).map(normalizeFileScore);
+
   return {
     findingCount: parts.healthFindings.length,
-    summary: normalizeNumberFields(parts.health.summary, SUMMARY_FIELDS),
-    vitalSigns: normalizeNumberFields(parts.health.vital_signs, VITAL_SIGN_FIELDS),
+    summary,
+    vitalSigns,
+    coupling: buildCouplingSummary(parts.health, summary, vitalSigns, fileScores),
     findings: parts.healthFindings.map(normalizeHealthFinding),
-    fileScores: asArray(parts.health.file_scores).slice(0, 12).map(normalizeFileScore),
+    fileScores: fileScores.slice(0, 8),
     targets: parts.targets.map(normalizeTarget)
   };
+}
+
+function buildCouplingSummary(health, summary, vitalSigns, fileScores) {
+  const rawVitalSigns = objectValue(health.vital_signs);
+  const rawCounts = objectValue(rawVitalSigns.counts);
+  const scoredFileCount = numberOr(firstNumber([summary.filesScored, rawCounts.files_scored, fileScores.length]), 0);
+  const highPercent = vitalSigns.couplingHighPercent;
+  const estimatedHighFileCount = estimateFileCount(highPercent, scoredFileCount);
+  const fanInThreshold = optionalNumberField(rawVitalSigns, "p95_fan_in");
+  const fanOutThreshold = optionalNumberField(rawVitalSigns, "p95_fan_out");
+  const candidates = highCouplingCandidates(fileScores, fanInThreshold, fanOutThreshold);
+
+  return {
+    highPercent,
+    scoredFileCount,
+    estimatedHighFileCount,
+    candidateCount: candidates.length,
+    fanInThreshold,
+    fanOutThreshold,
+    candidates
+  };
+}
+
+function estimateFileCount(percent, total) {
+  if (percent <= 0 || total <= 0) return 0;
+  return Math.round((percent / 100) * total);
+}
+
+function highCouplingCandidates(fileScores, fanInThreshold, fanOutThreshold) {
+  return fileScores
+    .filter((score) => isHighCouplingCandidate(score, fanInThreshold, fanOutThreshold))
+    .sort((left, right) => {
+      return right.fanIn - left.fanIn || right.fanOut - left.fanOut || right.lines - left.lines;
+    })
+    .map((score) => ({
+      path: score.path,
+      fanIn: score.fanIn,
+      fanOut: score.fanOut,
+      lines: score.lines
+    }));
+}
+
+function isHighCouplingCandidate(score, fanInThreshold, fanOutThreshold) {
+  const fanInHit = fanInThreshold !== null && score.fanIn > fanInThreshold;
+  const fanOutHit = fanOutThreshold !== null && score.fanOut > fanOutThreshold;
+  return fanInHit || fanOutHit;
 }
 
 function buildCheckSections(check) {
@@ -201,6 +253,10 @@ function normalizeCheckRecord(sectionId, record) {
   return genericCheckRecord(record, sectionId);
 }
 
+function isStandaloneHealthReport(report) {
+  return objectValue(report).kind === "health" || Boolean(report.vital_signs || report.file_scores);
+}
+
 function duplicateExportRecord(record) {
   return {
     title: stringOr(record.export_name, "Duplicate export"),
@@ -257,6 +313,11 @@ function normalizeTarget(target) {
 function normalizeNumberFields(source, fields) {
   const sourceObject = objectValue(source);
   return Object.fromEntries(fields.map(([targetKey, sourceKey]) => [targetKey, numberOr(sourceObject[sourceKey], 0)]));
+}
+
+function optionalNumberField(source, key) {
+  if (!Object.hasOwn(objectValue(source), key)) return null;
+  return finiteNumber(objectValue(source)[key]);
 }
 
 function cloneGroupCount(dupes, cloneGroups) {

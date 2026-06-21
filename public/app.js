@@ -8,9 +8,12 @@
     copyBlocking: document.getElementById("copy-blocking"),
     copyReport: document.getElementById("copy-report"),
     copyRefactoring: document.getElementById("copy-refactoring"),
+    couplingFiles: document.getElementById("coupling-files"),
     errorBanner: document.getElementById("error-banner"),
     fileScores: document.getElementById("file-scores"),
     healthSummary: document.getElementById("health-summary"),
+    couplingSubhead: document.getElementById("coupling-subhead"),
+    maintainabilitySubhead: document.getElementById("maintainability-subhead"),
     overviewGrid: document.getElementById("overview-grid"),
     refreshButton: document.getElementById("refresh-button"),
     runSummary: document.getElementById("run-summary"),
@@ -132,6 +135,9 @@
     elements.checkSections.replaceChildren(emptyState("No scan results yet."));
     elements.healthSummary.replaceChildren();
     elements.fileScores.replaceChildren(emptyState("No health results yet."));
+    elements.couplingFiles.replaceChildren(emptyState("No coupling results yet."));
+    setSubheadWarning(elements.maintainabilitySubhead, false);
+    setSubheadWarning(elements.couplingSubhead, false);
     elements.targetsList.replaceChildren(emptyState("No refactoring suggestions yet."));
   }
 
@@ -186,6 +192,7 @@
 
   function renderHealth(health) {
     const findingsByPath = countFindingsByPath(health.findings);
+    setSubheadWarning(elements.maintainabilitySubhead, health.findings.length > 0);
     elements.healthSummary.replaceChildren(
       healthSection("Scan Scope", [
         ["Analyzed files", format.formatNumber(health.summary.filesAnalyzed)],
@@ -204,8 +211,8 @@
           format.thresholdTone(health.vitalSigns.p90Cyclomatic, 5, 10)
         ),
         riskSignalRow(
-          "Files with high coupling",
-          `${health.vitalSigns.couplingHighPercent}% of scored files`,
+          "Unusually reused files",
+          format.formatCouplingSummary(health),
           format.thresholdTone(health.vitalSigns.couplingHighPercent, 0, 5)
         )
       ])
@@ -213,12 +220,13 @@
 
     if (health.fileScores.length === 0) {
       elements.fileScores.replaceChildren(emptyState("No file scores."));
-      return;
+    } else {
+      elements.fileScores.replaceChildren(...health.fileScores.map((score) => {
+        return renderFileScore(score, findingsByPath.get(score.path) || 0);
+      }));
     }
 
-    elements.fileScores.replaceChildren(...health.fileScores.map((score) => {
-      return renderFileScore(score, findingsByPath.get(score.path) || 0);
-    }));
+    renderCouplingFiles(health.coupling);
   }
 
   function healthSection(title, rows) {
@@ -305,10 +313,56 @@
     return node;
   }
 
+  function renderCouplingFiles(coupling) {
+    const candidates = Array.isArray(coupling && coupling.candidates) ? coupling.candidates : [];
+    setSubheadWarning(elements.couplingSubhead, candidates.length > 0);
+    if (candidates.length === 0) {
+      elements.couplingFiles.replaceChildren(emptyState("No unusually reused files."));
+      return;
+    }
+
+    elements.couplingFiles.replaceChildren(...candidates.map(renderCouplingFile));
+  }
+
+  function renderCouplingFile(candidate) {
+    const node = document.createElement("article");
+    node.className = "file-score coupling-file";
+    node.innerHTML = `
+      <div>
+        <span class="item-title">${escapeHtml(candidate.path)}</span>
+        <span class="item-detail">${escapeHtml(couplingFileDetail(candidate))}</span>
+      </div>
+    `;
+    return node;
+  }
+
+  function setSubheadWarning(element, isWarning) {
+    element.classList.toggle("section-subhead-warn", isWarning);
+  }
+
+  function couplingFileDetail(candidate) {
+    const dependents = Number(candidate.fanIn) || 0;
+    const dependencies = Number(candidate.fanOut) || 0;
+    return [
+      filesDependOnItText(dependents),
+      `depends on ${format.formatNumber(dependencies)} ${pluralize("file", dependencies)}`,
+      `${format.formatNumber(candidate.lines)} lines of code`
+    ].join(" · ");
+  }
+
+  function filesDependOnItText(count) {
+    if (count === 1) return "1 file depends on it";
+    return `${format.formatNumber(count)} files depend on it`;
+  }
+
   function complexityBadgeHtml(count) {
     if (count === 0) return "";
     const label = count === 1 ? "complexity finding" : "complexity findings";
     return `<div class="complexity-badge">${escapeHtml(count)} ${label}</div>`;
+  }
+
+  function pluralize(word, count) {
+    return count === 1 ? word : `${word}s`;
   }
 
   function renderTargets(targets) {

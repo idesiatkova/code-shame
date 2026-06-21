@@ -455,10 +455,6 @@ h3 {
   padding: 12px 0 4px;
 }
 
-.finding-group-static:first-child {
-  padding-top: 0;
-}
-
 .finding-group-static + .finding-group-static {
   margin-top: 10px;
 }
@@ -545,6 +541,10 @@ li {
 
 .file-score-warn {
   border-left: 3px solid var(--warn);
+}
+
+.coupling-file {
+  border-left: 3px solid var(--good);
 }
 
 .file-score .item-title {
@@ -642,6 +642,9 @@ li {
   color: var(--ink);
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.35;
+  max-width: 280px;
+  overflow-wrap: anywhere;
   text-align: right;
 }
 
@@ -681,6 +684,10 @@ li {
 .section-subhead svg {
   width: 17px;
   height: 17px;
+  color: var(--muted);
+}
+
+.section-subhead-warn svg {
   color: var(--warn);
 }
 
@@ -786,6 +793,7 @@ li {
   }
 
   .health-row span:last-child {
+    max-width: none;
     text-align: left;
   }
 }
