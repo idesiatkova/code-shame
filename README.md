@@ -9,7 +9,7 @@ Local web dashboard for Fallow code analysis reports.
 Run it from the root of the project you want to analyze:
 
 ```sh
-npx fallow-code-scan
+npx code-scan
 ```
 
 Open the printed local URL, then press **Refresh** to run a scan.
@@ -18,7 +18,7 @@ By default Code Scan listens on `127.0.0.1:5179`. Override it with environment
 variables when needed:
 
 ```sh
-HOST=0.0.0.0 PORT=5180 npx fallow-code-scan
+HOST=0.0.0.0 PORT=5180 npx code-scan
 ```
 
 ## What It Shows

@@ -1,5 +1,5 @@
 {
-  "name": "fallow-code-scan",
+  "name": "code-scan",
   "version": "0.1.0",
   "description": "Local web dashboard for Fallow code analysis reports.",
   "main": "src/server.js",
@@ -26,6 +26,14 @@
     "dead-code"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/idesiatkova/code-scan.git"
+  },
+  "bugs": {
+    "url": "https://github.com/idesiatkova/code-scan/issues"
+  },
+  "homepage": "https://github.com/idesiatkova/code-scan#readme",
   "publishConfig": {
     "access": "public"
   },
