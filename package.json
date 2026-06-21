@@ -1,5 +1,5 @@
 {
-  "name": "code-scan",
+  "name": "@yukkaxxl/code-scan",
   "version": "0.1.0",
   "description": "Local web dashboard for Fallow code analysis reports.",
   "main": "src/server.js",
