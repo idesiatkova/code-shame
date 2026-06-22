@@ -58,7 +58,7 @@ function normalizeFallowReport(report, meta = {}) {
     command: stringOr(meta.command, "fallow --format json --quiet"),
     status: hardFindings.count === 0 ? "clear" : "attention",
     version: stringValue(report.version),
-    overview: buildOverview(parts, counts),
+    overview: buildOverview(parts, counts, health),
     hardFindings,
     check,
     duplication,
@@ -90,7 +90,7 @@ function buildCounts(parts, checkSections) {
   };
 }
 
-function buildOverview(parts, counts) {
+function buildOverview(parts, counts, health) {
   const summary = normalizeNumberFields(parts.health.summary, SUMMARY_FIELDS);
   return [
     metric("blocking-findings", "Blocking Findings", counts.hardFindingCount, zeroTone(counts.hardFindingCount)),
@@ -100,6 +100,7 @@ function buildOverview(parts, counts) {
       parts.targets.length,
       zeroTone(parts.targets.length, "neutral")
     ),
+    metric("unusually-reused-files", "Unusually Reused Files", health.coupling.candidateCount, "neutral"),
     metric("maintainability", "Maintainability", summary.averageMaintainability, maintainabilityTone(summary), "%")
   ];
 }

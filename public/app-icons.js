@@ -1,10 +1,11 @@
 {
   function metricIconHtml(id) {
-    const icons = {
-      "blocking-findings": "circle-x",
-      maintainability: "bar-chart-3",
-      "refactoring-suggestions": "scissors"
-    };
+	    const icons = {
+	      "blocking-findings": "circle-x",
+	      maintainability: "bar-chart-3",
+	      "refactoring-suggestions": "scissors",
+	      "unusually-reused-files": "git-branch"
+	    };
     const icon = icons[id];
     return icon
       ? `<i class="metric-icon" data-lucide="${icon}" aria-hidden="true"></i>`

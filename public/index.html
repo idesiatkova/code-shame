@@ -11,16 +11,18 @@
       <header class="topbar">
         <div>
           <div class="title-line">
-            <i class="title-icon" data-lucide="code-2" aria-hidden="true"></i>
+            <button id="title-logo" class="title-logo" type="button" aria-label="Enter demo mode" title="Enter demo mode">
+              <i class="title-icon" data-lucide="code-2" aria-hidden="true"></i>
+              <span class="title-logo-demo" aria-hidden="true">🤡</span>
+            </button>
             <h1>Code Scan</h1>
-            <div id="status-pill" class="status-pill status-idle" aria-live="polite">Idle</div>
           </div>
-          <p id="run-summary" class="muted">No scan has run yet.</p>
         </div>
         <div class="toolbar">
-          <label class="auto-refresh">
-            <input id="auto-refresh" type="checkbox">
-            Auto refresh
+          <label id="auto-refresh-control" class="auto-refresh">
+            <input id="auto-refresh" class="auto-refresh-input" type="checkbox">
+            <span id="auto-refresh-progress" class="auto-refresh-ring" aria-hidden="true"></span>
+            <span class="button-label">Auto refresh</span>
           </label>
           <button id="copy-report" class="secondary-button icon-button" type="button" disabled>
             <i data-lucide="copy" aria-hidden="true"></i>
@@ -35,11 +37,9 @@
 
       <section id="error-banner" class="error-banner" aria-live="assertive" hidden></section>
 
-      <section id="overview-grid" class="overview-grid"></section>
-
       <section class="analysis-grid">
         <div class="main-column">
-          <section class="panel panel-critical">
+          <section id="blocking-findings" class="panel panel-critical">
             <div class="panel-header">
               <div class="section-title section-title-critical">
                 <i class="section-icon" data-lucide="circle-x" aria-hidden="true"></i>
@@ -54,7 +54,7 @@
             <div id="check-sections" class="stack-list"></div>
           </section>
 
-          <section class="panel panel-refactoring targets-panel">
+          <section id="refactoring-suggestions" class="panel panel-refactoring targets-panel">
             <div class="panel-header">
               <div class="section-title section-title-refactoring">
                 <i class="section-icon" data-lucide="scissors" aria-hidden="true"></i>
@@ -68,28 +68,47 @@
             </div>
             <div id="targets-list" class="target-grid"></div>
           </section>
+
+          <section id="unusually-reused-files" class="panel panel-coupling">
+            <div class="panel-header">
+              <div id="coupling-subhead" class="section-title section-title-coupling">
+                <i class="section-icon" data-lucide="git-branch" aria-hidden="true"></i>
+                <h2>Unusually Reused Files</h2>
+                <span id="coupling-count" class="panel-count">0</span>
+              </div>
+              <button id="copy-coupling" class="copy-section icon-button" type="button" disabled>
+                <i data-lucide="copy" aria-hidden="true"></i>
+                <span class="button-label">Copy</span>
+              </button>
+            </div>
+            <div id="coupling-files" class="target-grid coupling-grid"></div>
+          </section>
+
+          <section id="lowest-maintainability" class="panel panel-maintainability">
+            <div class="panel-header">
+              <div id="maintainability-subhead" class="section-title section-title-maintainability">
+                <i class="section-icon" data-lucide="bar-chart-3" aria-hidden="true"></i>
+                <h2>Lowest Maintainability</h2>
+                <span id="maintainability-count" class="panel-count">0%</span>
+              </div>
+              <button id="copy-maintainability" class="copy-section icon-button" type="button" disabled>
+                <i data-lucide="copy" aria-hidden="true"></i>
+                <span class="button-label">Copy</span>
+              </button>
+            </div>
+            <div id="file-scores" class="stack-list"></div>
+          </section>
         </div>
 
-        <aside class="panel health-panel">
-          <div class="panel-header">
-            <div class="section-title">
-              <i class="section-icon" data-lucide="bar-chart-3" aria-hidden="true"></i>
-              <h2>Code Health</h2>
-            </div>
-          </div>
+        <aside class="health-panel">
+          <section id="overview-grid" class="overview-grid"></section>
           <div id="health-summary" class="health-summary"></div>
-          <h3 id="maintainability-subhead" class="section-subhead">
-            <i data-lucide="alert-triangle" aria-hidden="true"></i>
-            <span>Lowest Maintainability</span>
-          </h3>
-          <div id="file-scores" class="stack-list"></div>
-          <h3 id="coupling-subhead" class="section-subhead">
-            <i data-lucide="git-branch" aria-hidden="true"></i>
-            <span>Unusually Reused Files</span>
-          </h3>
-          <div id="coupling-files" class="stack-list"></div>
         </aside>
       </section>
+
+      <footer class="app-footer">
+        Code Scan 0.1.3 · Made with <a href="https://github.com/fallow-rs/fallow">Fallow 2.91.0</a>
+      </footer>
     </main>
 
     <script src="/vendor/lucide.js"></script>

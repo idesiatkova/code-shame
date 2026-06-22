@@ -91,13 +91,15 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
   assert.equal(report.status, "attention");
   assert.equal(report.hardFindings.count, 1);
   assert.equal(report.health.targets.length, 1);
-  assert.equal(report.overview.length, 3);
+  assert.equal(report.overview.length, 4);
   assert.equal(report.overview[0].label, "Blocking Findings");
   assert.equal(report.overview[0].value, report.hardFindings.count);
   assert.equal(report.overview[1].label, "Refactoring Suggestions");
   assert.equal(report.overview[1].value, report.health.targets.length);
-  assert.equal(report.overview[2].label, "Maintainability");
-  assert.equal(report.overview[2].tone, "good");
+  assert.equal(report.overview[2].label, "Unusually Reused Files");
+  assert.equal(report.overview[2].value, report.health.coupling.candidateCount);
+  assert.equal(report.overview[3].label, "Maintainability");
+  assert.equal(report.overview[3].tone, "good");
   assert.equal(report.check.entryPointCount, 3);
   assert.equal(report.check.sections[0].id, "duplicate_exports");
   assert.equal(report.check.sections[0].records[0].detail, "a.js:3 | b.js:7");
@@ -194,7 +196,7 @@ test("colors maintainability by score range", () => {
     }
   });
 
-  assert.equal(reportFor(80).overview[2].tone, "good");
-  assert.equal(reportFor(60).overview[2].tone, "warn");
-  assert.equal(reportFor(59.9).overview[2].tone, "critical");
+  assert.equal(reportFor(80).overview[3].tone, "good");
+  assert.equal(reportFor(60).overview[3].tone, "warn");
+  assert.equal(reportFor(59.9).overview[3].tone, "critical");
 });

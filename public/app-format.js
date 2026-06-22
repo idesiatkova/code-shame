@@ -1,11 +1,4 @@
 {
-  const STATUS_LABELS = {
-    failed: "Failed",
-    idle: "Idle",
-    ready: "Ready",
-    running: "Scanning"
-  };
-
   function effortTone(effort) {
     if (effort === "high") return "critical";
     if (effort === "medium") return "warn";
@@ -59,8 +52,7 @@
     const lines = [
       "Risk signals",
       `Functions over complexity limit: ${formatNumber(health.summary.functionsAboveThreshold)}`,
-      `90th percentile function complexity: ${formatNumber(health.vitalSigns.p90Cyclomatic)}`,
-      `Unusually reused files: ${formatCouplingSummary(health)}`
+      `90th percentile function complexity: ${formatNumber(health.vitalSigns.p90Cyclomatic)}`
     ];
     return `${lines.join("\n")}\n`;
   }
@@ -118,39 +110,48 @@
     return `${lines.join("\n")}\n`;
   }
 
-  function statusText(payload) {
-    if (payload.running) return "Scanning";
-    return statusLabel(payload.state);
+  function formatUnusuallyReusedFilesText(report) {
+    const coupling = report.health.coupling || {};
+    const candidates = Array.isArray(coupling.candidates) ? coupling.candidates : [];
+    const lines = ["Unusually reused files"];
+
+    if (candidates.length === 0) {
+      lines.push("- None");
+      return `${lines.join("\n")}\n`;
+    }
+
+    candidates.forEach((candidate) => {
+      const fanIn = formatNumber(candidate.fanIn);
+      const fanOut = formatNumber(candidate.fanOut);
+      lines.push(`- ${candidate.path}: ${formatNumber(candidate.lines)} lines of code; used by ${fanIn} ${pluralize("file", candidate.fanIn)}; uses ${fanOut} ${pluralize("file", candidate.fanOut)}`);
+    });
+    return `${lines.join("\n")}\n`;
   }
 
-  function runSummaryText(payload) {
-    if (!payload.report) return "No scan has run yet.";
-    const generatedAt = formatDate(payload.report.generatedAt || payload.finishedAt);
-    const seconds = Math.max(0.1, payload.report.durationMs / 1000).toFixed(1);
-    return `${generatedAt} · ${seconds} seconds · Fallow ${payload.report.version || "unknown"}`;
-  }
+  function formatLowestMaintainabilityText(report) {
+    const health = report.health;
+    const fileScores = Array.isArray(health.fileScores) ? health.fileScores : [];
+    const findingsByPath = health.findings.reduce((counts, finding) => {
+      counts.set(finding.path, (counts.get(finding.path) || 0) + 1);
+      return counts;
+    }, new Map());
+    const lines = ["Lowest maintainability"];
 
-  function runSummaryHtml(payload) {
-    if (!payload.report) return "No scan has run yet.";
-    const generatedAt = formatDate(payload.report.generatedAt || payload.finishedAt);
-    const seconds = Math.max(0.1, payload.report.durationMs / 1000).toFixed(1);
-    const version = payload.report.version || "unknown";
-    return `
-      <span class="run-summary-item"><i data-lucide="clock"></i>${generatedAt} · ${seconds} seconds</span>
-      <span class="run-summary-item"><i data-lucide="git-commit"></i>Fallow ${version}</span>
-    `;
-  }
+    if (fileScores.length === 0) {
+      lines.push("- None");
+      return `${lines.join("\n")}\n`;
+    }
 
-  function statusLabel(state) {
-    return STATUS_LABELS[state] || STATUS_LABELS.idle;
-  }
-
-  function formatDate(value) {
-    if (!value) return "No timestamp";
-    return new Intl.DateTimeFormat(undefined, {
-      dateStyle: "medium",
-      timeStyle: "medium"
-    }).format(new Date(value));
+    fileScores.forEach((score) => {
+      const findingCount = findingsByPath.get(score.path) || 0;
+      const details = [
+        `${formatNumber(score.lines)} lines of code`,
+        `maintainability ${Number(score.maintainability).toFixed(1)}`
+      ];
+      if (findingCount > 0) details.push(`${formatNumber(findingCount)} complexity ${findingCount === 1 ? "finding" : "findings"}`);
+      lines.push(`- ${score.path}: ${details.join("; ")}`);
+    });
+    return `${lines.join("\n")}\n`;
   }
 
   function appendCheckSections(lines, sections) {
@@ -184,13 +185,12 @@
     formatBlockingFindingsText,
     formatNumber,
     formatCouplingSummary,
+    formatLowestMaintainabilityText,
     formatRecommendation,
     formatRefactoringSuggestionsText,
     formatRiskSignalsText,
     formatReportText,
-    runSummaryHtml,
-    runSummaryText,
-    statusText,
+    formatUnusuallyReusedFilesText,
     thresholdTone
   };
 }
