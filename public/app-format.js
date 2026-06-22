@@ -1,4 +1,6 @@
 {
+  const MISSING_COUPLING_THRESHOLDS = new Set([null, undefined, ""]);
+
   function effortTone(effort) {
     if (effort === "high") return "critical";
     if (effort === "medium") return "warn";
@@ -107,8 +109,19 @@
   }
 
   function couplingThreshold(value, format) {
+    const number = couplingThresholdValue(value);
+    return number === null ? "" : format(number);
+  }
+
+  function couplingThresholdValue(value) {
+    if (MISSING_COUPLING_THRESHOLDS.has(value)) return null;
     const number = Number(value);
-    return Number.isFinite(number) ? format(number) : "";
+    return Number.isFinite(number) && number > 0 ? number : null;
+  }
+
+  function isAboveCouplingThreshold(value, threshold) {
+    const thresholdValue = couplingThresholdValue(threshold);
+    return thresholdValue !== null && Number(value) > thresholdValue;
   }
 
   function pluralize(word, count) {
@@ -207,6 +220,7 @@
     formatRiskSignalsText,
     formatReportText,
     formatCouplingText,
+    isAboveCouplingThreshold,
     thresholdTone
   };
 }

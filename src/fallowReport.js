@@ -156,8 +156,8 @@ function buildCouplingSummary(health, summary, vitalSigns, fileScores) {
   const scoredFileCount = numberOr(firstNumber([summary.filesScored, rawCounts.files_scored, fileScores.length]), 0);
   const highPercent = vitalSigns.couplingHighPercent;
   const estimatedHighFileCount = estimateFileCount(highPercent, scoredFileCount);
-  const fanInThreshold = optionalNumberField(rawVitalSigns, "p95_fan_in");
-  const fanOutThreshold = optionalNumberField(rawVitalSigns, "p95_fan_out");
+  const fanInThreshold = positiveNumberField(rawVitalSigns, "p95_fan_in");
+  const fanOutThreshold = positiveNumberField(rawVitalSigns, "p95_fan_out");
   const candidates = highCouplingCandidates(fileScores, fanInThreshold, fanOutThreshold);
 
   return {
@@ -316,9 +316,10 @@ function normalizeNumberFields(source, fields) {
   return Object.fromEntries(fields.map(([targetKey, sourceKey]) => [targetKey, numberOr(sourceObject[sourceKey], 0)]));
 }
 
-function optionalNumberField(source, key) {
+function positiveNumberField(source, key) {
   if (!Object.hasOwn(objectValue(source), key)) return null;
-  return finiteNumber(objectValue(source)[key]);
+  const number = finiteNumber(objectValue(source)[key]);
+  return number !== null && number > 0 ? number : null;
 }
 
 function cloneGroupCount(dupes, cloneGroups) {

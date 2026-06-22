@@ -921,7 +921,7 @@
 
   function couplingMetricHtml(label, value, threshold) {
     const count = Number(value) || 0;
-    const isAboveThreshold = Number.isFinite(Number(threshold)) && count > Number(threshold);
+    const isAboveThreshold = format.isAboveCouplingThreshold(count, threshold);
     return `
       <span class="complexity-badge coupling-badge ${isAboveThreshold ? "coupling-badge-high" : "coupling-badge-neutral"}">
         ${escapeHtml(`${label} ${format.formatNumber(count)} ${pluralize("file", count)}`)}

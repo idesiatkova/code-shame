@@ -155,6 +155,29 @@ test("limits maintainability list while keeping all high-coupling candidates", (
   );
 });
 
+test("ignores zero coupling percentile thresholds", () => {
+  const report = normalizeFallowReport({
+    check: { total_issues: 0, summary: {} },
+    dupes: { clone_groups: [], stats: { clone_groups: 0 } },
+    health: {
+      findings: [],
+      summary: { files_scored: 2 },
+      vital_signs: { p95_fan_in: 10, p95_fan_out: 0 },
+      file_scores: [
+        { path: "high-in.js", fan_in: 11, fan_out: 0, lines: 20 },
+        { path: "ordinary-out.js", fan_in: 0, fan_out: 1, lines: 20 }
+      ],
+      targets: []
+    }
+  });
+
+  assert.equal(report.health.coupling.fanOutThreshold, null);
+  assert.deepEqual(
+    report.health.coupling.candidates.map((candidate) => candidate.path),
+    ["high-in.js"]
+  );
+});
+
 test("combines dead code, duplication, and complexity into hard findings", () => {
   const report = normalizeFallowReport({
     check: {
