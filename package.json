@@ -1,6 +1,6 @@
 {
   "name": "code-shame",
-  "version": "0.2.0",
+  "version": "0.1.0",
   "description": "Local web dashboard for Fallow code analysis reports.",
   "main": "src/server.js",
   "bin": {
