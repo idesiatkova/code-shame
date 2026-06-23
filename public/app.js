@@ -1,7 +1,9 @@
 {
-  const AUTO_REFRESH_MS = 120000;
+  const AUTO_REFRESH_DEFAULT_MS = 300000;
+  const AUTO_REFRESH_INTERVALS = new Set([0, 10000, 30000, 60000, 300000]);
   const AUTO_REFRESH_TICK_MS = 250;
   const AUTO_REFRESH_COOKIE = "code_scan_auto_refresh";
+  const AUTO_REFRESH_INTERVAL_COOKIE = "code_shame_auto_refresh_interval";
   const AUTO_REFRESH_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
   const METRIC_HISTORY_LIMIT = 24;
   const METRIC_HISTOGRAM_MAX_HEIGHT = 78;
@@ -117,8 +119,6 @@
     ])
   });
   const elements = {
-    autoRefresh: document.getElementById("auto-refresh"),
-    autoRefreshControl: document.getElementById("auto-refresh-control"),
     autoRefreshProgress: document.getElementById("auto-refresh-progress"),
     blockingCount: document.getElementById("blocking-count"),
     checkSections: document.getElementById("check-sections"),
@@ -135,7 +135,11 @@
     maintainabilityCount: document.getElementById("maintainability-count"),
     maintainabilitySubhead: document.getElementById("maintainability-subhead"),
     overviewGrid: document.getElementById("overview-grid"),
+    refreshControl: document.getElementById("refresh-control"),
     refreshButton: document.getElementById("refresh-button"),
+    refreshMenu: document.getElementById("refresh-menu"),
+    refreshMenuOptions: Array.from(document.querySelectorAll(".refresh-menu-option")),
+    refreshMenuToggle: document.getElementById("refresh-menu-toggle"),
     targetCount: document.getElementById("target-count"),
     targetsList: document.getElementById("targets-list"),
     titleLogo: document.getElementById("title-logo")
@@ -146,21 +150,40 @@
   const icons = window.codeScanIcons;
   let autoRefreshTickId = null;
   let autoRefreshTimeoutId = null;
+  let autoRefreshIntervalMs = readAutoRefreshInterval();
   let latestReport = null;
   let nextAutoRefreshAt = 0;
   let runningPollId = null;
   let lastTitleLogoTapAt = 0;
 
-  elements.autoRefresh.checked = readAutoRefreshPreference();
   renderAutoRefreshProgress(0);
+  renderAutoRefreshInterval();
   syncTitleLogo();
 
   elements.refreshButton.addEventListener("click", () => {
+    setRefreshMenuOpen(false);
     requestScan().catch(showError);
   });
 
-  elements.autoRefresh.addEventListener("change", () => {
-    configureAutoRefresh();
+  elements.refreshMenuToggle.addEventListener("click", () => {
+    setRefreshMenuOpen(elements.refreshMenu.hidden);
+  });
+
+  elements.refreshMenuOptions.forEach((option) => {
+    option.addEventListener("click", () => {
+      configureAutoRefresh(Number(option.dataset.intervalMs));
+      setRefreshMenuOpen(false);
+    });
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (!elements.refreshControl.contains(event.target)) setRefreshMenuOpen(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || elements.refreshMenu.hidden) return;
+    setRefreshMenuOpen(false);
+    elements.refreshMenuToggle.focus();
   });
 
   elements.titleLogo.addEventListener("pointerup", () => {
@@ -223,11 +246,13 @@
     return payload;
   }
 
-  function configureAutoRefresh() {
-    writeAutoRefreshPreference(elements.autoRefresh.checked);
+  function configureAutoRefresh(intervalMs) {
+    autoRefreshIntervalMs = normalizeAutoRefreshInterval(intervalMs);
+    writeAutoRefreshInterval(autoRefreshIntervalMs);
     clearAutoRefreshSchedule();
+    renderAutoRefreshInterval();
 
-    if (elements.autoRefresh.checked) {
+    if (isAutoRefreshEnabled()) {
       scheduleNextAutoRefresh();
     } else {
       renderAutoRefreshProgress(0);
@@ -236,11 +261,12 @@
 
   function scheduleNextAutoRefresh() {
     clearAutoRefreshSchedule();
-    nextAutoRefreshAt = Date.now() + AUTO_REFRESH_MS;
+    if (!isAutoRefreshEnabled()) return;
+    nextAutoRefreshAt = Date.now() + autoRefreshIntervalMs;
     renderAutoRefreshProgress(0);
     autoRefreshTimeoutId = window.setTimeout(() => {
       requestScan().catch(showError);
-    }, AUTO_REFRESH_MS);
+    }, autoRefreshIntervalMs);
     autoRefreshTickId = window.setInterval(updateAutoRefreshProgress, AUTO_REFRESH_TICK_MS);
   }
 
@@ -253,31 +279,61 @@
   }
 
   function resetAutoRefreshSchedule() {
-    if (!elements.autoRefresh.checked) return;
+    if (!isAutoRefreshEnabled()) return;
     clearAutoRefreshSchedule();
     renderAutoRefreshProgress(1);
   }
 
   function updateAutoRefreshProgress() {
     const remainingMs = Math.max(0, nextAutoRefreshAt - Date.now());
-    const progress = 1 - remainingMs / AUTO_REFRESH_MS;
+    const progress = 1 - remainingMs / autoRefreshIntervalMs;
     renderAutoRefreshProgress(progress);
   }
 
   function renderAutoRefreshProgress(progress) {
     const clampedProgress = Math.max(0, Math.min(1, Number(progress) || 0));
-    elements.autoRefreshControl.classList.toggle("auto-refresh-on", elements.autoRefresh.checked);
-    elements.autoRefreshProgress.style.setProperty("--auto-refresh-progress", `${Math.round(clampedProgress * 100)}%`);
+    elements.refreshControl.classList.toggle("auto-refresh-on", isAutoRefreshEnabled());
+    elements.refreshControl.style.setProperty("--auto-refresh-progress", clampedProgress);
   }
 
-  function readAutoRefreshPreference() {
-    const cookie = document.cookie.split("; ").find((entry) => entry.startsWith(`${AUTO_REFRESH_COOKIE}=`));
-    return cookie === `${AUTO_REFRESH_COOKIE}=true`;
+  function renderAutoRefreshInterval() {
+    elements.refreshMenuOptions.forEach((option) => {
+      const isSelected = Number(option.dataset.intervalMs) === autoRefreshIntervalMs;
+      option.classList.toggle("is-selected", isSelected);
+      option.setAttribute("aria-checked", String(isSelected));
+    });
+    renderAutoRefreshProgress(0);
   }
 
-  function writeAutoRefreshPreference(isEnabled) {
+  function setRefreshMenuOpen(isOpen) {
+    elements.refreshMenu.hidden = !isOpen;
+    elements.refreshControl.classList.toggle("is-menu-open", isOpen);
+    elements.refreshMenuToggle.setAttribute("aria-expanded", String(isOpen));
+  }
+
+  function isAutoRefreshEnabled() {
+    return autoRefreshIntervalMs > 0;
+  }
+
+  function normalizeAutoRefreshInterval(value) {
+    const intervalMs = Number(value);
+    return AUTO_REFRESH_INTERVALS.has(intervalMs) ? intervalMs : 0;
+  }
+
+  function readAutoRefreshInterval() {
+    const intervalCookie = readCookie(AUTO_REFRESH_INTERVAL_COOKIE);
+    if (intervalCookie !== null) return normalizeAutoRefreshInterval(intervalCookie);
+    return readCookie(AUTO_REFRESH_COOKIE) === "true" ? AUTO_REFRESH_DEFAULT_MS : 0;
+  }
+
+  function readCookie(name) {
+    const cookie = document.cookie.split("; ").find((entry) => entry.startsWith(`${name}=`));
+    return cookie ? decodeURIComponent(cookie.slice(name.length + 1)) : null;
+  }
+
+  function writeAutoRefreshInterval(intervalMs) {
     document.cookie = [
-      `${AUTO_REFRESH_COOKIE}=${isEnabled}`,
+      `${AUTO_REFRESH_INTERVAL_COOKIE}=${intervalMs}`,
       `max-age=${AUTO_REFRESH_COOKIE_MAX_AGE_SECONDS}`,
       "path=/",
       "samesite=strict"
@@ -303,7 +359,7 @@
 
   function completeScan() {
     setButtonBusy(false);
-    if (elements.autoRefresh.checked && !autoRefreshTimeoutId) scheduleNextAutoRefresh();
+    if (isAutoRefreshEnabled() && !autoRefreshTimeoutId) scheduleNextAutoRefresh();
   }
 
   function renderPayload(payload) {
@@ -974,7 +1030,7 @@
 
   function setButtonBusy(isBusy) {
     elements.refreshButton.disabled = isBusy;
-    icons.setButtonLabel(elements.refreshButton, isBusy ? "Scanning" : "Refresh");
+    icons.setButtonLabel(elements.refreshButton, "Refresh");
     elements.refreshButton.classList.toggle("is-spinning", isBusy);
   }
 
@@ -1010,7 +1066,7 @@
 
   function showError(error) {
     setButtonBusy(false);
-    if (elements.autoRefresh.checked && !autoRefreshTimeoutId) scheduleNextAutoRefresh();
+    if (isAutoRefreshEnabled() && !autoRefreshTimeoutId) scheduleNextAutoRefresh();
     renderError(error.message || String(error));
   }
 

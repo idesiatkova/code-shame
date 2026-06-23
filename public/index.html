@@ -19,19 +19,51 @@
           </div>
         </div>
         <div class="toolbar">
-          <label id="auto-refresh-control" class="auto-refresh">
-            <input id="auto-refresh" class="auto-refresh-input" type="checkbox">
-            <span id="auto-refresh-progress" class="auto-refresh-ring" aria-hidden="true"></span>
-            <span class="button-label">Auto refresh</span>
-          </label>
           <button id="copy-report" class="secondary-button icon-button" type="button" disabled>
             <i data-lucide="copy" aria-hidden="true"></i>
             <span class="button-label">Copy report</span>
           </button>
-          <button id="refresh-button" class="icon-button" type="button">
-            <i data-lucide="refresh-cw" aria-hidden="true"></i>
-            <span class="button-label">Refresh</span>
-          </button>
+          <div id="refresh-control" class="refresh-control">
+            <button id="refresh-button" class="refresh-main icon-button" type="button">
+              <i data-lucide="refresh-cw" aria-hidden="true"></i>
+              <span class="button-label">Refresh</span>
+            </button>
+            <button
+              id="refresh-menu-toggle"
+              class="refresh-menu-toggle"
+              type="button"
+              aria-label="Choose auto-refresh interval"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="refresh-menu"
+            >
+              <i data-lucide="chevron-down" aria-hidden="true"></i>
+            </button>
+            <span id="auto-refresh-progress" class="auto-refresh-progress" aria-hidden="true"></span>
+            <div id="refresh-menu" class="refresh-menu" role="menu" hidden>
+              <div class="refresh-menu-heading">Auto-refresh interval</div>
+              <button class="refresh-menu-option" type="button" role="menuitemradio" data-interval-ms="0">
+                <span>Off</span>
+                <i data-lucide="check" aria-hidden="true"></i>
+              </button>
+              <button class="refresh-menu-option" type="button" role="menuitemradio" data-interval-ms="10000">
+                <span>10 seconds</span>
+                <i data-lucide="check" aria-hidden="true"></i>
+              </button>
+              <button class="refresh-menu-option" type="button" role="menuitemradio" data-interval-ms="30000">
+                <span>30 seconds</span>
+                <i data-lucide="check" aria-hidden="true"></i>
+              </button>
+              <button class="refresh-menu-option" type="button" role="menuitemradio" data-interval-ms="60000">
+                <span>1 minute</span>
+                <i data-lucide="check" aria-hidden="true"></i>
+              </button>
+              <button class="refresh-menu-option" type="button" role="menuitemradio" data-interval-ms="300000">
+                <span>5 minutes</span>
+                <i data-lucide="check" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
