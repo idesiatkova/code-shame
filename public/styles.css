@@ -160,16 +160,19 @@ h3 {
   outline-offset: 3px;
 }
 
-.title-icon {
+.title-icon,
+.title-logo-demo {
   width: 32px;
   height: 32px;
+}
+
+.title-icon {
   color: var(--good);
 }
 
 .title-logo-demo {
   display: none;
-  font-size: 29px;
-  line-height: 1;
+  color: var(--warn);
 }
 
 .title-logo.is-demo .title-icon {
@@ -307,6 +310,7 @@ h3 {
   position: relative;
   overflow: hidden;
   color: inherit;
+  min-height: 87px;
   padding: 14px;
   text-decoration: none;
   transition:
@@ -384,6 +388,36 @@ h3 {
   font-weight: 700;
 }
 
+.metric > .metric-shame-text {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.metric > .metric-value-row {
+  position: absolute;
+  left: 14px;
+  bottom: 11px;
+  margin-top: 0;
+}
+
+.metric-shame-text-good,
+.metric-shame-text-neutral {
+  color: var(--good);
+}
+
+.metric-shame-text-warn {
+  color: var(--warn);
+}
+
+.metric-shame-text-critical {
+  color: var(--critical);
+}
+
 .metric-value-row {
   display: flex;
   align-items: flex-end;
@@ -404,6 +438,7 @@ h3 {
   gap: 2px;
   width: fit-content;
   margin-bottom: 2px;
+  transform: translateY(-1px);
   color: var(--ink);
   font-size: 12px;
   font-weight: 400;
@@ -433,7 +468,8 @@ h3 {
 }
 
 .metric-maintainability .metric-value,
-.metric-maintainability .metric-icon {
+.metric-maintainability .metric-icon,
+.metric-maintainability .metric-shame-text {
   color: var(--ink);
 }
 
@@ -444,7 +480,8 @@ h3 {
 }
 
 .metric-blocking-findings .metric-value,
-.metric-blocking-findings .metric-icon {
+.metric-blocking-findings .metric-icon,
+.metric-blocking-findings .metric-shame-text {
   color: var(--critical);
 }
 
@@ -455,7 +492,8 @@ h3 {
 }
 
 .metric-refactoring-suggestions .metric-value,
-.metric-refactoring-suggestions .metric-icon {
+.metric-refactoring-suggestions .metric-icon,
+.metric-refactoring-suggestions .metric-shame-text {
   color: var(--refactoring);
 }
 
@@ -466,7 +504,8 @@ h3 {
 }
 
 .metric-unusually-reused-files .metric-value,
-.metric-unusually-reused-files .metric-icon {
+.metric-unusually-reused-files .metric-icon,
+.metric-unusually-reused-files .metric-shame-text {
   color: var(--coupling);
 }
 

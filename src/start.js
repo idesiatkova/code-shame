@@ -31,7 +31,7 @@ function stopProcess(pid) {
     process.kill(pid, "SIGTERM");
   } catch (error) {
     if (error.code === "EPERM") {
-      throw new Error(`Cannot stop previous Code Scan process ${pid}. Stop it once, then rerun npm run code-scan.`);
+      throw new Error(`Cannot stop previous Code Shame process ${pid}. Stop it once, then rerun npx code-shame.`);
     }
     throw error;
   }
@@ -71,7 +71,7 @@ async function waitForExit(pid) {
   }
 
   if (isProcessRunning(pid)) {
-    throw new Error(`Could not stop previous Code Scan process ${pid}.`);
+    throw new Error(`Could not stop previous Code Shame process ${pid}.`);
   }
 }
 

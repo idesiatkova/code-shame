@@ -8,6 +8,12 @@
     return "neutral";
   }
 
+  function shameLabel(tone) {
+    if (tone === "critical") return "Secondhand embarrassment";
+    if (tone === "warn") return "A little shame";
+    return "No shame";
+  }
+
   function formatNumber(value) {
     return new Intl.NumberFormat().format(Number(value) || 0);
   }
@@ -29,7 +35,7 @@
 
   function formatReportText(report) {
     const lines = [
-      "Code Scan",
+      "Code Shame",
       `Generated: ${report.generatedAt}`,
       `Status: ${report.status}`,
       `Blocking findings: ${report.hardFindings.count}`,
@@ -221,6 +227,7 @@
     formatReportText,
     formatCouplingText,
     isAboveCouplingThreshold,
+    shameLabel,
     thresholdTone
   };
 }

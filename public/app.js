@@ -440,6 +440,7 @@
         ${metricValueHtml(item)}
         ${metricDeltaHtml(item, previousValue)}
       </div>
+      <div class="metric-shame-text metric-shame-text-${escapeHtml(item.tone)}">${escapeHtml(format.shameLabel(item.tone))}</div>
     `;
 
     if (histogram) {

@@ -280,14 +280,14 @@ function attachServerErrorHandler(server, port) {
 function listenOnPort(server, port) {
   server.listen(port, HOST, () => {
     writePidFile();
-    console.log(`Code Scan: http://${HOST}:${port}`);
+    console.log(`Code Shame: http://${HOST}:${port}`);
     console.log(`Project: ${PROJECT_ROOT}`);
   });
 }
 
 function handleServerError(port, error) {
   const message = error.code === "EADDRINUSE"
-    ? `Code Scan could not start: http://${HOST}:${port} is already in use.`
+    ? `Code Shame could not start: http://${HOST}:${port} is already in use.`
     : error.stack || error.message || String(error);
   console.error(message);
   process.exitCode = 1;

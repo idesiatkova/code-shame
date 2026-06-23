@@ -5,7 +5,7 @@ const os = require("node:os");
 const PACKAGE_ROOT = path.resolve(__dirname, "..");
 const PROJECT_ROOT = path.resolve(process.env.CODE_SCAN_ROOT || process.cwd());
 const PUBLIC_ROOT = path.resolve(__dirname, "../public");
-const PID_FILE_PATH = path.join(os.tmpdir(), `code-scan-${projectHash(PROJECT_ROOT)}.pid`);
+const PID_FILE_PATH = path.join(os.tmpdir(), `code-shame-${projectHash(PROJECT_ROOT)}.pid`);
 
 function projectHash(projectRoot) {
   return crypto.createHash("sha256").update(projectRoot).digest("hex").slice(0, 12);
