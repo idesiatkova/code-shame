@@ -6,7 +6,7 @@ const { normalizeFallowReport } = require("../src/fallowReport");
 test("normalizes combined Fallow report into compact dashboard state", () => {
   const report = normalizeFallowReport(
     {
-      version: "2.91.0",
+      version: "3.7.1",
       elapsed_ms: 25,
       check: {
         total_issues: 1,
@@ -115,7 +115,7 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
 
 test("marks reports without attention issues as clear", () => {
   const report = normalizeFallowReport({
-    version: "2.91.0",
+    version: "3.7.1",
     check: { total_issues: 0, summary: {} },
     dupes: { clone_groups: [], stats: { clone_groups: 0 } },
     health: { findings: [], summary: {}, vital_signs: {}, file_scores: [], targets: [] }

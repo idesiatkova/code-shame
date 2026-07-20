@@ -30,7 +30,7 @@ HOST=0.0.0.0 PORT=5180 npx code-shame
 
 ## Requirements
 
-- Node.js 18 or newer
+- Node.js 22 or newer
 - A JavaScript or TypeScript project supported by Fallow
 
 Fallow is installed as a package dependency, so users do not need to install it

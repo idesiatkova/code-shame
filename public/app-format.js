@@ -35,7 +35,7 @@
 
   function formatReportText(report) {
     const lines = [
-      "Code Shame",
+      "Fallow report",
       `Generated: ${report.generatedAt}`,
       `Status: ${report.status}`,
       `Blocking findings: ${report.hardFindings.count}`,

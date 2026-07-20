@@ -38,10 +38,10 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
-    "fallow": "2.91.0",
+    "fallow": "3.7.1",
     "lucide": "1.21.0"
   }
 }
