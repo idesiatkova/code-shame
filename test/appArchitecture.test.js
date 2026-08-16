@@ -36,3 +36,33 @@ test("keeps the architecture map fixed in place", () => {
   assert.equal(options.userPanningEnabled, false);
   assert.equal(options.boxSelectionEnabled, false);
 });
+
+test("keeps compound layer bounds from overlapping", () => {
+  const model = architecture.createDemoModel();
+  const positions = architecture.calculatePositions(model.nodes, 1100);
+  const layerBounds = model.nodes
+    .filter((node) => node.type === "layer")
+    .map((layerNode) => {
+      const childPositions = model.nodes
+        .filter((node) => node.parent === layerNode.id)
+        .map((node) => positions.get(node.id));
+      const xs = childPositions.map((position) => position.x);
+      const ys = childPositions.map((position) => position.y);
+      return {
+        left: Math.min(...xs) - 99,
+        right: Math.max(...xs) + 99,
+        top: Math.min(...ys) - 52,
+        bottom: Math.max(...ys) + 52
+      };
+    });
+
+  layerBounds.forEach((bounds, index) => {
+    layerBounds.slice(index + 1).forEach((other) => {
+      const separated = bounds.right <= other.left
+        || other.right <= bounds.left
+        || bounds.bottom <= other.top
+        || other.bottom <= bounds.top;
+      assert.equal(separated, true);
+    });
+  });
+});

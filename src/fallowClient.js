@@ -57,6 +57,5 @@ class FallowClient {
 }
 
 module.exports = {
-  FallowClient,
-  JSON_OUTPUT_ARGS
+  FallowClient
 };

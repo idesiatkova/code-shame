@@ -1,7 +1,8 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const { ProjectArchitectureAnalyzer, mapConcurrent } = require("../src/architectureAnalyzer");
+const { ProjectArchitectureAnalyzer } = require("../src/architectureAnalyzer");
+const { mapConcurrent } = require("../src/concurrency");
 
 test("architecture analyzer composes Fallow list, config, and inspect queries", async () => {
   const inspected = [];

@@ -3,7 +3,7 @@
   const NODE_HEIGHT = 48;
   const CHILD_GAP_X = 18;
   const CHILD_GAP_Y = 26;
-  const GROUP_GAP = 34;
+  const GROUP_GAP = 48;
   const GROUP_PADDING_X = 28;
   const GROUP_PADDING_Y = 78;
 
@@ -87,14 +87,18 @@
 
   function calculatePositions(nodes, containerWidth) {
     const layers = nodes.filter((node) => node.type === "layer");
-    const childrenByParent = groupBy(
-      nodes.filter((node) => node.type !== "layer"),
-      (node) => node.parent
-    );
+    const childrenByParent = new Map();
+    nodes.filter((node) => node.type !== "layer").forEach((node) => {
+      const siblings = childrenByParent.get(node.parent);
+      if (siblings) siblings.push(node);
+      else childrenByParent.set(node.parent, [node]);
+    });
     const columns = containerWidth >= 960 ? 3 : containerWidth >= 640 ? 2 : 1;
     const availableWidth = Math.max(320, containerWidth - GROUP_GAP * (columns + 1));
-    const groupWidth = Math.max(300, Math.floor(availableWidth / columns));
-    const childColumns = groupWidth >= 320 ? 2 : 1;
+    const targetGroupWidth = Math.floor(availableWidth / columns);
+    const childColumns = columns > 1 ? 2 : 1;
+    const contentWidth = childColumns * NODE_WIDTH + (childColumns - 1) * CHILD_GAP_X;
+    const groupWidth = Math.max(300, targetGroupWidth, contentWidth + GROUP_PADDING_X * 2);
     const positions = new Map();
     let rowTop = GROUP_GAP;
 
@@ -108,7 +112,6 @@
       rowLayers.forEach((layerNode, columnIndex) => {
         const children = childrenByParent.get(layerNode.id) || [];
         const centerX = GROUP_GAP + columnIndex * (groupWidth + GROUP_GAP) + groupWidth / 2;
-        const contentWidth = childColumns * NODE_WIDTH + (childColumns - 1) * CHILD_GAP_X;
         const left = centerX - contentWidth / 2 + NODE_WIDTH / 2;
         const top = rowTop + GROUP_PADDING_Y;
 
@@ -445,15 +448,6 @@
     return {
       styles: "#5fb57d", state: "#b47cff", ui: "#5aa7ff", api: "#e0a84f", domain: "#df6d63", tests: "#58c6c8"
     }[layerId] || "#8794a8";
-  }
-
-  function groupBy(values, keyFor) {
-    return values.reduce((groups, value) => {
-      const key = keyFor(value);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(value);
-      return groups;
-    }, new Map());
   }
 
   function formatNumber(value) {

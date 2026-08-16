@@ -1,10 +1,23 @@
 {
-  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "$schema": "./node_modules/fallow/schema.json",
   "entry": [
     "src/start.js",
     "public/index.html"
   ],
   "ignoreUnresolvedImports": [
+    "/vendor/cytoscape.js",
     "/vendor/lucide.js"
-  ]
+  ],
+  "ignoreExports": [
+    {
+      "file": "src/projectArchitecture.js",
+      "exports": [
+        "DEFAULT_NODE_CONTRIBUTORS",
+        "DEFAULT_RELATIONSHIP_PROVIDERS"
+      ]
+    }
+  ],
+  "health": {
+    "maxCrap": 100
+  }
 }

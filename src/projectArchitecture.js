@@ -433,14 +433,10 @@ function stringValue(value) {
 }
 
 module.exports = {
-  DEFAULT_LAYER_DEFINITIONS,
   DEFAULT_MAX_FILES,
   DEFAULT_NODE_CONTRIBUTORS,
   DEFAULT_RELATIONSHIP_PROVIDERS,
   GraphModelBuilder,
   buildProjectArchitecture,
-  createArchitecturePlan,
-  createLayerClassifier,
-  fileNodeId,
-  layerNodeId
+  createArchitecturePlan
 };

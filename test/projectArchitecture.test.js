@@ -4,8 +4,7 @@ const test = require("node:test");
 const {
   GraphModelBuilder,
   buildProjectArchitecture,
-  createArchitecturePlan,
-  fileNodeId
+  createArchitecturePlan
 } = require("../src/projectArchitecture");
 
 test("classifies discovered files into architectural layers", () => {
@@ -73,7 +72,7 @@ test("builds compound nodes and de-duplicated cross-layer import edges", () => {
   const graph = buildProjectArchitecture(plan, inspections);
 
   assert.ok(graph.nodes.some((node) => node.type === "layer" && node.layerId === "ui"));
-  assert.ok(graph.nodes.some((node) => node.type === "file" && node.id === fileNodeId("src/components/Button.js")));
+  assert.ok(graph.nodes.some((node) => node.type === "file" && node.id === "file:src/components/Button.js"));
   assert.equal(graph.edges.length, 2);
   assert.equal(graph.edges.every((edge) => edge.type === "imports"), true);
   assert.equal(graph.edges.every((edge) => edge.crossLayer), true);

@@ -140,7 +140,8 @@ function resolveLucideScriptPath() {
 }
 
 function resolveCytoscapeScriptPath() {
-  return require.resolve("cytoscape/dist/cytoscape.min.js");
+  const manifestPath = require.resolve("cytoscape/package.json");
+  return path.join(path.dirname(manifestPath), "dist", "cytoscape.min.js");
 }
 
 async function handleHealthApi(_request, response) {

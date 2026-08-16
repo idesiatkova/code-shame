@@ -37,6 +37,5 @@ async function runEnricher(enricher, context) {
 }
 
 module.exports = {
-  AnalysisPipeline,
-  runEnricher
+  AnalysisPipeline
 };

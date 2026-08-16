@@ -11,7 +11,7 @@ The application has four layers:
 | Layer | Modules | Responsibility |
 | --- | --- | --- |
 | HTTP runtime | `src/server.js`, `src/start.js` | Starts scans, stores the latest snapshot, exposes the API, and serves static assets. |
-| Analysis | `src/fallowClient.js`, `src/analysisPipeline.js`, `src/architectureAnalyzer.js` | Runs Fallow, normalizes its primary report, and composes optional report enrichers. |
+| Analysis | `src/fallowClient.js`, `src/analysisPipeline.js`, `src/architectureAnalyzer.js`, `src/concurrency.js` | Runs Fallow, normalizes its primary report, composes optional report enrichers, and bounds concurrent file inspection. |
 | Graph model | `src/projectArchitecture.js` | Classifies files, selects visible files, and builds a renderer-independent graph. |
 | Presentation | `public/app.js`, `public/app-navigation.js`, `public/app-architecture.js`, `public/styles.css` | Switches between the report and project-structure pages, renders data, and adapts the graph model to Cytoscape.js. |
 
