@@ -2,18 +2,25 @@ const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
 const { URL } = require("node:url");
 
+const { AnalysisPipeline } = require("./analysisPipeline");
+const { ProjectArchitectureAnalyzer } = require("./architectureAnalyzer");
+const { FallowClient } = require("./fallowClient");
 const { resolveFallowBinary } = require("./fallowBinary");
 const { normalizeFallowReport } = require("./fallowReport");
 const { PACKAGE_ROOT, PID_FILE_PATH, PROJECT_ROOT, resolvePublicPath } = require("./paths");
 
 const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 5179);
-const FALLOW_ARGS = ["--format", "json", "--quiet"];
 const COMMAND_LABEL = "fallow --format json --quiet";
+const ARCHITECTURE_MAX_FILES = Number(process.env.ARCHITECTURE_MAX_FILES || 48);
+const CYTOSCAPE_SCRIPT_PATH = resolveCytoscapeScriptPath();
 const LUCIDE_SCRIPT_PATH = resolveLucideScriptPath();
+const VENDOR_SCRIPT_PATHS = new Map([
+  ["/vendor/cytoscape.js", CYTOSCAPE_SCRIPT_PATH],
+  ["/vendor/lucide.js", LUCIDE_SCRIPT_PATH]
+]);
 
 let activeScan = null;
 let latestSnapshot = {
@@ -91,48 +98,36 @@ function startFallowScan() {
   return currentPayload();
 }
 
-function runFallow(startedAt) {
-  return new Promise((resolve, reject) => {
-    let command;
-    try {
-      command = resolveFallowBinary(PACKAGE_ROOT);
-    } catch (error) {
-      reject(error);
-      return;
-    }
-
-    const child = spawn(command, FALLOW_ARGS, {
-      cwd: PROJECT_ROOT,
-      env: process.env,
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-    const stdout = [];
-    const stderr = [];
-
-    child.stdout.on("data", (chunk) => stdout.push(chunk));
-    child.stderr.on("data", (chunk) => stderr.push(chunk));
-    child.once("error", reject);
-    child.once("close", (exitCode) => {
-      const finishedAt = Date.now();
-      const output = Buffer.concat(stdout).toString("utf8");
-      const errorText = Buffer.concat(stderr).toString("utf8").trim();
-
-      try {
-        const parsedReport = JSON.parse(output);
-        resolve(
-          normalizeFallowReport(parsedReport, {
-            command: COMMAND_LABEL,
-            durationMs: finishedAt - startedAt.getTime(),
-            exitCode,
-            generatedAt: new Date(finishedAt).toISOString()
-          })
-        );
-      } catch (error) {
-        const detail = errorText ? `${error.message}: ${errorText}` : error.message;
-        reject(new Error(`Could not parse Fallow JSON output. ${detail}`));
-      }
-    });
+async function runFallow(startedAt) {
+  const client = new FallowClient({
+    binaryPath: resolveFallowBinary(PACKAGE_ROOT),
+    cwd: PROJECT_ROOT
   });
+  const architectureAnalyzer = new ProjectArchitectureAnalyzer({
+    client,
+    maxFiles: ARCHITECTURE_MAX_FILES
+  });
+  let finishedAt = startedAt.getTime();
+  const pipeline = new AnalysisPipeline({
+    runPrimary: async () => {
+      const result = await client.analyze();
+      finishedAt = Date.now();
+      return result;
+    },
+    normalizePrimary: (rawReport, meta) => normalizeFallowReport(rawReport, {
+      ...meta,
+      command: COMMAND_LABEL,
+      durationMs: finishedAt - startedAt.getTime(),
+      generatedAt: new Date(finishedAt).toISOString()
+    }),
+    enrichers: [{
+      key: "architecture",
+      analyze: (context) => architectureAnalyzer.analyze(context),
+      fallback: (error) => architectureAnalyzer.fallback(error)
+    }]
+  });
+
+  return pipeline.run();
 }
 
 function resolveLucideScriptPath() {
@@ -142,6 +137,10 @@ function resolveLucideScriptPath() {
     const manifestPath = require.resolve("lucide/package.json");
     return path.join(path.dirname(manifestPath), "dist", "umd", "lucide.min.js");
   }
+}
+
+function resolveCytoscapeScriptPath() {
+  return require.resolve("cytoscape/dist/cytoscape.min.js");
 }
 
 async function handleHealthApi(_request, response) {
@@ -167,9 +166,7 @@ async function handleApi(request, response) {
 }
 
 async function serveStatic(response, pathname) {
-  const filePath = pathname === "/vendor/lucide.js"
-    ? LUCIDE_SCRIPT_PATH
-    : resolvePublicPath(pathname);
+  const filePath = VENDOR_SCRIPT_PATHS.get(pathname) || resolvePublicPath(pathname);
   const content = await readStatic(filePath);
 
   if (!content) {

@@ -186,11 +186,71 @@ h3 {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 20px;
 }
 
 .toolbar > * {
   white-space: nowrap;
+}
+
+.page-control {
+  position: relative;
+}
+
+.page-menu-toggle {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 40px;
+  gap: 6px;
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 8px 2px;
+}
+
+.page-menu-toggle:hover,
+.page-menu-toggle:focus-visible,
+.page-control.is-menu-open .page-menu-toggle {
+  background: transparent;
+  color: var(--ink);
+}
+
+.page-menu-toggle:focus-visible {
+  outline: 2px solid rgba(90, 167, 255, 0.72);
+  outline-offset: 3px;
+}
+
+.page-menu-toggle .page-menu-chevron {
+  width: 17px;
+  height: 17px;
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.page-control.is-menu-open .page-menu-chevron {
+  transform: rotate(180deg);
+}
+
+.page-menu {
+  right: auto;
+  left: 0;
+  width: 230px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 20px;
+  border-left: 1px solid var(--border);
+}
+
+.page-view[hidden] {
+  display: none;
 }
 
 .refresh-control {
@@ -1051,6 +1111,137 @@ li {
   grid-column: 1 / -1;
 }
 
+.architecture-panel {
+  border-color: rgba(90, 167, 255, 0.5);
+  overflow: hidden;
+}
+
+.architecture-header {
+  align-items: flex-start;
+}
+
+.section-title-architecture {
+  color: #5aa7ff;
+}
+
+.architecture-stats {
+  min-height: 18px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.architecture-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.architecture-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  border: 1px solid color-mix(in srgb, var(--layer-color) 45%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--layer-color) 9%, var(--control));
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  padding: 5px 9px;
+}
+
+.architecture-legend-item::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--layer-color);
+  content: "";
+}
+
+.architecture-legend-item:hover,
+.architecture-legend-item:focus-visible {
+  color: var(--ink);
+  outline: none;
+}
+
+.architecture-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.architecture-graph,
+.architecture-details {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(90, 167, 255, 0.06), transparent 32%),
+    #151916;
+}
+
+.architecture-graph {
+  position: relative;
+  min-width: 0;
+  height: 620px;
+  overflow: hidden;
+}
+
+.architecture-graph canvas {
+  cursor: default;
+}
+
+.architecture-empty {
+  height: 100%;
+  min-height: 220px;
+  border: 0;
+  background: transparent;
+}
+
+.architecture-details {
+  align-self: start;
+  min-height: 180px;
+  padding: 14px;
+}
+
+.architecture-details h3 {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.architecture-details > p {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.architecture-detail-path {
+  color: #8bbcff;
+}
+
+.architecture-details dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  margin: 16px 0 0;
+  font-size: 12px;
+}
+
+.architecture-details dt {
+  color: var(--muted);
+}
+
+.architecture-details dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: 650;
+  text-align: right;
+}
+
 .copy-buffer {
   position: fixed;
   left: -9999px;
@@ -1064,6 +1255,14 @@ li {
 }
 
 @media (max-width: 1100px) {
+  .architecture-body {
+    grid-template-columns: 1fr;
+  }
+
+  .architecture-details {
+    min-height: 0;
+  }
+
   .analysis-grid {
     grid-template-columns: 1fr;
   }
@@ -1094,6 +1293,15 @@ li {
     flex-direction: column;
   }
 
+  .toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding-top: 12px;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
   .overview-grid,
   .analysis-grid,
   .target-grid,
@@ -1101,9 +1309,22 @@ li {
     grid-template-columns: 1fr;
   }
 
+  .architecture-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .architecture-graph {
+    height: 520px;
+  }
+
   .refresh-control {
     align-self: stretch;
     grid-template-columns: 1fr 42px;
+  }
+
+  .page-menu {
+    width: 100%;
   }
 
   .health-row span:last-child {

@@ -10,6 +10,7 @@
     "assets",
     "public",
     "src",
+    "ARCHITECTURE.md",
     "README.md"
   ],
   "scripts": {
@@ -41,7 +42,9 @@
     "node": ">=22"
   },
   "dependencies": {
+    "cytoscape": "3.34.0",
     "fallow": "3.7.1",
-    "lucide": "1.21.0"
+    "lucide": "1.21.0",
+    "minimatch": "10.2.5"
   }
 }

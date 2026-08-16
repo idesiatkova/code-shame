@@ -23,10 +23,17 @@ HOST=0.0.0.0 PORT=5180 npx code-shame
 
 ## What It Shows
 
+- An interactive project structure map grouped into architectural layers
 - Blocking Findings from Fallow checks
 - Refactoring Suggestions from maintainability analysis
 - Code Health metrics and lowest maintainability files
 - Copyable text reports for sharing findings
+
+The project map uses configured Fallow boundary zones when available and falls
+back to automatic categories such as styles/design system, state stores, UI,
+API/data, domain, tests, server, and tooling. Open it as a separate page from the
+toolbar page selector. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the graph model
+and extension points.
 
 ## Requirements
 

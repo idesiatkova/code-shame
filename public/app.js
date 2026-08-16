@@ -119,6 +119,11 @@
     ])
   });
   const elements = {
+    architectureDetails: document.getElementById("architecture-details"),
+    architectureFit: document.getElementById("architecture-fit"),
+    architectureGraph: document.getElementById("architecture-graph"),
+    architectureLegend: document.getElementById("architecture-legend"),
+    architectureStats: document.getElementById("architecture-stats"),
     autoRefreshProgress: document.getElementById("auto-refresh-progress"),
     blockingCount: document.getElementById("blocking-count"),
     checkSections: document.getElementById("check-sections"),
@@ -135,19 +140,46 @@
     maintainabilityCount: document.getElementById("maintainability-count"),
     maintainabilitySubhead: document.getElementById("maintainability-subhead"),
     overviewGrid: document.getElementById("overview-grid"),
+    pageControl: document.getElementById("page-control"),
+    pageMenu: document.getElementById("page-menu"),
+    pageMenuLabel: document.getElementById("page-menu-label"),
+    pageMenuOptions: Array.from(document.querySelectorAll(".page-menu-option")),
+    pageMenuToggle: document.getElementById("page-menu-toggle"),
     refreshControl: document.getElementById("refresh-control"),
     refreshButton: document.getElementById("refresh-button"),
     refreshMenu: document.getElementById("refresh-menu"),
     refreshMenuOptions: Array.from(document.querySelectorAll(".refresh-menu-option")),
     refreshMenuToggle: document.getElementById("refresh-menu-toggle"),
+    reportPage: document.getElementById("report-page"),
     targetCount: document.getElementById("target-count"),
     targetsList: document.getElementById("targets-list"),
-    titleLogo: document.getElementById("title-logo")
+    titleLogo: document.getElementById("title-logo"),
+    architecturePage: document.getElementById("architecture-page")
   };
   const format = window.codeScanFormat;
   const copy = window.codeScanCopy;
   const findings = window.codeScanFindings;
   const icons = window.codeScanIcons;
+  const architecture = window.codeShameArchitecture;
+  const navigation = window.codeShameNavigation;
+  const pageNavigation = navigation.createController({
+    architecturePage: elements.architecturePage,
+    control: elements.pageControl,
+    document,
+    label: elements.pageMenuLabel,
+    location: window.location,
+    menu: elements.pageMenu,
+    options: elements.pageMenuOptions,
+    reportPage: elements.reportPage,
+    toggle: elements.pageMenuToggle
+  });
+  const architectureRenderer = architecture.createRenderer({
+    container: elements.architectureGraph,
+    details: elements.architectureDetails,
+    fitButton: elements.architectureFit,
+    legend: elements.architectureLegend,
+    stats: elements.architectureStats
+  });
   let autoRefreshTickId = null;
   let autoRefreshTimeoutId = null;
   let autoRefreshIntervalMs = readAutoRefreshInterval();
@@ -373,6 +405,7 @@
     renderHardFindings(report.hardFindings);
     renderHealth(report.health);
     renderTargets(report.health.targets);
+    if (pageNavigation.isArchitecturePage) architectureRenderer.render(report.architecture);
     icons.refresh();
   }
 
@@ -394,7 +427,8 @@
       status: "attention",
       overview: report.overview.map((item) => ({ ...item, ...DEMO_OVERVIEW[item.id] })),
       hardFindings: DEMO_HARD_FINDINGS,
-      health: { ...report.health, ...DEMO_HEALTH, coupling }
+      health: { ...report.health, ...DEMO_HEALTH, coupling },
+      architecture: architecture.createDemoModel()
     };
   }
 
@@ -434,6 +468,7 @@
   function renderEmptyReport() {
     latestReport = null;
     setCopyButtonsDisabled(true);
+    architectureRenderer.clear();
     elements.overviewGrid.replaceChildren();
     elements.checkSections.replaceChildren(emptyState("No scan results yet."));
     elements.healthSummary.replaceChildren();
