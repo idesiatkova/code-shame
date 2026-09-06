@@ -4,11 +4,11 @@ Local web dashboard for Fallow code analysis reports.
 
 ### Project structure
 
-![Code Shame project structure](./assets/code-shame-project-structure.jpg)
+![Code Shame project structure](https://raw.githubusercontent.com/idesiatkova/code-shame/main/assets/code-shame-project-structure.jpg)
 
 ### Fallow report
 
-![Code Shame Fallow report](./assets/code-shame-fallow-report.jpg)
+![Code Shame Fallow report](https://raw.githubusercontent.com/idesiatkova/code-shame/main/assets/code-shame-fallow-report.jpg)
 
 ## Usage
 
