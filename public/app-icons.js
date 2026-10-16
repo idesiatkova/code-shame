@@ -1,5 +1,4 @@
-{
-  function metricIconHtml(id) {
+function metricIconHtml(id) {
 	    const icons = {
 	      "blocking-findings": "circle-x",
 	      maintainability: "bar-chart-3",
@@ -25,9 +24,4 @@
     button.querySelector(".button-label").textContent = label;
   }
 
-  window.codeScanIcons = {
-    metricIconHtml,
-    refresh,
-    setButtonLabel
-  };
-}
+export { metricIconHtml, refresh, setButtonLabel };
