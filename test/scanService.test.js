@@ -63,3 +63,24 @@ test("cancels active work on shutdown and isolates service instances", async () 
   assert.equal(first.getSnapshot().running, false);
   await second.close();
 });
+
+test("bounds total scan time without discarding the primary report", async () => {
+  let count = 0;
+  const service = createScanService({ timeoutMs: 30, createClient: ({ signal }) => ({
+    analyze: async () => { count++; return { data: {}, exitCode: 0 }; },
+    resolvedConfig: async () => ({ data: {} }),
+    listProject: () => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve({ data: {} }), 1000);
+      signal.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+    })
+  }) });
+  await service.start();
+  const snapshot = service.getSnapshot();
+  assert.equal(snapshot.state, "ready");
+  assert.equal(snapshot.running, false);
+  assert.equal(snapshot.report.architecture.state, "failed");
+  assert.match(snapshot.report.architecture.error, /timeout/i);
+  await service.start();
+  assert.equal(count, 2);
+  await service.close();
+});
