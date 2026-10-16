@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "dev": "node src/start.js",
-    "test": "node --test test/*.test.js",
+    "test": "node --test test/*.test.js test/*.test.mjs",
     "pack:dry": "npm pack --dry-run"
   },
   "keywords": [

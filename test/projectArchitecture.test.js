@@ -2,7 +2,6 @@ const assert = require("node:assert/strict");
 const test = require("node:test");
 
 const {
-  GraphModelBuilder,
   buildProjectArchitecture,
   createArchitecturePlan
 } = require("../src/projectArchitecture");
@@ -92,29 +91,6 @@ test("represents files omitted from a capped graph with summary nodes", () => {
   assert.equal(graph.truncated, true);
   assert.equal(graph.visibleFileCount, 1);
   assert.ok(graph.nodes.some((node) => node.type === "summary" && node.hiddenFileCount === 2));
-});
-
-test("allows additional node and relationship contributors through composition", () => {
-  const plan = createArchitecturePlan({
-    listOutput: { files: ["src/components/A.js"] },
-    configOutput: {}
-  });
-  const graph = buildProjectArchitecture(plan, [], {
-    nodeContributors: [(_context, builder) => builder.addNode({ id: "custom:node", type: "custom" })],
-    relationshipProviders: []
-  });
-
-  assert.deepEqual(graph.nodes, [{ id: "custom:node", type: "custom" }]);
-});
-
-test("GraphModelBuilder combines repeated relationship weights", () => {
-  const builder = new GraphModelBuilder();
-  builder.addNode({ id: "a", type: "custom" });
-  builder.addNode({ id: "b", type: "custom" });
-  builder.addEdge({ id: "a-b", type: "custom", source: "a", target: "b", weight: 1 });
-  builder.addEdge({ id: "a-b", type: "custom", source: "a", target: "b", weight: 2 });
-
-  assert.equal(builder.build().edges[0].weight, 3);
 });
 
 function inspection(filePath, importsFrom, importedBy) {

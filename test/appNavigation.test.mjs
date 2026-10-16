@@ -1,13 +1,6 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const path = require("node:path");
-const test = require("node:test");
-const vm = require("node:vm");
-
-const source = fs.readFileSync(path.join(__dirname, "../public/app-navigation.js"), "utf8");
-const context = { URL, window: {} };
-vm.runInNewContext(source, context);
-const navigation = context.window.codeShameNavigation;
+import assert from "node:assert/strict";
+import test from "node:test";
+import * as navigation from "../public/app/navigation.js";
 
 test("uses the report as the default page and preserves unrelated URL state", () => {
   assert.equal(navigation.pageFromHref("http://localhost:5179/?demo-coupling=1"), "report");
