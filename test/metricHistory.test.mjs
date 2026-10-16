@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { metricRenderState, readMetricHistory, writeMetricHistory } from "../public/metric-history.js";
+import { metricRenderState, readMetricHistory, writeMetricHistory } from "../public/app/metric-history.js";
 
 function storage() {
   const values = new Map();

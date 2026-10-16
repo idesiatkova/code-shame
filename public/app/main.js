@@ -1,6 +1,6 @@
-import * as navigation from "./app-navigation.js";
-import * as architecture from "./app-architecture.js";
-import * as icons from "./app-icons.js";
+import * as navigation from "./navigation.js";
+import * as architecture from "./architecture.js";
+import * as icons from "./icons.js";
 import { createReportRenderer } from "./report.js";
 import { createScanController } from "./scan-controller.js";
 import { isDemoMode } from "./demo.js";

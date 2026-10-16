@@ -1,5 +1,5 @@
-import * as format from "./app-format.js";
-import * as icons from "./app-icons.js";
+import * as format from "./format.js";
+import * as icons from "./icons.js";
 import { escapeHtml } from "./html.js";
 import { METRIC_HISTORY_LIMIT, metricNumber, metricRenderState, readMetricHistory, writeMetricHistory } from "./metric-history.js";
 import { demoMetricRenderState } from "./demo.js";

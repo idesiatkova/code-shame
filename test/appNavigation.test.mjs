@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as navigation from "../public/app-navigation.js";
+import * as navigation from "../public/app/navigation.js";
 
 test("uses the report as the default page and preserves unrelated URL state", () => {
   assert.equal(navigation.pageFromHref("http://localhost:5179/?demo-coupling=1"), "report");

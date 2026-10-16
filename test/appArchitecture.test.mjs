@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDemoModel } from "../public/demo.js";
-import * as architecture from "../public/app-architecture.js";
+import { createDemoModel } from "../public/app/demo.js";
+import * as architecture from "../public/app/architecture.js";
 
 test("creates a representative demo architecture", () => {
   const model = createDemoModel();

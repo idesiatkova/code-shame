@@ -1,4 +1,4 @@
-import { setButtonLabel } from "./app-icons.js";
+import { setButtonLabel } from "./icons.js";
 
 const INTERVALS = new Set([0, 10000, 30000, 60000, 300000]);
 const INTERVAL_COOKIE = "code_shame_auto_refresh_interval";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createScanController } from "../public/scan-controller.js";
+import { createScanController } from "../public/app/scan-controller.js";
 
 function setup(responses) {
   const pending = new Map();

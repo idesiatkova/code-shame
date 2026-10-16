@@ -1,7 +1,7 @@
-import * as format from "./app-format.js";
-import * as copy from "./app-copy.js";
-import * as findings from "./app-findings.js";
-import * as icons from "./app-icons.js";
+import * as format from "./format.js";
+import * as copy from "./copy.js";
+import * as findings from "./findings.js";
+import * as icons from "./icons.js";
 import { escapeHtml } from "./html.js";
 import { renderOverview } from "./overview.js";
 import { reportForDisplay } from "./demo.js";
