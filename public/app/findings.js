@@ -7,7 +7,7 @@ function renderSection(section, escapeHtml) {
       <i class="finding-chevron chevron-open" data-lucide="chevron-down" aria-hidden="true"></i>
       <i class="finding-chevron chevron-closed" data-lucide="chevron-right" aria-hidden="true"></i>
       <i class="finding-type-icon" data-lucide="${typeIcon(section.id)}" aria-hidden="true"></i>
-      <h3>${escapeHtml(section.label)}</h3>
+      <h3>${escapeHtml(section.label)} (${escapeHtml(section.count)})</h3>
     </summary>
     <ul>${recordsHtml(section.records, escapeHtml)}</ul>
   `;
