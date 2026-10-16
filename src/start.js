@@ -1,95 +1,51 @@
 #!/usr/bin/env node
 
-const fs = require("node:fs");
 const path = require("node:path");
+const { createServer } = require("./server");
 
-const { PID_FILE_PATH } = require("./paths");
+function start() {
+  const host = process.env.HOST || "127.0.0.1";
+  const port = integerSetting("PORT", 5179, 0, 65535);
+  const projectRoot = path.resolve(process.env.CODE_SCAN_ROOT || process.cwd());
+  const server = createServer({
+    projectRoot,
+    maxFiles: integerSetting("ARCHITECTURE_MAX_FILES", 48, 1, 1000)
+  });
 
-const SERVER_PATH = path.join(__dirname, "server.js");
-const STOP_TIMEOUT_MS = 3000;
-const STOP_POLL_MS = 50;
+  server.once("error", (error) => {
+    console.error(error.code === "EADDRINUSE"
+      ? `Code Shame could not start: http://${host}:${port} is already in use.`
+      : error.message);
+    process.exitCode = 1;
+  });
+  server.listen(port, host, () => {
+    console.log(`Code Shame: http://${host}:${server.address().port}`);
+    console.log(`Project: ${projectRoot}`);
+  });
 
-async function start() {
-  await stopPreviousServer();
-  startServer();
+  const shutdown = () => {
+    server.close();
+    server.closeAllConnections();
+  };
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+  server.once("close", () => {
+    process.removeListener("SIGINT", shutdown);
+    process.removeListener("SIGTERM", shutdown);
+  });
 }
 
-async function stopPreviousServer() {
-  const pid = readPreviousPid();
-  if (!pid || pid === process.pid || !isProcessRunning(pid)) {
-    removePidFile();
-    return;
+function integerSetting(name, fallback, minimum, maximum) {
+  const value = Number(process.env[name] ?? fallback);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
   }
-
-  stopProcess(pid);
-  await waitForExit(pid);
-  removePidFile();
+  return value;
 }
 
-function stopProcess(pid) {
-  try {
-    process.kill(pid, "SIGTERM");
-  } catch (error) {
-    if (error.code === "EPERM") {
-      throw new Error(`Cannot stop previous Code Shame process ${pid}. Stop it once, then rerun npx code-shame.`);
-    }
-    throw error;
-  }
-}
-
-function readPreviousPid() {
-  return parsePid(readPidFileContent());
-}
-
-function readPidFileContent() {
-  try {
-    return fs.readFileSync(PID_FILE_PATH, "utf8").trim();
-  } catch (error) {
-    if (error.code === "ENOENT") return "";
-    throw error;
-  }
-}
-
-function parsePid(content) {
-  const pid = Number(content);
-  return Number.isInteger(pid) && pid > 0 ? pid : null;
-}
-
-function isProcessRunning(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === "EPERM";
-  }
-}
-
-async function waitForExit(pid) {
-  const deadline = Date.now() + STOP_TIMEOUT_MS;
-  while (isProcessRunning(pid) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, STOP_POLL_MS));
-  }
-
-  if (isProcessRunning(pid)) {
-    throw new Error(`Could not stop previous Code Shame process ${pid}.`);
-  }
-}
-
-function removePidFile() {
-  try {
-    fs.unlinkSync(PID_FILE_PATH);
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-}
-
-function startServer() {
-  require(SERVER_PATH);
-}
-
-function fail(error) {
-  console.error(error.message || String(error));
+try {
+  start();
+} catch (error) {
+  console.error(error.message);
   process.exitCode = 1;
 }
-
-start().catch(fail);

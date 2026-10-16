@@ -1,35 +1,8 @@
-const fs = require("node:fs/promises");
-const fsSync = require("node:fs");
 const http = require("node:http");
+const fs = require("node:fs/promises");
 const path = require("node:path");
-const { URL } = require("node:url");
-
-const { AnalysisPipeline } = require("./analysisPipeline");
-const { ProjectArchitectureAnalyzer } = require("./architectureAnalyzer");
-const { FallowClient } = require("./fallowClient");
-const { resolveFallowBinary } = require("./fallowBinary");
-const { normalizeFallowReport } = require("./fallowReport");
-const { PACKAGE_ROOT, PID_FILE_PATH, PROJECT_ROOT, resolvePublicPath } = require("./paths");
-
-const HOST = process.env.HOST || "127.0.0.1";
-const PORT = Number(process.env.PORT || 5179);
-const COMMAND_LABEL = "fallow --format json --quiet";
-const ARCHITECTURE_MAX_FILES = Number(process.env.ARCHITECTURE_MAX_FILES || 48);
-const CYTOSCAPE_SCRIPT_PATH = resolveCytoscapeScriptPath();
-const LUCIDE_SCRIPT_PATH = resolveLucideScriptPath();
-const VENDOR_SCRIPT_PATHS = new Map([
-  ["/vendor/cytoscape.js", CYTOSCAPE_SCRIPT_PATH],
-  ["/vendor/lucide.js", LUCIDE_SCRIPT_PATH]
-]);
-
-let activeScan = null;
-let latestSnapshot = {
-  state: "idle",
-  report: null,
-  error: null,
-  startedAt: null,
-  finishedAt: null
-};
+const { resolvePublicPath } = require("./paths");
+const { createScanService } = require("./scanService");
 
 const MIME_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -38,96 +11,45 @@ const MIME_TYPES = new Map([
   [".json", "application/json; charset=utf-8"],
   [".svg", "image/svg+xml"]
 ]);
-
-const API_ROUTES = new Map([
-  ["GET /api/health", handleHealthApi],
-  ["GET /api/report", handleReportApi],
-  ["POST /api/scan", handleScanApi]
+const VENDOR_SCRIPT_PATHS = new Map([
+  ["/vendor/cytoscape.js", resolveCytoscapeScriptPath()],
+  ["/vendor/lucide.js", resolveLucideScriptPath()]
 ]);
+
+function createServer({ scanService, ...options } = {}) {
+  const scans = scanService || createScanService(options);
+  const server = http.createServer(async (request, response) => {
+    try {
+      const url = new URL(request.url, "http://localhost");
+      const route = `${request.method} ${url.pathname}`;
+      if (route === "GET /api/health") return sendJson(response, 200, { ok: true });
+      if (route === "GET /api/report") return sendJson(response, 200, scans.getSnapshot());
+      if (route === "POST /api/scan") {
+        scans.start();
+        return sendJson(response, 202, scans.getSnapshot());
+      }
+      if (url.pathname.startsWith("/api/")) {
+        return sendJson(response, 404, { error: "Unknown API endpoint" });
+      }
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        response.writeHead(405, { allow: "GET, HEAD" });
+        return response.end();
+      }
+      await serveStatic(response, url.pathname);
+    } catch (error) {
+      sendJson(response, 500, { error: error.message || String(error) });
+    }
+  });
+  server.once("close", () => scans.close());
+  return server;
+}
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     "cache-control": "no-store",
     "content-type": "application/json; charset=utf-8"
   });
-  response.end(`${JSON.stringify(payload, null, 2)}\n`);
-}
-
-function currentPayload() {
-  return {
-    ...latestSnapshot,
-    running: Boolean(activeScan)
-  };
-}
-
-function startFallowScan() {
-  if (activeScan) return currentPayload();
-
-  const startedAt = new Date();
-  latestSnapshot = {
-    state: "running",
-    report: latestSnapshot.report,
-    error: null,
-    startedAt: startedAt.toISOString(),
-    finishedAt: null
-  };
-
-  activeScan = runFallow(startedAt)
-    .then((report) => {
-      latestSnapshot = {
-        state: "ready",
-        report,
-        error: null,
-        startedAt: latestSnapshot.startedAt,
-        finishedAt: new Date().toISOString()
-      };
-    })
-    .catch((error) => {
-      latestSnapshot = {
-        state: "failed",
-        report: latestSnapshot.report,
-        error: error.message || String(error),
-        startedAt: latestSnapshot.startedAt,
-        finishedAt: new Date().toISOString()
-      };
-    })
-    .finally(() => {
-      activeScan = null;
-    });
-
-  return currentPayload();
-}
-
-async function runFallow(startedAt) {
-  const client = new FallowClient({
-    binaryPath: resolveFallowBinary(PACKAGE_ROOT),
-    cwd: PROJECT_ROOT
-  });
-  const architectureAnalyzer = new ProjectArchitectureAnalyzer({
-    client,
-    maxFiles: ARCHITECTURE_MAX_FILES
-  });
-  let finishedAt = startedAt.getTime();
-  const pipeline = new AnalysisPipeline({
-    runPrimary: async () => {
-      const result = await client.analyze();
-      finishedAt = Date.now();
-      return result;
-    },
-    normalizePrimary: (rawReport, meta) => normalizeFallowReport(rawReport, {
-      ...meta,
-      command: COMMAND_LABEL,
-      durationMs: finishedAt - startedAt.getTime(),
-      generatedAt: new Date(finishedAt).toISOString()
-    }),
-    enrichers: [{
-      key: "architecture",
-      analyze: (context) => architectureAnalyzer.analyze(context),
-      fallback: (error) => architectureAnalyzer.fallback(error)
-    }]
-  });
-
-  return pipeline.run();
+  response.end(`${JSON.stringify(payload)}\n`);
 }
 
 function resolveLucideScriptPath() {
@@ -142,28 +64,6 @@ function resolveLucideScriptPath() {
 function resolveCytoscapeScriptPath() {
   const entryPath = require.resolve("cytoscape");
   return path.join(path.dirname(entryPath), "cytoscape.min.js");
-}
-
-async function handleHealthApi(_request, response) {
-  sendJson(response, 200, { ok: true });
-}
-
-async function handleReportApi(_request, response) {
-  sendJson(response, 200, currentPayload());
-}
-
-async function handleScanApi(_request, response) {
-  sendJson(response, 202, startFallowScan());
-}
-
-async function handleApi(request, response) {
-  const route = API_ROUTES.get(`${request.method} ${new URL(request.url, fallbackOrigin(request)).pathname}`);
-  if (!route) {
-    sendJson(response, 404, { error: "Unknown API endpoint" });
-    return;
-  }
-
-  await route(request, response);
 }
 
 async function serveStatic(response, pathname) {
@@ -192,116 +92,5 @@ async function readStatic(filePath) {
   }
 }
 
-function createServer() {
-  return http.createServer(handleRequest);
-}
 
-async function handleRequest(request, response) {
-  try {
-    const url = new URL(request.url, fallbackOrigin(request));
-    await routeRequest(request, response, url);
-  } catch (error) {
-    sendJson(response, 500, { error: error.message || String(error) });
-  }
-}
-
-async function routeRequest(request, response, url) {
-  if (url.pathname.startsWith("/api/")) {
-    await handleApi(request, response);
-    return;
-  }
-
-  await serveStatic(response, url.pathname);
-}
-
-function fallbackOrigin(request) {
-  return `http://${request.headers.host || "localhost"}`;
-}
-
-function removePreviousPidFile() {
-  const previousPid = readPreviousPid();
-  if (!previousPid || previousPid === process.pid || !isProcessRunning(previousPid)) {
-    removePidFile();
-  }
-}
-
-function readPreviousPid() {
-  const content = readPidFileContent();
-  const pid = Number(content);
-  return Number.isInteger(pid) && pid > 0 ? pid : null;
-}
-
-function readPidFileContent() {
-  try {
-    return fsSync.readFileSync(PID_FILE_PATH, "utf8").trim();
-  } catch (error) {
-    if (error.code === "ENOENT") return "";
-    throw error;
-  }
-}
-
-function isProcessRunning(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error.code === "EPERM";
-  }
-}
-
-function removePidFile() {
-  try {
-    fsSync.unlinkSync(PID_FILE_PATH);
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-}
-
-function writePidFile() {
-  fsSync.writeFileSync(PID_FILE_PATH, `${process.pid}\n`, "utf8");
-}
-
-function cleanupPidFile() {
-  if (readPreviousPid() === process.pid) removePidFile();
-}
-
-function startServer(port) {
-  const server = createServer();
-  attachServerErrorHandler(server, port);
-  listenOnPort(server, port);
-}
-
-function attachServerErrorHandler(server, port) {
-  server.once("error", (error) => handleServerError(port, error));
-}
-
-function listenOnPort(server, port) {
-  server.listen(port, HOST, () => {
-    writePidFile();
-    console.log(`Code Shame: http://${HOST}:${port}`);
-    console.log(`Project: ${PROJECT_ROOT}`);
-  });
-}
-
-function handleServerError(port, error) {
-  const message = error.code === "EADDRINUSE"
-    ? `Code Shame could not start: http://${HOST}:${port} is already in use.`
-    : error.stack || error.message || String(error);
-  console.error(message);
-  process.exitCode = 1;
-}
-
-function exitAfterCleanup(exitCode) {
-  cleanupPidFile();
-  process.exit(exitCode);
-}
-
-function registerProcessCleanup() {
-  process.once("exit", cleanupPidFile);
-  process.once("SIGINT", () => exitAfterCleanup(130));
-  process.once("SIGTERM", () => exitAfterCleanup(143));
-}
-
-registerProcessCleanup();
-removePreviousPidFile();
-startServer(PORT);
+module.exports = { createServer };
