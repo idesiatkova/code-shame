@@ -1,227 +1,125 @@
 # Architecture
 
-Code Shame is a local Fallow report dashboard. The application keeps analysis,
-graph construction, and rendering separate so that each part can be extended
-without changing the others.
+Code Shame runs a local HTTP server around Fallow and serves a browser dashboard.
+There is no frontend build step. Node.js uses CommonJS in `src`; the browser uses
+native ES modules in `public`. `public/package.json` also lets Node import those
+modules directly in tests without changing the backend module format.
 
-## Общая архитектура
+## Module boundaries
 
-The application has four layers:
-
-| Layer | Modules | Responsibility |
+| Area | Modules | Responsibility |
 | --- | --- | --- |
-| HTTP runtime | `src/server.js`, `src/start.js` | Starts scans, stores the latest snapshot, exposes the API, and serves static assets. |
-| Analysis | `src/fallowClient.js`, `src/analysisPipeline.js`, `src/architectureAnalyzer.js`, `src/concurrency.js` | Runs Fallow, normalizes its primary report, composes optional report enrichers, and bounds concurrent file inspection. |
-| Graph model | `src/projectArchitecture.js` | Classifies files, selects visible files, and builds a renderer-independent graph. |
-| Presentation | `public/app.js`, `public/app-navigation.js`, `public/app-architecture.js`, `public/styles.css` | Switches between the report and project-structure pages, renders data, and adapts the graph model to Cytoscape.js. |
+| CLI | `src/start.js` | Reads environment settings, listens on a port, handles shutdown. |
+| HTTP | `src/server.js`, `src/paths.js` | Creates a server, routes API requests, serves the public directory and two vendor scripts. |
+| Scan lifecycle | `src/scanService.js` | Owns one project's snapshot, active scan, cancellation, and project identity. |
+| Process adapter | `src/fallowClient.js` | Runs the installed Fallow launcher, parses JSON, enforces command deadlines, terminates its process tree. |
+| Analysis | `src/fallowReport.js`, `src/architectureAnalyzer.js`, `src/concurrency.js` | Normalizes primary results and performs bounded file inspections. |
+| Graph model | `src/projectArchitecture.js` | Classifies files, selects a representative subset, builds renderer-independent nodes and edges. |
+| Browser bootstrap | `public/app.js` | Connects DOM elements, navigation, renderers, and scan controls. |
+| Scan controls | `public/scan-controller.js` | Owns HTTP requests, polling, auto-refresh timers, busy state, and disposal. |
+| Report presentation | `public/report.js`, `public/overview.js`, `public/app-findings.js`, `public/app-format.js` | Renders report sections, metric charts, and copyable text. |
+| Browser state | `public/metric-history.js` | Stores up to 24 metric samples per project in localStorage. |
+| Graph presentation | `public/app-architecture.js` | Converts the graph model into Cytoscape elements and binds focus/details behavior. |
+| UI support | `public/app-navigation.js`, `public/app-icons.js`, `public/app-copy.js`, `public/html.js` | Provides navigation, vendor icon integration, clipboard handling, and HTML escaping. |
+| Demo | `public/demo.js` | Provides sample reports and graph fixtures without writing them to metric history. |
 
-The central design rule is dependency inversion through small object and
-function contracts:
+Application modules use explicit imports and exports. Cytoscape and Lucide are
+vendor UMD scripts; their globals are used only by their presentation adapters.
+The graph model does not depend on Cytoscape or browser APIs.
 
-- `FallowClient` owns process execution and can receive another `spawnProcess`;
-- `AnalysisPipeline` depends on injected `runPrimary`, `normalizePrimary`, and
-  enricher objects;
-- `ProjectArchitectureAnalyzer` depends on a Fallow-compatible client;
-- `buildProjectArchitecture` composes injected node contributors and
-  relationship providers;
-- Cytoscape.js is a presentation adapter and is not referenced by the backend
-  graph model.
+## Public and server code
 
-This separation follows SOLID principles: each module has one reason to change,
-extensions are added through composition, and infrastructure dependencies are
-injected at the boundary.
+`public` is the complete, directly served browser application, including its
+source JavaScript and CSS. Keep server-only code and secrets outside it. Static
+paths are constrained to this directory. The vendor routes expose only the
+resolved Cytoscape and Lucide scripts, not the whole node_modules directory.
 
-## Поток данных
+`src` contains Node.js code and is not served to the browser. Importing
+`src/server.js` exports `createServer(options)` without opening a port or
+registering process signal handlers. Each server gets its own scan service;
+tests can inject a service at this boundary.
+
+The CLI never reads PID files or stops another process. If its requested port is
+occupied, it exits with an error. On SIGINT or SIGTERM it closes its own server;
+the server's close event cancels its active scan.
+
+## Scan lifecycle and API
 
 ```mermaid
 flowchart LR
-    Browser[Browser] -->|POST /api/scan| Server[HTTP server]
-    Server --> Pipeline[AnalysisPipeline]
-    Pipeline -->|primary| Client[FallowClient]
-    Client -->|fallow --format json| Fallow[Fallow CLI]
-    Fallow --> Normalizer[normalizeFallowReport]
-    Normalizer --> Report[Normalized report]
-    Pipeline -->|enricher context| Analyzer[ProjectArchitectureAnalyzer]
-    Analyzer -->|list + config| Client
-    Analyzer -->|inspect visible files| Client
-    Analyzer --> Plan[Architecture plan]
-    Plan --> Builder[GraphModelBuilder]
-    Builder --> Graph[report.architecture]
-    Report --> Payload[API snapshot]
-    Graph --> Payload
-    Payload --> Renderer[app-architecture adapter]
-    Renderer --> Cytoscape[Cytoscape.js]
+    Browser -->|POST /api/scan| HTTP[HTTP server]
+    HTTP --> Scan[Scan service]
+    Scan --> Client[Fallow launcher]
+    Client --> Primary[Normalize primary report]
+    Primary --> Snapshot[Publish ready report]
+    Primary --> Graph[List, config, inspect visible files]
+    Graph --> Snapshot
+    Browser -->|GET /api/report| Snapshot
 ```
 
-1. The browser starts a scan with `POST /api/scan` and polls `GET /api/report`.
-2. `AnalysisPipeline` runs the primary Fallow analysis and normalizes it into the
-   regular report.
-3. The architecture enricher requests Fallow's file list and resolved config in
-   parallel.
-4. `createArchitecturePlan` assigns files to layers. Explicit Fallow boundary
-   zones take precedence; automatic path-based categories are the fallback.
-5. The plan keeps at most `ARCHITECTURE_MAX_FILES` visible files (48 by default).
-   Selection is balanced across layers and prioritizes entry points, coupling,
-   size, and low maintainability. Hidden files become summary nodes.
-6. Visible files are inspected with bounded concurrency (four workers) to obtain
-   import relationships.
-7. Node contributors and relationship providers fill `GraphModelBuilder`.
-8. The graph is attached as `report.architecture`. An enricher failure produces
-   a local `state: "failed"` value and does not discard the primary report.
-9. `public/app-navigation.js` selects the report or project-structure page from
-   the toolbar dropdown. `public/app-architecture.js` converts the model into
-   fixed Cytoscape elements, calculates a deterministic preset layout, and binds
-   focus/details behavior. Nodes and the viewport cannot be dragged.
+- `GET /api/health` returns `{ ok: true }`.
+- `POST /api/scan` starts a scan and returns its snapshot with HTTP 202. Requests
+  during an active scan share that work.
+- `GET /api/report` returns `projectId`, `state`, `report`, `error`, `startedAt`,
+  `finishedAt`, and `running`.
 
-## Структура графа
+`state` is `idle`, `running`, `ready`, or `failed`. It becomes `ready` as soon as
+the primary analysis is available. At that point `report.architecture.state` can
+still be `running`, and the top-level `running` remains true. The browser polls
+every 1.5 seconds until all analysis settles. `finishedAt` records that moment;
+`report.generatedAt` identifies the primary report for metric samples.
 
-The API returns a renderer-independent graph object:
+An architecture failure produces a local `state: "failed"` graph value and keeps
+the primary report. A primary failure sets the snapshot state to `failed` and
+retains the previous report when available.
 
-```js
-{
-  state: "ready",
-  source: "fallow",
-  totalFileCount: 120,
-  visibleFileCount: 48,
-  layerCount: 7,
-  crossLayerEdgeCount: 31,
-  truncated: true,
-  inspectionErrorCount: 0,
-  nodes: [],
-  edges: []
-}
-```
+Each command has a 60-second deadline; the entire scan has a 180-second deadline.
+Shutdown cancels active commands. The launcher delegates platform, architecture,
+libc selection, and binary verification to Fallow. Since it owns a native child,
+cancellation terminates the process group on POSIX or uses `taskkill /T` on
+Windows. Exit codes 0 and 1 may carry reports; other exit codes and signal exits
+are failures.
 
-`GraphModelBuilder` stores nodes and edges by id. Adding a node with an existing
-id replaces it. Adding an edge with an existing id increases its `weight`. Every
-edge must reference stable source and target node ids.
+## Project identity and metric history
 
-Layer classification has two sources:
+The scan service hashes the absolute project root into a stable `projectId`.
+The browser stores metrics under `code-shame:metrics:<projectId>`, so projects
+served from the same origin do not share comparisons. Repeated polling of the
+same report does not add samples. A new report adds a sample even when its
+values are unchanged. Corrupt, unavailable, or full storage does not prevent
+rendering.
 
-- `fallow-boundary`: zones from resolved Fallow `boundaries.zones`, including
-  `patterns`, `root`, and `autoDiscover`;
-- `automatic`: built-in categories for tests, styles/design system, state stores,
-  pages/routes, API/data, UI/components, analysis/graph model, domain/features,
-  shared utilities, server/runtime, tooling/configuration, and other files.
+The old metric cookie is deliberately ignored: it has no project identity and
+cannot be migrated safely. Auto-refresh preferences remain a shared cookie.
+Demo data is displayed without persisting samples.
 
-## Типы узлов
+## Graph construction
 
-### `layer`
+The architecture analyzer requests Fallow's file list and resolved config in
+parallel, then inspects visible files with four workers. `ARCHITECTURE_MAX_FILES`
+defaults to 48; the CLI accepts integers from 1 through 1000.
 
-A compound parent node representing an architectural area.
+Configured Fallow boundary zones take precedence over automatic path-based
+categories. File selection balances layers and prioritizes entry points,
+coupling, size, and low maintainability. Hidden files become summary nodes.
 
-Required data: `id`, `type`, `layerId`, `label`, `color`. It also carries
-`fileCount`, `hiddenFileCount`, and the classification `source`.
+The graph contains `layer`, `file`, and `summary` nodes plus directed `imports`
+edges. Layer nodes are compound parents. File nodes carry their paths and
+metrics. Import relationships are derived from both `imports_from` and
+`imported_by`, with stable ids deduplicating edges between visible files.
 
-### `file`
+`buildProjectArchitecture(plan, inspections)` directly builds the supported node
+and edge types. There is no plugin registry or contributor configuration. To add
+a graph type, change the builder, its frontend adapter, and their focused tests
+together. The renderer uses a deterministic preset layout and fixed node
+positions.
 
-A source file nested under a layer through its `parent` id.
+## Verification
 
-Required data: `id`, `type`, `parent`, `layerId`, `label`, and `path`. Additional
-data includes directory, color, entry-point status, and Fallow metrics: fan-in,
-fan-out, line count, and maintainability.
+Run `npm test` for backend CommonJS and frontend ES-module tests. The suite
+covers scan publication, deadlines, shutdown, process-tree cancellation, port
+conflicts, HTTP routes, report normalization, graph construction, polling, and
+per-project metric history. Frontend tests import modules directly.
 
-### `summary`
-
-A synthetic child node such as `+12 more`. It represents files hidden by the
-visualization limit and carries `hiddenFileCount`.
-
-## Типы связей
-
-### `imports`
-
-A directed dependency from the importing file (`source`) to the imported file
-(`target`). The edge also contains `sourceLayer`, `targetLayer`, `crossLayer`,
-and `weight`.
-
-Import edges are derived from both `imports_from` and `imported_by` in Fallow's
-file inspection evidence. Stable ids deduplicate the same relationship when it
-is observed from both ends.
-
-## Как добавить новый тип анализа
-
-An optional analysis is an `AnalysisPipeline` enricher with this contract:
-
-```js
-const myAnalyzer = {
-  async analyze({ meta, primary, rawReport, report }) {
-    return { state: "ready", value: 42 };
-  },
-  fallback(error) {
-    return { state: "failed", error: error.message };
-  }
-};
-
-const pipeline = new AnalysisPipeline({
-  runPrimary,
-  normalizePrimary,
-  enrichers: [
-    { key: "architecture", analyze: architectureAnalyzer.analyze.bind(architectureAnalyzer) },
-    { key: "myAnalysis", ...myAnalyzer }
-  ]
-});
-```
-
-Keep external process or network access in a dedicated client, transformation in
-the analyzer, and presentation in its own frontend renderer. The value returned
-by `analyze` is attached to the normalized report under `key`. Add focused tests
-for the client contract, analyzer, pipeline fallback, and renderer independently.
-
-## Как добавить новый тип узлов
-
-Create a node contributor with the contract
-`(context, builder) => void`, then compose it with the defaults:
-
-```js
-const {
-  DEFAULT_NODE_CONTRIBUTORS,
-  buildProjectArchitecture
-} = require("./projectArchitecture");
-
-function contributePackageNodes({ plan }, builder) {
-  // Derive data from the plan, then call builder.addNode({ id, type, ...data }).
-}
-
-const graph = buildProjectArchitecture(plan, inspections, {
-  nodeContributors: [...DEFAULT_NODE_CONTRIBUTORS, contributePackageNodes]
-});
-```
-
-Use globally stable ids and do not mutate the plan. If the node belongs inside a
-compound node, set `parent` to that parent's id. On the frontend, add a Cytoscape
-style selector for the new `type`; add an interaction and details renderer only
-when the node is interactive. Extend the graph-model and adapter tests.
-
-## Как добавить новый тип связей
-
-Create a relationship provider with the same
-`(context, builder) => void` contract and compose it with the defaults:
-
-```js
-const {
-  DEFAULT_RELATIONSHIP_PROVIDERS,
-  buildProjectArchitecture
-} = require("./projectArchitecture");
-
-function contributeBoundaryViolations({ inspections, plan }, builder) {
-  builder.addEdge({
-    id: "violates:file:a->file:b",
-    type: "violates-boundary",
-    source: "file:a",
-    target: "file:b",
-    weight: 1
-  });
-}
-
-const graph = buildProjectArchitecture(plan, inspections, {
-  relationshipProviders: [
-    ...DEFAULT_RELATIONSHIP_PROVIDERS,
-    contributeBoundaryViolations
-  ]
-});
-```
-
-Providers must only emit edges whose endpoint nodes exist, use deterministic ids,
-and state their direction explicitly. Add edge-specific visual styling and legend
-content in `public/app-architecture.js`, then test deduplication, direction, and
-cross-layer behavior.
+Run `npm pack --dry-run` to check the distributable. All browser modules and
+`public/package.json` must be included; no generated assets are required.

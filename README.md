@@ -20,12 +20,23 @@ npx code-shame
 
 Open the printed local URL, then press **Refresh** to run a scan.
 
+The dashboard starts an initial scan when opened. The report becomes available
+before the project map finishes building. Commands time out after 60 seconds and
+the whole scan after 180 seconds, so a stalled analysis can be retried.
+
 By default Code Shame listens on `127.0.0.1:5179`. Override it with environment
 variables when needed:
 
 ```sh
 HOST=0.0.0.0 PORT=5180 npx code-shame
 ```
+
+If the port is occupied, Code Shame reports an error and leaves the existing
+process running. Stop that process yourself or choose another port. Ctrl+C
+stops this server and its active analysis processes.
+
+Metric history is stored locally in the browser for each analyzed project.
+The previous unscoped history cookie is ignored.
 
 ## What It Shows
 
