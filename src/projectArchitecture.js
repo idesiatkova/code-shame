@@ -91,17 +91,16 @@ function createArchitecturePlan({ listOutput, configOutput, fileScores = [], max
   };
 }
 
-function buildProjectArchitecture(plan, inspections, options = {}) {
+function buildProjectArchitecture(plan, inspections) {
   const builder = new GraphModelBuilder();
   const context = {
     inspections: asArray(inspections),
     plan
   };
-  const nodeContributors = options.nodeContributors || DEFAULT_NODE_CONTRIBUTORS;
-  const relationshipProviders = options.relationshipProviders || DEFAULT_RELATIONSHIP_PROVIDERS;
-
-  nodeContributors.forEach((contributor) => contributor(context, builder));
-  relationshipProviders.forEach((provider) => provider(context, builder));
+  contributeLayerNodes(context, builder);
+  contributeFileNodes(context, builder);
+  contributeOverflowNodes(context, builder);
+  contributeImportRelationships(context, builder);
 
   const graph = builder.build({
     state: "ready",
@@ -195,15 +194,6 @@ function addImportEdge(builder, sourcePath, targetPath, visiblePaths, layerByPat
     weight: 1
   });
 }
-
-const DEFAULT_NODE_CONTRIBUTORS = Object.freeze([
-  contributeLayerNodes,
-  contributeFileNodes,
-  contributeOverflowNodes
-]);
-const DEFAULT_RELATIONSHIP_PROVIDERS = Object.freeze([
-  contributeImportRelationships
-]);
 
 function createLayerClassifier(configOutput, files) {
   const configured = configuredLayerDefinitions(configOutput, files);
@@ -434,9 +424,6 @@ function stringValue(value) {
 
 module.exports = {
   DEFAULT_MAX_FILES,
-  DEFAULT_NODE_CONTRIBUTORS,
-  DEFAULT_RELATIONSHIP_PROVIDERS,
-  GraphModelBuilder,
   buildProjectArchitecture,
   createArchitecturePlan
 };

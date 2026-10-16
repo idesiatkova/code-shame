@@ -11,14 +11,12 @@ class ProjectArchitectureAnalyzer {
   constructor({
     client,
     maxFiles = DEFAULT_MAX_FILES,
-    inspectionConcurrency = DEFAULT_INSPECTION_CONCURRENCY,
-    graphOptions = {}
+    inspectionConcurrency = DEFAULT_INSPECTION_CONCURRENCY
   }) {
     if (!client) throw new Error("ProjectArchitectureAnalyzer requires a Fallow client.");
     this.client = client;
     this.maxFiles = maxFiles;
     this.inspectionConcurrency = inspectionConcurrency;
-    this.graphOptions = graphOptions;
   }
 
   async analyze({ rawReport }) {
@@ -37,7 +35,7 @@ class ProjectArchitectureAnalyzer {
       this.inspectionConcurrency,
       (assignment) => inspectAssignment(this.client, assignment)
     );
-    return buildProjectArchitecture(plan, inspections, this.graphOptions);
+    return buildProjectArchitecture(plan, inspections);
   }
 
   fallback(error) {
