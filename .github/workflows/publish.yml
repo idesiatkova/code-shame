@@ -2,6 +2,11 @@ name: Publish to npm
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (for example v0.2.1)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -19,11 +24,22 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag }}
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      - name: Verify release tag and package version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          test "$RELEASE_TAG" = "v$(node -p "require('./package.json').version")"
+          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease > "$RUNNER_TEMP/release.json"
+          node -e 'const r = require(process.argv[1]); if (r.isDraft || r.isPrerelease) throw new Error("A published stable release is required");' "$RUNNER_TEMP/release.json"
       - run: npm ci
       - run: npm test
       - run: npm run pack:dry
