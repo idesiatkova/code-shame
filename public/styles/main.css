@@ -1188,7 +1188,7 @@ li {
 .architecture-graph {
   position: relative;
   min-width: 0;
-  height: 620px;
+  height: 420px;
   overflow: hidden;
 }
 
@@ -1319,7 +1319,7 @@ li {
   }
 
   .architecture-graph {
-    height: 520px;
+    height: 420px;
   }
 
   .refresh-control {
@@ -1340,9 +1340,8 @@ li {
 .architecture-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: start; margin: 12px 0; }
 .architecture-controls[hidden] { display: none; }
 .architecture-map { min-width: 0; }
-.architecture-map-actions { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 7px 7px 0 0; background: var(--control); }
-.architecture-map-actions + .architecture-graph { border-radius: 0 0 7px 7px; }
-.architecture-context { flex: 1 1 180px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.architecture-map-actions { grid-column: 1 / -1; position: sticky; top: 0; z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--control); }
+.architecture-context { flex: 1 1 180px; min-width: 0; color: var(--ink); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .architecture-context:not([hidden]) { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .architecture-map-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; font-weight: 650; }
 .architecture-map-actions > button[hidden] { display: none; }
@@ -1358,6 +1357,7 @@ li {
 .architecture-diagnostics ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .architecture-control-hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .architecture-search { position: relative; min-width: 0; width: 240px; max-width: 100%; }
+@media (min-width: 601px) { .architecture-controls:has(.architecture-secondary[open]) .architecture-search { margin-top: 28px; } }
 .architecture-search input { width: 100%; }
 .architecture-search-options { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; width: 420px; max-width: calc(100vw - 64px); max-height: 240px; overflow: auto; padding: 4px; border: 1px solid #59625d; border-radius: 6px; background: #202522; box-shadow: 0 8px 24px #0008; color: var(--ink); font-size: 12px; scrollbar-color: #59625d #202522; }
 .architecture-search-options[hidden] { display: none; }
@@ -1367,7 +1367,12 @@ li {
 @media (max-width: 600px) { .architecture-secondary { width: 100%; } }
 .architecture-graph-note { color: var(--muted); font-size: 12px; margin: 8px 0; }
 .architecture-details details { margin-top: 12px; }
-.architecture-details details summary { cursor: pointer; }
+.architecture-details details summary { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; line-height: 1.4; cursor: pointer; list-style: none; }
+.architecture-details details summary::-webkit-details-marker { display: none; }
+.architecture-details details summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+.architecture-details details[open] summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.architecture-details details summary:hover { color: var(--ink); }
+.architecture-details details summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .architecture-details details ul { padding-left: 18px; }
 .architecture-details details li { overflow-wrap: anywhere; margin: 8px 0; }
 .architecture-details .architecture-file-list { padding: 0; list-style: none; font-size: 12px; line-height: 1.45; }
