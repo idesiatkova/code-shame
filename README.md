@@ -59,3 +59,7 @@ and extension points.
 
 Fallow is installed as a package dependency, so users do not need to install it
 separately.
+
+### Project structure
+
+The architecture map starts with directed layer-to-layer dependencies. Each edge label counts unique importing-file → imported-file pairs from the project graph, including files hidden by the old display limit. Search a file path and select a match to explore its inbound and outbound dependencies at depth one or two. The focus view limits rendering to 60 files and 300 dependencies and reports shown and total counts; use Back to layers to return. File metrics are shown when available. A partial graph label means dependency counts and results reflect only the data collected.

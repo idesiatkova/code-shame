@@ -1,3 +1,5 @@
+import { overview, searchFiles, focus } from "./architectureProjection.js";
+
 const NODE_WIDTH = 142;
 const NODE_HEIGHT = 48;
 const CHILD_GAP_X = 18;
@@ -8,51 +10,66 @@ const GROUP_PADDING_Y = 78;
 
 function createRenderer({ container, details, fitButton, legend, stats }) {
   let graph = null;
-
-  fitButton.addEventListener("click", () => {
-    if (graph) graph.fit(graph.elements(), 36);
-  });
+  let currentModel = null;
+  let selected = null;
+  const controls = document.createElement("div");
+  controls.className = "architecture-controls";
+  controls.innerHTML = `<label>Find file <input type="search" placeholder="Search file paths" autocomplete="off"></label>
+    <label>Matching files <select aria-label="Matching files"><option value="">Search for a file</option></select></label>
+    <label>Direction <select aria-label="Dependency direction"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
+    <label>Depth <select aria-label="Dependency depth"><option value="1">1</option><option value="2">2</option></select></label>
+    <button type="button" class="secondary-button">Back to layers</button>`;
+  legend.before(controls);
+  const [search, results, direction, depth, back] = controls.querySelectorAll("input, select, button");
+  function refreshSearch() {
+    const matches = currentModel ? searchFiles(currentModel, search.value) : [];
+    results.replaceChildren(new Option(!search.value.trim() ? "Search for a file" : matches.length ? `${matches.length} matching files` : "No matching files", ""), ...matches.map((node) => new Option(node.path, node.canonicalId)));
+  }
+  search.addEventListener("input", refreshSearch);
+  results.addEventListener("change", () => { if (results.value) { selected = results.value; draw(); } });
+  direction.addEventListener("change", () => { if (selected) draw(); });
+  depth.addEventListener("change", () => { if (selected) draw(); });
+  back.addEventListener("click", () => { selected = null; draw(); });
+  fitButton.addEventListener("click", () => { if (graph) { graph.resize(); graph.fit(graph.elements(), 36); } });
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { if (graph && container.clientWidth) { graph.resize(); graph.fit(graph.elements(), 36); } }).observe(container);
 
   function clear(message = "No project structure yet.") {
-    destroyGraph();
+    destroyGraph(); currentModel = null; selected = null;
+    search.value = ""; direction.value = "both"; depth.value = "1";
+    results.replaceChildren(new Option("Search for a file", ""));
+    controls.hidden = true;
     container.replaceChildren(emptyState(message));
-    legend.replaceChildren();
-    stats.textContent = "";
-    renderPrompt(details, "Select a file to inspect its role and Fallow metrics.");
+    legend.replaceChildren(); stats.textContent = "";
+    renderPrompt(details, "Search for a file to explore its dependencies.");
   }
-
   function render(model) {
+    if (model?.state !== "ready") { clear(unavailableMessage(model)); return; }
+    currentModel = model;
+    if (selected && !(model.projectGraph?.nodes || []).some((node) => node.id === selected)) selected = null;
+    refreshSearch();
+    controls.hidden = false;
+    draw();
+  }
+  function draw() {
     destroyGraph();
-    if (model?.state !== "ready") {
-      clear(unavailableMessage(model));
-      return;
-    }
-
-    const nodes = Array.isArray(model.nodes) ? model.nodes : [];
-    if (nodes.filter((node) => node.type === "file").length === 0) {
-      clear("No project files were discovered for the architecture map.");
-      return;
-    }
-    if (typeof window.cytoscape !== "function") {
-      clear("Cytoscape.js could not be loaded.");
-      return;
-    }
-
+    const projection = selected ? focus(currentModel, selected, direction.value, Number(depth.value)) : overview(currentModel);
+    if (!projection.nodes.length) { clear("No project files were discovered for the architecture map."); return; }
+    if (typeof window.cytoscape !== "function") { clear("Cytoscape.js could not be loaded."); return; }
     container.replaceChildren();
-    const positions = calculatePositions(nodes, container.clientWidth || 960);
-    graph = window.cytoscape(createGraphOptions(container, model, positions));
-
-    bindGraphInteractions(graph, details);
-    renderLegend(legend, graph, nodes);
-    renderStats(stats, model);
-    renderPrompt(details, "Select a file to inspect its role and Fallow metrics.");
+    graph = window.cytoscape(createGraphOptions(container, projection, calculatePositions(projection.nodes, container.clientWidth || 960)));
+    bindGraphInteractions(graph, details, (id) => { selected = id; draw(); });
+    renderLegend(legend, graph, projection.nodes, details);
+    const status = projection.complete ? "" : " · partial dependency graph";
+    stats.textContent = selected
+      ? `${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
+      : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
+    back.disabled = !selected;
+    if (selected) {
+      const node = projection.nodes.find((item) => item.canonicalId === selected);
+      if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel); }
+    } else renderPrompt(details, "Search for a file to explore its dependencies. Arrows show imports; edge labels count file dependencies.");
   }
-
-  function destroyGraph() {
-    if (graph) graph.destroy();
-    graph = null;
-  }
-
+  function destroyGraph() { if (graph) graph.destroy(); graph = null; }
   return { clear, render };
 }
 
@@ -85,6 +102,16 @@ function toCytoscapeElements(model, positions = new Map()) {
 }
 
 function calculatePositions(nodes, containerWidth) {
+  const overviewLayers = nodes.filter((node) => node.type === "overview-layer");
+  if (overviewLayers.length) {
+    const columns = containerWidth >= 700 ? 3 : containerWidth >= 450 ? 2 : 1;
+    const positions = new Map();
+    overviewLayers.forEach((node, index) => positions.set(node.id, {
+      x: 110 + (index % columns) * 220,
+      y: 50 + Math.floor(index / columns) * 105
+    }));
+    return positions;
+  }
   const layers = nodes.filter((node) => node.type === "layer");
   const childrenByParent = new Map();
   nodes.filter((node) => node.type !== "layer").forEach((node) => {
@@ -92,12 +119,12 @@ function calculatePositions(nodes, containerWidth) {
     if (siblings) siblings.push(node);
     else childrenByParent.set(node.parent, [node]);
   });
-  const columns = containerWidth >= 960 ? 3 : containerWidth >= 640 ? 2 : 1;
+  const columns = containerWidth >= 700 ? 3 : containerWidth >= 450 ? 2 : 1;
   const availableWidth = Math.max(320, containerWidth - GROUP_GAP * (columns + 1));
   const targetGroupWidth = Math.floor(availableWidth / columns);
-  const childColumns = columns > 1 ? 2 : 1;
+  const childColumns = 1;
   const contentWidth = childColumns * NODE_WIDTH + (childColumns - 1) * CHILD_GAP_X;
-  const groupWidth = Math.max(300, targetGroupWidth, contentWidth + GROUP_PADDING_X * 2);
+  const groupWidth = Math.max(200, targetGroupWidth, contentWidth + GROUP_PADDING_X * 2);
   const positions = new Map();
   let rowTop = GROUP_GAP;
 
@@ -114,6 +141,7 @@ function calculatePositions(nodes, containerWidth) {
       const left = centerX - contentWidth / 2 + NODE_WIDTH / 2;
       const top = rowTop + GROUP_PADDING_Y;
 
+      if (!children.length) positions.set(layerNode.id, { x: centerX, y: rowTop + 70 });
       children.forEach((child, childIndex) => {
         positions.set(child.id, {
           x: left + (childIndex % childColumns) * (NODE_WIDTH + CHILD_GAP_X),
@@ -154,11 +182,24 @@ function graphStyle() {
         color: "data(color)",
         label: "data(label)",
         padding: `${GROUP_PADDING_X}px`,
+        width: NODE_WIDTH,
+        height: NODE_HEIGHT,
         "font-size": 13,
         "font-weight": 700,
         "text-halign": "center",
         "text-valign": "top",
         "text-margin-y": -18
+      }
+    },
+    {
+      selector: 'node[type = "overview-layer"]',
+      style: {
+        shape: "round-rectangle", width: 185, height: 62,
+        "background-color": "data(color)", "background-opacity": 0.16,
+        "border-color": "data(color)", "border-width": 1,
+        color: "#f5f1e8", label: "data(displayLabel)", "font-size": 12,
+        "font-weight": 700, "text-halign": "center", "text-valign": "center",
+        "text-wrap": "wrap", "text-max-width": 165
       }
     },
     {
@@ -207,6 +248,11 @@ function graphStyle() {
       selector: "edge",
       style: {
         width: "mapData(weight, 1, 5, 1, 4)",
+        label: "data(weight)",
+        "font-size": 10,
+        color: "#f5f1e8",
+        "text-background-color": "#202522",
+        "text-background-opacity": 1,
         "curve-style": "bezier",
         "line-color": "#59625d",
         "line-opacity": 0.48,
@@ -247,17 +293,18 @@ function graphStyle() {
   ];
 }
 
-function bindGraphInteractions(graph, details) {
+function bindGraphInteractions(graph, details, selectFile) {
   graph.on("tap", 'node[type = "file"]', (event) => {
     const node = event.target;
-    focusCollection(graph, node.closedNeighborhood(), node);
-    renderFileDetails(details, node.data(), graph);
+    selectFile(node.data("canonicalId"));
   });
-  graph.on("tap", 'node[type = "layer"]', (event) => {
+  graph.on("tap", 'node[type = "layer"], node[type = "overview-layer"]', (event) => {
     const node = event.target;
-    const collection = node.add(node.descendants()).add(node.descendants().connectedEdges());
+    const isOverview = node.data("type") === "overview-layer";
+    const collection = isOverview ? node.closedNeighborhood() : node.add(node.descendants()).add(node.descendants().connectedEdges());
     focusCollection(graph, collection, node);
-    renderLayerDetails(details, node.data(), node.descendants());
+    if (isOverview) renderOverviewLayerDetails(details, node);
+    else renderLayerDetails(details, node.data(), node.descendants());
   });
   graph.on("tap", (event) => {
     if (event.target !== graph) return;
@@ -276,8 +323,8 @@ function resetFocus(graph) {
   graph.elements().removeClass("is-muted is-active is-selected");
 }
 
-function renderLegend(element, graph, nodes) {
-  const layers = nodes.filter((node) => node.type === "layer");
+function renderLegend(element, graph, nodes, details) {
+  const layers = nodes.filter((node) => node.type === "layer" || node.type === "overview-layer");
   element.replaceChildren(...layers.map((layerNode) => {
     const button = document.createElement("button");
     button.type = "button";
@@ -286,9 +333,15 @@ function renderLegend(element, graph, nodes) {
     button.textContent = `${layerNode.label} · ${formatNumber(layerNode.fileCount)}`;
     button.addEventListener("click", () => {
       const node = graph.getElementById(layerNode.id);
-      const collection = node.add(node.descendants()).add(node.descendants().connectedEdges());
+      const collection = layerNode.type === "overview-layer" ? node.closedNeighborhood() : node.add(node.descendants()).add(node.descendants().connectedEdges());
       focusCollection(graph, collection, node);
-      graph.fit(node.add(node.descendants()), 44);
+      if (layerNode.type === "overview-layer") {
+        renderOverviewLayerDetails(details, node);
+        graph.fit(collection, 44);
+      } else {
+        renderLayerDetails(details, node.data(), node.descendants());
+        graph.fit(node.add(node.descendants()), 44);
+      }
     });
     return button;
   }));
@@ -307,27 +360,42 @@ function renderStats(element, model) {
   element.textContent = parts.join(" · ");
 }
 
-function renderFileDetails(element, data, graph) {
+function renderFileDetails(element, data, graph, model) {
   const metrics = data.metrics || {};
-  const outgoing = graph.getElementById(data.id).outgoers("edge").length;
-  const incoming = graph.getElementById(data.id).incomers("edge").length;
+  const raw = model?.projectGraph?.edges || [];
+  const unique = new Map(raw.map((edge) => [JSON.stringify([edge.source, edge.target]), edge]));
+  const edges = model?.projectGraph ? [...unique.values()] : graph.edges().map((edge) => edge.data());
+  const id = model?.projectGraph ? data.canonicalId : data.id;
+  const outgoing = edges.filter((edge) => edge.source === id).length;
+  const incoming = edges.filter((edge) => edge.target === id).length;
   renderDetails(element, data.label, data.path, [
     ["Layer", layerLabel(graph, data.parent)],
     ["Entry point", data.entryPoint ? "Yes" : "No"],
     ["Imports", outgoing],
     ["Imported by", incoming],
-    ["Fallow fan-in", metrics.fanIn || 0],
-    ["Fallow fan-out", metrics.fanOut || 0],
-    ["Lines", metrics.lines || 0],
-    ["Maintainability", Number(metrics.maintainability || 0).toFixed(1)]
+    ["Fallow fan-in", metrics.fanIn ?? "Unavailable"],
+    ["Fallow fan-out", metrics.fanOut ?? "Unavailable"],
+    ["Lines", metrics.lines ?? "Unavailable"],
+    ["Maintainability", metrics.maintainability == null ? "Unavailable" : Number(metrics.maintainability).toFixed(1)]
+  ]);
+}
+
+function renderOverviewLayerDetails(element, node) {
+  const edges = node.connectedEdges().map((edge) => edge.data());
+  const id = node.id();
+  const sum = (predicate) => edges.filter(predicate).reduce((total, edge) => total + edge.weight, 0);
+  renderDetails(element, node.data("label"), "File dependencies", [
+    ["Files", node.data("fileCount")],
+    ["Outbound to other layers", sum((edge) => edge.source === id && edge.target !== id)],
+    ["Inbound from other layers", sum((edge) => edge.target === id && edge.source !== id)],
+    ["Within layer", sum((edge) => edge.source === id && edge.target === id)]
   ]);
 }
 
 function renderLayerDetails(element, data, descendants) {
   renderDetails(element, data.label, data.source === "fallow-boundary" ? "Configured Fallow boundary" : "Automatically classified", [
     ["Files", data.fileCount],
-    ["Shown", descendants.filter('[type = "file"]').length],
-    ["Hidden", data.hiddenFileCount || 0]
+    ["Shown in map", descendants.filter('[type = "file"]').length]
   ]);
 }
 

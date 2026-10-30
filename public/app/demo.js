@@ -179,6 +179,7 @@ function createDemoModel() {
   return {
     state: "ready",
     source: "demo",
+    projectGraph: { schemaVersion: 1, complete: true, diagnostics: [], nodes: files.map(({ path, layerId, entryPoint }) => ({ id: path, path, layerId, entryPoint })), edges: edges.map(({ source, target }) => ({ source: source.slice(5), target: target.slice(5), kind: "unknown", provenance: "fallow" })) },
     totalFileCount: files.length,
     visibleFileCount: files.length,
     layerCount: layers.length,
