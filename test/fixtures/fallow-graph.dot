@@ -1,0 +1,23 @@
+digraph fallow {
+  rankdir=LR;
+  node [shape=box, style=filled];
+
+  n0 [label="packages/lib/src/index.ts", fillcolor="#30a46c", fontcolor="#eeeeec"];
+  n1 [label="src/alias.ts", fillcolor="#62605b", fontcolor="#eeeeec"];
+  n2 [label="src/cycle.ts", fillcolor="#62605b", fontcolor="#eeeeec"];
+  n3 [label="src/index.ts", fillcolor="#30a46c", fontcolor="#eeeeec"];
+  n4 [label="src/isolated.ts", fillcolor="#e5484d", fontcolor="#eeeeec"];
+  n5 [label="src/lazy.ts", fillcolor="#62605b", fontcolor="#eeeeec"];
+  n6 [label="src/reexport.ts", fillcolor="#62605b", fontcolor="#eeeeec"];
+  n7 [label="src/required.ts", fillcolor="#62605b", fontcolor="#eeeeec"];
+  n8 [label="src/types.ts", fillcolor="#62605b", fontcolor="#eeeeec"];
+
+  n1 -> n2;
+  n2 -> n1;
+  n3 -> n0;
+  n3 -> n1;
+  n3 -> n5;
+  n3 -> n6;
+  n3 -> n7;
+  n3 -> n8;
+}

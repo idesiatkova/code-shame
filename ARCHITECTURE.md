@@ -52,7 +52,7 @@ flowchart LR
     Scan --> Client[Fallow launcher]
     Client --> Primary[Normalize primary report]
     Primary --> Snapshot[Publish ready report]
-    Primary --> Graph[List, config, inspect visible files]
+    Primary --> Graph[List, config, DOT export]
     Graph --> Snapshot
     Browser -->|GET /api/report| Snapshot
 ```
@@ -95,9 +95,12 @@ Demo data is displayed without persisting samples.
 
 ## Graph construction
 
-The architecture analyzer requests Fallow's file list and resolved config in
-parallel, then inspects visible files with four workers. `ARCHITECTURE_MAX_FILES`
-defaults to 48; the CLI accepts integers from 1 through 1000.
+The architecture analyzer requests Fallow's file list and resolved config, then
+exports one DOT graph with pinned Fallow 3.37.0. A DOT parser validates its file
+labels against the list before projecting the graph. On export or validation
+failure, it inspects visible files with four workers and marks the graph partial.
+`ARCHITECTURE_MAX_FILES` defaults to 48; the CLI accepts integers from 1 through
+1000 and applies the limit only to the dashboard projection.
 
 Configured Fallow boundary zones take precedence over automatic path-based
 categories. File selection balances layers and prioritizes entry points,
@@ -107,11 +110,20 @@ The `report.architecture.projectGraph` field is the canonical graph, with
 `schemaVersion: 1`, `complete`, `diagnostics`, file nodes and directed edges from
 importer to imported file. Paths use forward slashes without leading `./`.
 Edges have `kind: "unknown"` and `provenance: "fallow"` and are deduplicated by
-source, target and kind. Endpoints absent from the file list are retained as
-nodes with no layer and reported in diagnostics. Completeness requires a valid
-trace for every listed file and no unresolved endpoints. Since only visible
-files are inspected, a capped scan is partial; missing or failed traces also
-make it partial.
+source, target and kind. `complete` means the resolved file-level graph for
+Fallow's discovered files, not all possible runtime imports or external package
+dependencies. It requires the DOT node set to match the file list and no Fallow
+analysis-degrading diagnostics or unresolved imports. The DOT format does not
+identify import kinds. The pinned version's contract fixture checks aliases,
+workspace imports, dynamic and type-only imports, re-exports, require, cycles,
+and isolated files against `inspect`. An unresolved import has no file edge and
+makes the graph partial. On fallback, missing traces and unknown endpoints are
+also reported; a failed DOT export always leaves the graph partial.
+
+DOT output is limited to 16 MiB and command output to 4 MiB; oversized, malformed,
+or mismatched exports fall back without affecting the primary report. Export uses
+the existing command timeout and scan abort, and removes its temporary directory
+after the child exits.
 
 The existing top-level `nodes` and `edges` are the dashboard projection: `layer`,
 visible `file`, and `summary` nodes plus visible directed `imports` edges with

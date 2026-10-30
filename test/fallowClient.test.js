@@ -45,6 +45,49 @@ test("cancels active and future commands", async (t) => {
   await assert.rejects(client.listProject(), /cancelled scan/);
 });
 
+test("graph export bounds output and cleans temporary files after success, failure and timeout", async (t) => {
+  const client = await fixture(t, `
+    const fs = require("node:fs");
+    const output = process.argv[process.argv.indexOf("--out") + 1];
+    fs.writeFileSync("output-path", output);
+    fs.writeFileSync(output, "digraph {}");
+  `);
+  assert.equal(await client.exportGraph(), "digraph {}");
+  let output = await fs.readFile(path.join(client.cwd, "output-path"), "utf8");
+  await assert.rejects(fs.stat(path.dirname(output)), { code: "ENOENT" });
+
+  await fs.writeFile(client.launcherPath, `
+    const fs = require("node:fs");
+    const output = process.argv[process.argv.indexOf("--out") + 1];
+    fs.writeFileSync("output-path", output);
+    fs.writeFileSync(output, Buffer.alloc(16 * 1024 * 1024 + 1));
+  `);
+  await assert.rejects(client.exportGraph(), /size limit/);
+  output = await fs.readFile(path.join(client.cwd, "output-path"), "utf8");
+  await assert.rejects(fs.stat(path.dirname(output)), { code: "ENOENT" });
+
+  await fs.writeFile(client.launcherPath, `
+    const fs = require("node:fs");
+    const output = process.argv[process.argv.indexOf("--out") + 1];
+    fs.writeFileSync("output-path", output);
+    process.stdout.write(Buffer.alloc(4 * 1024 * 1024 + 1));
+  `);
+  await assert.rejects(client.exportGraph(), /output exceeds the size limit/);
+  output = await fs.readFile(path.join(client.cwd, "output-path"), "utf8");
+  await assert.rejects(fs.stat(path.dirname(output)), { code: "ENOENT" });
+
+  client.timeoutMs = 150;
+  await fs.writeFile(client.launcherPath, `
+    const fs = require("node:fs");
+    const output = process.argv[process.argv.indexOf("--out") + 1];
+    fs.writeFileSync("output-path", output);
+    setInterval(() => {}, 1000);
+  `);
+  await assert.rejects(client.exportGraph(), /timed out/);
+  output = await fs.readFile(path.join(client.cwd, "output-path"), "utf8");
+  await assert.rejects(fs.stat(path.dirname(output)), { code: "ENOENT" });
+});
+
 test("cancellation terminates the launcher's child process", { timeout: 10000 }, async (t) => {
   const controller = new AbortController();
   const client = await fixture(t, `

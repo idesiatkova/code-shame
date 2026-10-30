@@ -44,6 +44,7 @@
   "dependencies": {
     "cytoscape": "3.34.0",
     "fallow": "3.37.0",
+    "graphlib-dot": "0.6.4",
     "lucide": "1.21.0",
     "minimatch": "10.2.5"
   }

@@ -87,8 +87,10 @@ function createArchitecturePlan({ listOutput, configOutput, fileScores = [], max
   };
 }
 
-function buildProjectArchitecture(plan, inspections) {
-  const projectGraph = buildCanonicalGraph(plan, inspections);
+function buildProjectArchitecture(plan, inspections, extracted) {
+  const projectGraph = extracted
+    ? buildExtractedGraph(plan, extracted)
+    : buildCanonicalGraph(plan, inspections);
   const builder = new GraphModelBuilder();
   const context = {
     inspections: asArray(inspections),
@@ -197,6 +199,14 @@ function buildCanonicalGraph(plan, inspections) {
     diagnostics.push(`Valid traces available for ${inspected.size} of ${plan.files.length} project files.`);
   }
   return { schemaVersion: 1, complete: diagnostics.length === 0, nodes: Array.from(nodes.values()), edges: Array.from(edges.values()), diagnostics };
+}
+
+function buildExtractedGraph(plan, extracted) {
+  const nodes = plan.assignments.map((assignment) => ({
+    id: assignment.filePath, path: assignment.filePath, layerId: assignment.layer.id, entryPoint: assignment.entryPoint
+  }));
+  const edges = new Map(extracted.edges.map((edge) => [JSON.stringify([edge.source, edge.target, edge.kind]), edge]));
+  return { schemaVersion: 1, complete: extracted.diagnostics.length === 0, nodes, edges: Array.from(edges.values()), diagnostics: extracted.diagnostics };
 }
 
 function contributeImportRelationships(projectGraph, plan, builder) {

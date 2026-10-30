@@ -4,6 +4,7 @@ const {
   createArchitecturePlan
 } = require("./projectArchitecture");
 const { mapConcurrent } = require("./concurrency");
+const { parseFallowGraph } = require("./fallowGraphAdapter");
 
 const DEFAULT_INSPECTION_CONCURRENCY = 4;
 
@@ -30,12 +31,36 @@ class ProjectArchitectureAnalyzer {
       fileScores: rawReport && rawReport.health && rawReport.health.file_scores,
       maxFiles: this.maxFiles
     });
+    let graphError;
+    if (typeof this.client.exportGraph === "function") {
+      try {
+        const dot = await this.client.exportGraph();
+        const listed = listResult.data?.files;
+        const count = listResult.data?.file_count;
+        if (!Array.isArray(listed) || listed.some((file) => typeof file !== "string" || !file)
+            || listed.length !== plan.files.length || (count !== undefined && count !== listed.length)) {
+          throw new Error("Fallow returned an invalid project file list.");
+        }
+        const edges = parseFallowGraph(dot, plan.files);
+        return buildProjectArchitecture(plan, [], {
+          edges,
+          diagnostics: graphDiagnostics(listResult.data, rawReport)
+        });
+      } catch (error) {
+        graphError = error;
+      }
+    }
     const inspections = await mapConcurrent(
       plan.visibleAssignments,
       this.inspectionConcurrency,
       (assignment) => inspectAssignment(this.client, assignment)
     );
-    return buildProjectArchitecture(plan, inspections);
+    const result = buildProjectArchitecture(plan, inspections);
+    const diagnostics = graphDiagnostics(listResult.data, rawReport);
+    if (graphError) diagnostics.unshift(`Fallow DOT extraction failed: ${graphError.message || String(graphError)}`);
+    result.projectGraph.diagnostics.push(...diagnostics);
+    result.projectGraph.complete = result.projectGraph.complete && diagnostics.length === 0;
+    return result;
   }
 
   fallback(error) {
@@ -47,6 +72,20 @@ class ProjectArchitectureAnalyzer {
       edges: []
     };
   }
+}
+
+function graphDiagnostics(listOutput, rawReport) {
+  const check = rawReport?.check;
+  const diagnostics = [];
+  const groups = [listOutput?.workspace_diagnostics, rawReport?.workspace_diagnostics, check?.workspace_diagnostics];
+  for (const item of groups.flatMap((group) => Array.isArray(group) ? group : [])) {
+    if (item?.degrades_analysis) diagnostics.push(`Fallow analysis degraded: ${item.message || item.kind || "unknown reason"}`);
+  }
+  const unresolved = check?.summary?.unresolved_imports;
+  if (unresolved > 0 || (Array.isArray(check?.unresolved_imports) && check.unresolved_imports.length > 0)) {
+    diagnostics.push("Fallow reported unresolved imports; some dependencies may be missing.");
+  }
+  return [...new Set(diagnostics)];
 }
 
 async function inspectAssignment(client, assignment) {
