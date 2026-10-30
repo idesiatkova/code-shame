@@ -14,13 +14,13 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   let cycleMember = null;
   const controls = document.createElement("div");
   controls.className = "architecture-controls";
-  controls.innerHTML = `<label>Find file <input type="search" placeholder="Search file paths" autocomplete="off"></label>
-    <label>Matching files <select aria-label="Matching files"><option value="">Search for a file</option></select></label>
+  controls.innerHTML = `<div class="architecture-search"><label>Find file <input type="search" placeholder="Search file paths" autocomplete="off" role="combobox" aria-label="Find file" aria-autocomplete="list" aria-expanded="false" aria-controls="architecture-file-results"></label>
+    <select hidden aria-label="Matching files"></select></div>
     <details class="architecture-secondary"><summary>Graph options</summary><div><label>Direction <select aria-label="Dependency direction"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
     <label>Depth <select aria-label="Dependency depth"><option value="1">1</option><option value="2">2</option></select></label>
     <button type="button" class="secondary-button">Back to layers</button>
     <label>View <select aria-label="Graph view"><option value="dependencies">Dependencies</option><option value="impact">Impact</option><option value="cycles">Cycles</option></select></label>
-    <label>Cycle group <select aria-label="Cycle group"><option value="">Select a cycle</option></select></label></div></details>`;
+    <label>Cycle group <select aria-label="Cycle group"><option value="">Select a cycle</option></select></label></div><p class="architecture-control-hint"></p></details>`;
   legend.before(controls);
   const secondary = controls.querySelector?.(".architecture-secondary");
   if (secondary) secondary.open = !window.matchMedia?.("(max-width: 600px)").matches;
@@ -29,12 +29,51 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   graphNote.textContent = "Arrows show static imports, not HTTP calls or callbacks. Select a layer to highlight it and its context.";
   controls.before(graphNote);
   const [search, results, direction, depth, back, view, cycle] = controls.querySelectorAll("input, select, button");
+  const searchList = document.createElement("div");
+  searchList.id = "architecture-file-results";
+  searchList.className = "architecture-search-options";
+  searchList.setAttribute("role", "listbox");
+  searchList.hidden = true;
+  results.after(searchList);
+  let activeResult = -1;
+  function setActiveResult(index) {
+    activeResult = index;
+    [...searchList.children].forEach((item, i) => { item.classList.toggle("is-active", i === index); item.setAttribute("aria-selected", String(i === index)); });
+    if (index < 0) search.removeAttribute("aria-activedescendant");
+    else { search.setAttribute("aria-activedescendant", searchList.children[index].id); searchList.children[index].scrollIntoView?.({ block: "nearest" }); }
+  }
+  function showResults(show) {
+    searchList.hidden = !show;
+    search.setAttribute("aria-expanded", String(show));
+    if (!show) setActiveResult(-1);
+  }
+  function chooseResult(index) {
+    const option = results.options[index];
+    if (!option?.value) return;
+    results.value = option.value;
+    results.dispatchEvent(new Event("change", { bubbles: true }));
+    search.focus();
+    showResults(false);
+  }
   const mapActions = document.createElement("div");
   mapActions.className = "architecture-map-actions";
   fitButton.before(mapActions);
   mapActions.append(back, fitButton);
+  for (const [label, factor] of [["Zoom in", 1.25], ["Zoom out", 0.8]]) {
+    const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button"; button.textContent = label;
+    button.addEventListener("click", () => { if (graph) graph.zoom({ level: graph.zoom() * factor, renderedPosition: { x: container.clientWidth / 2, y: container.clientHeight / 2 } }); });
+    mapActions.append(button);
+  }
+  const context = document.createElement("div");
+  context.className = "architecture-context";
+  const contextText = document.createElement("span");
+  const returnFile = document.createElement("button");
+  returnFile.type = "button"; returnFile.className = "secondary-button"; returnFile.textContent = "Return to file";
+  context.append(contextText, returnFile);
+  mapActions.prepend(context);
+  const hint = controls.querySelector?.(".architecture-control-hint");
   back.hidden = true;
-  const dropdowns = [results, direction, depth, view, cycle].map(createStyledSelect);
+  const dropdowns = [{ refresh() {}, focus: () => search.focus() }, ...[direction, depth, view, cycle].map(createStyledSelect)];
   const diagnostics = document.createElement("details");
   diagnostics.className = "architecture-diagnostics";
   const diagnosticsSummary = document.createElement("summary");
@@ -43,29 +82,54 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   diagnostics.append(diagnosticsSummary, diagnosticsList);
   stats.after(diagnostics);
   function refreshSearch() {
-    const matches = currentModel ? searchFiles(currentModel, search.value) : [];
+    const matches = currentModel ? (search.value.trim() ? searchFiles(currentModel, search.value) : analysis ? [...analysis.data.files.values()].sort((a, b) => a.path.localeCompare(b.path)) : (currentModel.nodes || []).filter((node) => node.type === "file").map((node) => ({ ...node, canonicalId: node.path })).sort((a, b) => a.path.localeCompare(b.path))) : [];
     const matchCount = matches.length;
-    const selectedFile = selected && currentModel ? (currentModel.projectGraph?.nodes || currentModel.nodes || []).find((node) => (node.id === selected || node.path === selected) && node.path) : null;
-    if (selectedFile && !matches.some((node) => node.canonicalId === selected)) matches.unshift({ path: selectedFile.path, canonicalId: selected });
-    results.replaceChildren(new Option(!search.value.trim() ? "Search for a file" : matchCount ? `${matchCount} matching files` : "No matching files", ""), ...matches.map((node) => new Option(node.path, node.canonicalId)));
-    results.value = selected || "";
+    results.replaceChildren(...(matchCount ? matches.map((node) => new Option(node.path, node.canonicalId)) : [new Option("No matching files", "")]));
+    results.value = "";
+    searchList.replaceChildren(...[...results.options].map((option, index) => {
+      const item = document.createElement("div");
+      item.id = `architecture-file-result-${index}`; item.className = "architecture-search-option";
+      item.setAttribute("role", "option"); item.setAttribute("aria-selected", "false");
+      if (!option.value) item.setAttribute("aria-disabled", "true");
+      item.textContent = option.text;
+      item.addEventListener("mousedown", (event) => event.preventDefault());
+      item.addEventListener("click", () => chooseResult(index));
+      return item;
+    }));
+    setActiveResult(-1);
     dropdowns[0].refresh();
   }
-  search.addEventListener("input", refreshSearch);
+  search.addEventListener("focus", () => showResults(true));
+  search.addEventListener("input", () => { refreshSearch(); showResults(true); });
+  search.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { if (!searchList.hidden) { event.preventDefault(); showResults(false); } return; }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault(); showResults(true);
+      const count = results.options[0]?.value ? results.options.length : 0;
+      if (count) setActiveResult(activeResult < 0 ? (event.key === "ArrowDown" ? 0 : count - 1) : Math.max(0, Math.min(count - 1, activeResult + (event.key === "ArrowDown" ? 1 : -1))));
+      return;
+    }
+    if (event.key === "Enter") { const index = activeResult >= 0 ? activeResult : results.options.length === 1 ? 0 : -1; if (index >= 0 && results.options[index]?.value) { event.preventDefault(); chooseResult(index); } }
+  });
+  search.addEventListener("blur", () => showResults(false));
   results.addEventListener("change", () => { if (results.value) { selected = results.value; if (view.value === "cycles") { view.value = "dependencies"; dropdowns[3].refresh(); } draw(); } });
   direction.addEventListener("change", () => { if (selected) draw(); });
   depth.addEventListener("change", () => { if (selected) draw(); });
   view.addEventListener("change", draw);
   cycle.addEventListener("change", () => { cycleMember = null; draw(); });
-  back.addEventListener("click", () => { selected = null; refreshSearch(); view.value = "dependencies"; dropdowns[3].refresh(); draw(); dropdowns[0].focus(); });
+  back.addEventListener("click", () => { selected = null; refreshSearch(); view.value = "dependencies"; dropdowns[3].refresh(); draw(); fitButton.focus({ preventScroll: true }); });
+  returnFile.addEventListener("click", () => { view.value = "dependencies"; dropdowns[3].refresh(); draw(); fitButton.focus({ preventScroll: true }); });
   fitButton.addEventListener("click", () => { if (graph) { graph.resize(); graph.fit(graph.elements(), 36); } });
   let rankDir = null;
+  let zoomTarget = null;
+  function ensureReadableZoom() {
+    if (graph && zoomTarget && graph.zoom() < 1) { graph.zoom(1); graph.center(graph.getElementById(zoomTarget)); }
+  }
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => {
     if (!graph || !container.clientWidth) return;
     graph.resize();
     const layout = createGraphOptions(container, {}).layout;
-    if (layout.rankDir !== rankDir) { rankDir = layout.rankDir; graph.layout(layout).run(); }
-    else graph.fit(graph.elements(), 36);
+    if (layout.rankDir !== rankDir) { rankDir = layout.rankDir; graph.layout(layout).run(); ensureReadableZoom(); }
   }).observe(container);
 
   function clear(message = "No project structure yet.") {
@@ -75,7 +139,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     results.replaceChildren(new Option("Search for a file", ""));
     dropdowns.forEach((dropdown) => dropdown.refresh());
     diagnostics.hidden = true; diagnosticsList.replaceChildren();
-    controls.hidden = true; graphNote.hidden = true; back.hidden = true;
+    controls.hidden = true; graphNote.hidden = true; back.hidden = true; context.hidden = true;
     container.replaceChildren(emptyState(message));
     legend.replaceChildren(); stats.textContent = "";
     renderPrompt(details, "Search for a file to explore its dependencies.");
@@ -101,6 +165,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     destroyGraph();
     activeLayer = null;
     direction.parentElement.hidden = depth.parentElement.hidden = view.value !== "dependencies";
+    direction.disabled = depth.disabled = !selected;
+    dropdowns[1].refresh(); dropdowns[2].refresh();
+    if (hint) hint.textContent = view.value === "cycles" ? "Cycles cover the whole project." : view.value === "impact" ? selected ? "Impact shows consumers of the selected file." : "Impact requires a selected file." : !selected ? "Select a file to use Direction and Depth." : "Direction and Depth apply to the selected file.";
     cycle.parentElement.hidden = view.value !== "cycles";
     const group = view.value === "cycles" && cycle.value ? analysis?.cycles.find((item) => JSON.stringify(item) === cycle.value) : null;
     const impactResult = view.value === "impact" && selected ? impact(analysis, selected) : null;
@@ -111,23 +178,29 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     const options = createGraphOptions(container, projection);
     rankDir = options.layout.rankDir;
     graph = window.cytoscape(options);
+    zoomTarget = (group ? projection.nodes.find((node) => node.type === "file") : projection.nodes.find((node) => node.canonicalId === selected))?.id || null;
+    ensureReadableZoom();
     const reset = () => {
       draw();
     };
     const selectLayer = (id) => {
       if (activeLayer === id) { reset(); return; }
       activeLayer = id;
+      returnFile.hidden = !selected;
       const node = graph.getElementById(id);
       const overview = node.data("type") === "overview-layer";
       const collection = overview ? node.closedNeighborhood() : node.add(node.descendants()).add(node.descendants().connectedEdges());
       focusCollection(graph, collection, node);
       legend.querySelectorAll("button").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.layerId === id)));
       if (overview) renderOverviewLayerDetails(details, node);
-      else renderLayerDetails(details, node.data(), node.descendants());
+      else { renderLayerDetails(details, node.data(), node.descendants()); appendNote(details, "This highlights the visible part of the layer in the current file view."); }
+      const layerFiles = analysis ? [...analysis.data.files.values()].filter((file) => file.parent === id) : (currentModel.nodes || []).filter((file) => file.type === "file" && file.parent === id).map((file) => ({ ...file, canonicalId: file.path }));
+      appendFiles(details, "Files in this layer", layerFiles, explore);
       graph.fit(overview ? collection : node.add(node.descendants()), 44);
     };
-    const explore = (id) => { selected = id; cycleMember = null; view.value = "dependencies"; dropdowns[3].refresh(); refreshSearch(); draw(); dropdowns[0].focus(); };
+    const explore = (id) => { selected = id; cycleMember = null; view.value = "dependencies"; dropdowns[3].refresh(); refreshSearch(); draw(); fitButton.focus({ preventScroll: true }); };
     bindGraphInteractions(graph, (id) => { if (group) { cycleMember = id; draw(); } else { selected = id; refreshSearch(); draw(); } }, selectLayer, reset, (edge) => {
+      returnFile.hidden = !selected;
       const source = graph.getElementById(edge.data("source")).data();
       const target = graph.getElementById(edge.data("target")).data();
       renderDetails(details, "Dependency", "Importer → imported", [["From", source.path || source.label], ["To", target.path || target.label], ["File dependencies", edge.data("weight")]]);
@@ -140,6 +213,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
     back.disabled = !selected && view.value === "dependencies";
     back.hidden = back.disabled;
+    context.hidden = !selected;
+    contextText.textContent = selected ? `${view.value === "cycles" ? "Saved file" : "Current file"}: ${analysis?.data.files.get(selected)?.path || selected}${view.value === "cycles" ? " · Cycles across project" : ""}` : "";
+    returnFile.hidden = !selected || view.value !== "cycles";
     if (group) {
       graph.nodes('[type = "file"]').addClass("is-selected"); graph.edges().addClass("is-active");
       const member = projection.nodes.find((node) => node.canonicalId === cycleMember);
@@ -151,7 +227,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     } else if (selected) {
       const node = projection.nodes.find((item) => item.canonicalId === selected);
       if (view.value === "impact" && !analysis) renderPrompt(details, "Impact analysis is unavailable for this report.");
-      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); }
+      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); }
     } else renderPrompt(details, view.value === "impact" ? analysis ? "Search for a file to explore its consumers." : "Impact analysis is unavailable for this report." : "Search for a file to explore its dependencies. Select an arrow for its direction and count.");
   }
   function destroyGraph() { if (graph) graph.destroy(); graph = null; }
@@ -400,9 +476,10 @@ function appendNote(element, text) {
   element.append(note);
 }
 
-function appendFiles(element, label, files, explore) {
+function appendFiles(element, label, files, explore, open = false) {
   if (!files.length) return;
   const disclosure = document.createElement("details");
+  disclosure.open = open;
   const summary = document.createElement("summary");
   summary.textContent = label;
   const list = document.createElement("ul");

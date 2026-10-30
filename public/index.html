@@ -106,14 +106,16 @@
             </div>
             <p id="architecture-stats" class="architecture-stats"></p>
           </div>
-          <button id="architecture-fit" class="secondary-button icon-button" type="button">
-            <i data-lucide="maximize-2" aria-hidden="true"></i>
-            <span class="button-label">Fit map</span>
-          </button>
         </div>
         <div id="architecture-legend" class="architecture-legend" aria-label="Project layers"></div>
         <div class="architecture-body">
-          <div id="architecture-graph" class="architecture-graph" aria-label="Interactive project dependency graph"></div>
+          <div class="architecture-map">
+            <button id="architecture-fit" class="secondary-button icon-button" type="button">
+              <i data-lucide="maximize-2" aria-hidden="true"></i>
+              <span class="button-label">Fit map</span>
+            </button>
+            <div id="architecture-graph" class="architecture-graph" aria-label="Interactive project dependency graph"></div>
+          </div>
           <aside id="architecture-details" class="architecture-details" aria-live="polite"></aside>
         </div>
       </section>
