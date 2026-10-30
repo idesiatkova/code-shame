@@ -38,7 +38,7 @@ export function createReportRenderer({ elements, architectureRenderer, isArchite
     renderHardFindings(report.hardFindings);
     renderHealth(report.health);
     renderTargets(report.health.targets);
-    if (isArchitecturePage) architectureRenderer.render(report.architecture);
+    if (isArchitecturePage) architectureRenderer.render(report.architecture, payload.projectName);
     icons.refresh();
   }
 

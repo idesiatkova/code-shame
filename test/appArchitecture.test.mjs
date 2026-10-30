@@ -84,6 +84,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     setAttribute(key, value) { this.attributes[key] = value; }
     removeAttribute(key) { delete this.attributes[key]; }
     getAttribute(key) { return this.attributes[key] || key; }
+    querySelector() { return null; }
     get options() { return this.children; }
     dispatchEvent(event) { this.fire(event.type); }
     focus() { globalThis.document.activeElement = this; }
@@ -99,7 +100,8 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option, oldResizeObserver = globalThis.ResizeObserver;
   let resize;
   globalThis.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} };
-  globalThis.document = { createElement: () => new Element(), addEventListener() {} };
+  const created = [];
+  globalThis.document = { createElement: () => { const element = new Element(); created.push(element); return element; }, addEventListener() {} };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
   let lastFit, lastGraph, lastRankDir, lastCentered;
   globalThis.window = { cytoscape: (options) => {
@@ -119,11 +121,36 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const renderer = architecture.createRenderer({ container, details, legend, stats, fitButton });
     const model = createDemoModel();
     renderer.render(model);
+    const map = created.find((element) => element.className === "architecture-map-disclosure");
+    assert.ok(!map.open);
+    const browser = created.find((element) => element.className === "architecture-browser");
+    assert.equal(browser.children[1].className, "source-explorer");
+    const inventory = browser.children[2];
+    assert.equal(inventory.children[0].className, "architecture-browser-grid");
+    const firstFile = inventory.children[0].children[1].children[1].children[0];
+    firstFile.fire("click");
+    const selectedPanel = browser.children[0].children[1];
+    assert.match(selectedPanel.children[0].textContent, /File:/);
+    assert.equal(inventory.children[0].children[1].children[1].children[0].attributes["aria-pressed"], "true");
+    const sourceTrigger = selectedPanel.children[1];
+    inventory.children[0].children[0].children[1].children[1].fire("click");
+    assert.equal(browser.children[0].children[1].children[1], sourceTrigger);
+    selectedPanel.children[2].fire("click");
+    assert.equal(browser.children[0].children.length, 1);
+    const withTests = structuredClone(model);
+    withTests.projectGraph.nodes.push({ id: "test/example.test.js", path: "test/example.test.js", entryPoint: true });
+    renderer.render(withTests);
+    const entries = inventory.children[0].children[2].children[1];
+    const testGroup = entries.children.find((child) => child.children?.[0]?.textContent === "Test entry points (1)");
+    assert.ok(testGroup); assert.ok(!testGroup.open);
+    assert.match(testGroup.children[1].textContent, /test directory or filename/);
+    renderer.render(model);
+    map.open = true; map.fire("toggle");
     container.clientWidth = 800; resize();
     assert.equal(lastRankDir, "TB");
     container.clientWidth = 1200; resize();
     assert.equal(lastRankDir, "LR");
-    const [search, results, direction, depth, back, view, cycle] = legend.beforeElement.controls;
+    const [search, results, direction, depth, back, view, cycle] = browser.beforeElement.controls;
     assert.ok(results.children.length > 1);
     assert.equal(direction.disabled, true); assert.equal(depth.disabled, true);
     const searchList = results.afterElement;
@@ -249,8 +276,9 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     updated.projectGraph.complete = false;
     updated.projectGraph.diagnostics = ["Unresolved imports <example>"];
     renderer.render(updated);
-    assert.equal(stats.afterElement.hidden, false);
-    assert.equal(stats.afterElement.children[1].children[0].textContent, "Unresolved imports <example>");
+    const diagnostics = created.find((element) => element.className === "architecture-diagnostics");
+    assert.equal(diagnostics.hidden, false);
+    assert.equal(diagnostics.children[1].children[0].textContent, "Unresolved imports <example>");
     renderer.clear();
   } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; }
 });
