@@ -74,13 +74,14 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const cytoscape = (await import("cytoscape")).default;
   cytoscape.use((await import("cytoscape-dagre")).default);
   class Element {
-    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; }
+    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; this.classList = { toggle() {} }; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
     replaceChildren(...children) { this.children = children; }
     append(...children) { this.children.push(...children); }
     before(element) { this.beforeElement = element; }
     after(element) { this.afterElement = element; }
     setAttribute(key, value) { this.attributes[key] = value; }
+    removeAttribute(key) { delete this.attributes[key]; }
     getAttribute(key) { return this.attributes[key] || key; }
     get options() { return this.children; }
     dispatchEvent(event) { this.fire(event.type); }
@@ -126,18 +127,27 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.ok(lastFit.edges().length > 0);
     assert.equal(details.children[0].textContent, "UI / Components");
     assert.ok(details.children[2].children.some((item) => item.textContent === "Outbound to other layers"));
-    layerButton.fire("click");
-    assert.equal(legend.children.find((button) => button.textContent.startsWith("UI / Components")).attributes["aria-pressed"], "false");
+    layerButton.focus(); layerButton.fire("click");
+    const resetLayerButton = legend.children.find((button) => button.textContent.startsWith("UI / Components"));
+    assert.equal(resetLayerButton.attributes["aria-pressed"], "false");
+    assert.equal(globalThis.document.activeElement, resetLayerButton);
     assert.equal(details.children[0].textContent, "Project structure");
     search.value = "checkout"; search.fire("input");
     const menu = results.afterElement, summary = menu.children[0], options = menu.children[1];
-    assert.ok(options.children.every((button) => button.tabIndex === -1));
+    assert.equal(summary.attributes.role, "combobox");
+    assert.equal(options.attributes.role, "listbox");
+    assert.equal(options.children[0].attributes["aria-disabled"], "true");
     summary.focus();
-    menu.fire("keydown", { key: "ArrowDown", preventDefault() {} });
-    assert.equal(globalThis.document.activeElement, options.children[0]);
-    menu.fire("focusout", { relatedTarget: direction });
-    assert.equal(menu.open, false);
+    summary.fire("keydown", { key: "ArrowDown", preventDefault() {} });
+    assert.equal(globalThis.document.activeElement, summary);
+    summary.fire("keydown", { key: "Escape", preventDefault() {} });
+    assert.equal(options.hidden, true);
     results.value = "domain/checkout.ts"; results.fire("change");
+    const neighbors = details.children.find((child) => child.children?.[0]?.textContent === "Files shown in this view");
+    assert.ok(neighbors.children[1].children.some((item) => item.children[0].textContent.includes("/")));
+    const edge = lastGraph.edges()[0]; edge.emit("tap");
+    assert.equal(details.children[0].textContent, "Dependency");
+    assert.equal(details.children[1].textContent, "Importer → imported");
     direction.value = "inbound"; depth.value = "2";
     const updated = structuredClone(model);
     updated.projectGraph.nodes.push({ id: "new/checkout.ts", path: "new/checkout.ts", layerId: "domain" });
@@ -172,6 +182,14 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     cycle.value = cycle.children[1].value; cycle.fire("change");
     const selectedCycle = cycle.value;
     assert.equal(details.children[0].textContent, "Cycle group");
+    const member = lastGraph.nodes('[type = "file"]')[0]; member.emit("tap");
+    assert.equal(view.value, "cycles");
+    assert.equal(details.children[1].textContent, member.data("path"));
+    const members = details.children.find((child) => child.children?.[0]?.textContent === "Cycle members");
+    members.children[1].children[0].children[1].fire("click");
+    assert.equal(view.value, "dependencies");
+    assert.equal(globalThis.document.activeElement, results.afterElement.children[0]);
+    view.value = "cycles"; view.fire("change");
     lastGraph.emit("tap");
     assert.equal(details.children[0].textContent, "Cycle group");
     assert.ok(lastGraph.nodes('[type = "file"].is-selected').length > 0);
@@ -182,7 +200,8 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(cycle.value, "");
     assert.equal(details.children[0].textContent, "Project structure");
     assert.match(details.children[1].textContent, /No cycle groups found/);
-    back.fire("click");
+    back.focus(); back.fire("click");
+    assert.equal(globalThis.document.activeElement, results.afterElement.children[0]);
     assert.equal(results.value, "");
     assert.equal(view.value, "dependencies");
     assert.equal(direction.parentElement.hidden, false); assert.equal(cycle.parentElement.hidden, true);
@@ -190,6 +209,15 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     results.value = "domain/checkout.ts"; results.fire("change");
     updated.projectGraph.nodes = updated.projectGraph.nodes.filter((node) => node.id !== "domain/checkout.ts");
     renderer.render(updated);
+    assert.match(stats.textContent, /graph files/);
+    renderer.clear();
+    const legacy = structuredClone(model); delete legacy.projectGraph;
+    renderer.render(legacy);
+    results.value = "domain/checkout.ts"; results.fire("change");
+    view.value = "impact"; view.fire("change");
+    assert.match(details.children[1].textContent, /unavailable/);
+    assert.ok(lastGraph.nodes('[type = "overview-layer"]').length > 0);
+    assert.equal(lastGraph.nodes('[type = "file"]').length, 0);
     assert.match(stats.textContent, /graph files/);
     renderer.clear();
     assert.equal(search.value, ""); assert.equal(direction.value, "both"); assert.equal(depth.value, "1");

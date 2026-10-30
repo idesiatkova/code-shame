@@ -3,6 +3,8 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { resolvePublicPath } = require("./paths");
 const { createScanService } = require("./scanService");
+const codeShameVersion = require("../package.json").version;
+const fallowVersion = require("fallow/package.json").version;
 
 const MIME_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
@@ -69,12 +71,19 @@ function resolveCytoscapeScriptPath() {
 
 async function serveStatic(response, pathname) {
   const filePath = VENDOR_SCRIPT_PATHS.get(pathname) || resolvePublicPath(pathname);
-  const content = await readStatic(filePath);
+  let content = await readStatic(filePath);
 
   if (!content) {
     response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
     response.end("Not found\n");
     return;
+  }
+
+  if (filePath === resolvePublicPath("/index.html")) {
+    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+    content = content.toString("utf8")
+      .replace("{{CODE_SHAME_VERSION}}", escapeHtml(codeShameVersion))
+      .replace("{{FALLOW_VERSION}}", escapeHtml(fallowVersion));
   }
 
   response.writeHead(200, {

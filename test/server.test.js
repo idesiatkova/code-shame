@@ -23,6 +23,14 @@ test("creates an isolated HTTP server without listening on import", async (t) =>
   const html = await (await fetch(`${url}/`)).text();
   assert.match(html, /src="\/app\/main\.js"/);
   assert.match(html, /href="\/styles\/main\.css"/);
+  assert.ok(html.includes(`Code Shame ${require("../package.json").version}`));
+  assert.ok(html.includes(`Fallow ${require("fallow/package.json").version}`));
+  assert.doesNotMatch(html, /\{\{(?:CODE_SHAME|FALLOW)_VERSION\}\}/);
+  const head = await fetch(`${url}/`, { method: "HEAD" });
+  assert.equal(head.status, 200);
+  assert.match(head.headers.get("content-type"), /text\/html/);
+  assert.equal(head.headers.get("cache-control"), "no-store");
+  assert.equal(await head.text(), "");
   assert.match((await fetch(`${url}/app/main.js`)).headers.get("content-type"), /javascript/);
   assert.match((await fetch(`${url}/styles/main.css`)).headers.get("content-type"), /text\/css/);
   assert.equal((await fetch(`${url}/vendor/cytoscape.js`)).status, 200);

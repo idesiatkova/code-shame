@@ -64,6 +64,7 @@ test("pinned Fallow DOT agrees with inspect for resolved dependencies", async (t
   assert.equal(result.projectGraph.edges.length, 8);
   assert.equal(result.projectGraph.complete, false);
   assert.match(result.projectGraph.diagnostics.join(" "), /unresolved imports/);
+  assert.match(result.projectGraph.diagnostics.join(" "), /src\/index\.ts: Fallow could not resolve import \.\/missing/);
   assert.match(result.projectGraph.diagnostics.join(" "), /degraded/);
 });
 

@@ -1167,6 +1167,7 @@ li {
   outline: none;
 }
 .architecture-legend-item[aria-pressed="true"] { background: color-mix(in srgb, var(--layer-color) 30%, var(--control)); border-color: var(--layer-color); }
+.architecture-legend-item:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
 .architecture-body {
   display: grid;
@@ -1338,6 +1339,21 @@ li {
 
 .architecture-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 12px 0; }
 .architecture-controls[hidden] { display: none; }
+.architecture-map-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.architecture-map-actions > button { min-height: 36px; }
+.architecture-map-actions > button[hidden] { display: none; }
+.architecture-secondary > div { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.architecture-secondary > summary { cursor: pointer; color: var(--ink); }
+.architecture-graph-note { color: var(--muted); font-size: 12px; margin: 8px 0; }
+.architecture-details details { margin-top: 12px; }
+.architecture-details details summary { cursor: pointer; }
+.architecture-details details ul { padding-left: 18px; }
+.architecture-details details li { overflow-wrap: anywhere; margin: 8px 0; }
+.architecture-details details button { margin-left: 8px; }
+@media (max-width: 600px) {
+  .architecture-secondary { width: 100%; }
+  .architecture-secondary[open] > div { margin-top: 8px; }
+}
 .architecture-controls label { display: grid; gap: 4px; color: #aaa59a; font-size: 12px; }
 .architecture-controls label[hidden] { display: none; }
 .architecture-controls input, .architecture-controls select { max-width: 280px; padding: 8px; color: #f5f1e8; background: #202522; border: 1px solid #59625d; border-radius: 6px; }

@@ -50,3 +50,31 @@ test("mapConcurrent preserves input ordering", async () => {
 
   assert.deepEqual(results, [30, 10, 20]);
 });
+
+test("unresolved import summaries disclose when details are unavailable", async () => {
+  const client = {
+    listProject: async () => ({ data: { files: [] } }),
+    resolvedConfig: async () => ({ data: {} }),
+    exportGraph: async () => "digraph fallow {}"
+  };
+  const graph = await new ProjectArchitectureAnalyzer({ client }).analyze({
+    rawReport: { check: { summary: { unresolved_imports: 3 } } }
+  });
+  assert.equal(graph.projectGraph.complete, false);
+  assert.match(graph.projectGraph.diagnostics.join(" "), /3 unresolved import\(s\) not shown or without details/);
+  assert.match(graph.projectGraph.diagnostics.join(" "), /did not provide file and import details/);
+  const many = await new ProjectArchitectureAnalyzer({ client }).analyze({
+    rawReport: { check: { unresolved_imports: Array.from({ length: 21 }, (_, i) => ({ path: `file${i}.js`, specifier: "./missing" })) } }
+  });
+  assert.equal(many.projectGraph.diagnostics.filter((item) => item.includes("could not resolve")).length, 20);
+  assert.match(many.projectGraph.diagnostics.join(" "), /1 unresolved import\(s\) not shown or without details/);
+  const repeated = await new ProjectArchitectureAnalyzer({ client }).analyze({
+    rawReport: { check: { unresolved_imports: [
+      ...Array.from({ length: 20 }, (_, line) => ({ path: "same.js", specifier: "missing", line })),
+      { path: "other.js", specifier: "other-missing" }
+    ] } }
+  });
+  assert.equal(repeated.projectGraph.diagnostics.filter((item) => item.includes("could not resolve")).length, 2);
+  assert.ok(repeated.projectGraph.diagnostics.some((item) => item.includes("other.js")));
+  assert.ok(!repeated.projectGraph.diagnostics.some((item) => item.includes("not shown")));
+});
