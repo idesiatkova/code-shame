@@ -1349,7 +1349,12 @@ li {
 .architecture-details details summary { cursor: pointer; }
 .architecture-details details ul { padding-left: 18px; }
 .architecture-details details li { overflow-wrap: anywhere; margin: 8px 0; }
-.architecture-details details button { margin-left: 8px; }
+.architecture-details .architecture-file-list { padding: 0; list-style: none; }
+.architecture-file-list li { display: flex; align-items: baseline; gap: 8px; }
+.architecture-file-list li > span { flex: 1; min-width: 0; }
+.architecture-explore { flex: none; padding: 3px 6px; border: 1px solid var(--border); background: var(--control); color: var(--ink); font-size: 11px; line-height: 1.4; font-weight: 600; }
+.architecture-explore:hover { border-color: var(--muted); }
+.architecture-explore:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 @media (max-width: 600px) {
   .architecture-secondary { width: 100%; }
   .architecture-secondary[open] > div { margin-top: 8px; }

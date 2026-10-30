@@ -406,12 +406,14 @@ function appendFiles(element, label, files, explore) {
   const summary = document.createElement("summary");
   summary.textContent = label;
   const list = document.createElement("ul");
+  list.className = "architecture-file-list";
   files.forEach((file) => {
     const item = document.createElement("li");
     const path = document.createElement("span");
     path.textContent = file.path;
     const button = document.createElement("button");
     button.type = "button";
+    button.className = "architecture-explore";
     button.textContent = "Explore";
     button.setAttribute("aria-label", `Explore ${file.path}`);
     button.addEventListener("click", () => explore(file.canonicalId));
