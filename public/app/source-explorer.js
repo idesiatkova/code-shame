@@ -1,5 +1,5 @@
-export function createSourceExplorer(panel, fetchSource = fetch) {
-  let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", graphData, graphError, graph, graphRequest = 0;
+export function createSourceExplorer(panel, fetchSource = fetch, onClose = () => {}) {
+  let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", graphData, graphError, graph, graphRequest = 0, graphNeedsLayout = false;
   const history = [];
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -14,7 +14,7 @@ export function createSourceExplorer(panel, fetchSource = fetch) {
   function close(restoreFocus = false) {
     request++; controller?.abort(); controller = null; clearGraph(); data = selected = file = anchor = null; history.length = 0;
     panel.hidden = true; panel.replaceChildren();
-    if (restoreFocus && trigger?.isConnected) trigger.focus();
+    if (restoreFocus) { onClose(); if (trigger?.isConnected) trigger.focus(); }
     trigger = null; query = "";
   }
   function clearGraph() {
@@ -160,6 +160,7 @@ export function createSourceExplorer(panel, fetchSource = fetch) {
     const rootKey = key({ file, id: selected.id });
     if (typeof window !== "undefined" && typeof window.cytoscape === "function") {
       graph = window.cytoscape({ container: canvas, elements: [...nodes.map((node) => ({ data: { id: key(node), label: `${node.name}\n${node.file}`, target: node }, classes: key(node) === rootKey ? "root" : "" })), ...edges.map((edge, index) => ({ data: { id: `edge-${index}`, source: key(edge.source), target: key(edge.target) } }))], layout: { name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80, padding: 30 }, style: [{ selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 150, "text-valign": "center", "text-halign": "center", color: "#f1f5f1", "font-size": 11, width: 170, height: 54, shape: "round-rectangle", "background-color": "#46584a" } }, { selector: "node.root", style: { "background-color": "#688b6e", "border-width": 3, "border-color": "#d4e6d5" } }, { selector: "edge", style: { width: 2, "line-color": "#9db4a0", "target-arrow-color": "#9db4a0", "target-arrow-shape": "triangle", "curve-style": "bezier" } }] });
+      graphNeedsLayout = panel.hidden;
       const initialZoom = graph.zoom();
       if (initialZoom < 0.9 || initialZoom > 1.4) { graph.zoom(Math.max(0.9, Math.min(1.4, initialZoom))); graph.center(graph.getElementById(rootKey)); }
       graph.on("tap", "node", (event) => { const target = event.target.data("target"); if (key(target) !== rootKey) navigate(target); });
@@ -200,5 +201,13 @@ export function createSourceExplorer(panel, fetchSource = fetch) {
       render(); panel.append(element("p", "source-explorer-status", error.message || "Could not load source."));
     }
   }
-  return { open, close, get file() { return anchor; }, get currentFile() { return file; } };
+  function resize() {
+    if (!graph) return;
+    graph.resize();
+    if (graphNeedsLayout) {
+      graph.layout({ name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80, padding: 30 }).run();
+      graph.fit(graph.elements(), 30); graphNeedsLayout = false;
+    }
+  }
+  return { open, close, resize, get file() { return anchor; }, get currentFile() { return file; } };
 }
