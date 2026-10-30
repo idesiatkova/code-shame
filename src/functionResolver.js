@@ -6,6 +6,7 @@ const LIMIT = 40;
 const NODE_LIMIT = 80;
 const EDGE_LIMIT = 200;
 const MAX_DEPTH = 8;
+const COMMONJS_VALUE = "\0commonjs-value";
 const EXTENSIONS = ["", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts", "/index.js", "/index.ts", "/index.tsx"];
 const key = (file, id) => JSON.stringify([file, id]);
 const nodeId = (node) => `${node.type}:${node.start}:${node.end}`;
@@ -54,6 +55,151 @@ function createResolver(root, snapshot) {
     const found = data.symbols.find((item) => item.id === nodeId(node));
     return found ? { file, hash: data.hash, ...found } : null;
   }
+  function requireFile(p, file) {
+    const node = p.node;
+    if (!p.isCallExpression() || node.callee.type !== "Identifier" || node.callee.name !== "require" || p.scope.getBinding("require") || node.arguments.length !== 1 || node.arguments[0].type !== "StringLiteral") return null;
+    return resolvePath(file, node.arguments[0].value);
+  }
+  function property(node) {
+    if (!node.computed && node.property?.type === "Identifier") return node.property.name;
+    if (node.computed && node.property?.type === "StringLiteral") return node.property.value;
+    if (!node.computed && node.property?.type === "PrivateName") return `#${node.property.id.name}`;
+    return null;
+  }
+  function requireMutated(data, target) {
+    data.requireMutations ||= new Map();
+    if (data.requireMutations.has(target)) return data.requireMutations.get(target);
+    let unsafe = false;
+    data.program.traverse({ CallExpression(p) {
+      if (requireFile(p, data.file) !== target) return;
+      const parent = p.parentPath;
+      if (parent.isMemberExpression() && parent.node.object === p.node) {
+        const use = parent.parentPath;
+        if ((use.isAssignmentExpression() && use.node.left === parent.node) || use.isUpdateExpression() || (use.isUnaryExpression() && use.node.operator === "delete")) unsafe = true;
+      } else if (parent.isVariableDeclarator() && parent.node.id.type === "Identifier") {
+        const binding = parent.scope.getBinding(parent.node.id.name);
+        if (!binding?.constant || binding.referencePaths.some((ref) => {
+          const member = ref.parentPath;
+          if (!member.isMemberExpression() || member.node.object !== ref.node) return !(member.isCallExpression() && member.node.callee === ref.node);
+          const use = member.parentPath;
+          return !(use.isCallExpression() && use.node.callee === member.node);
+        })) unsafe = true;
+      } else if (!parent.isVariableDeclarator() && !parent.isExpressionStatement() && !(parent.isCallExpression() && parent.node.callee === p.node) && !(parent.isAssignmentExpression() && parent.node.right === p.node && parent.get("left").isMemberExpression() && parent.node.left.object.type === "Identifier" && parent.node.left.object.name === "module" && property(parent.node.left) === "exports" && !parent.scope.getBinding("module"))) unsafe = true;
+    } });
+    data.requireMutations.set(target, unsafe);
+    return unsafe;
+  }
+  async function commonExport(data, file, name, seen, depth) {
+    let value = null, detached = false, unsafe = false;
+    const assignments = [];
+    data.program.traverse({
+      AssignmentExpression(p) {
+        if (p.node.left.type === "Identifier" && ["module", "exports"].includes(p.node.left.name) && !p.scope.getBinding(p.node.left.name)) unsafe = true;
+      },
+      ReferencedIdentifier(p) {
+        if (!["module", "exports"].includes(p.node.name) || p.scope.getBinding(p.node.name)) return;
+        let member = p.parentPath;
+        if (!member.isMemberExpression() || member.node.object !== p.node) { unsafe = true; return; }
+        if (p.node.name === "module") {
+          if (property(member.node) !== "exports") { unsafe = true; return; }
+          if (member.parentPath.isMemberExpression() && member.parentPath.node.object === member.node) member = member.parentPath;
+        }
+        const assign = member.parentPath;
+        if (!assign.isAssignmentExpression({ operator: "=" }) || assign.node.left !== member.node || !assign.parentPath.isExpressionStatement() || !assign.parentPath.parentPath.isProgram()) { unsafe = true; return; }
+        assignments.push({ assign, member, root: p.node.name });
+      }
+    });
+    for (const { assign, member, root } of assignments) {
+      const whole = root === "module" && member.node.object.type === "Identifier";
+      if (whole) {
+        detached = true;
+        value = null;
+        const right = assign.get("right");
+        if (right.isObjectExpression()) {
+          for (const prop of right.get("properties")) {
+            if (prop.isSpreadElement() || prop.node.computed || !["ObjectProperty", "ObjectMethod"].includes(prop.node.type)) { unsafe = true; continue; }
+            const propName = prop.node.key.name ?? prop.node.key.value;
+            if (propName === name) value = prop.isObjectMethod() && prop.node.kind !== "method" ? null : prop.isObjectMethod() ? prop : prop.get("value");
+          }
+        } else if (right.isCallExpression() && requireFile(right, file)) {
+          const target = requireFile(right, file);
+          value = requireMutated(data, target) ? null : { reexport: target, name };
+        }
+        else if (name === COMMONJS_VALUE) value = right;
+      } else {
+        const propName = property(member.node);
+        if (!propName) { unsafe = true; continue; }
+        if (root === "exports" && detached) continue;
+        if (propName === name) value = assign.get("right");
+      }
+    }
+    if (unsafe || !value) return null;
+    if (value.reexport) return exported(value.reexport, value.name, seen, depth + 1);
+    if (value.isIdentifier()) return bindingTarget(data, value.scope.getBinding(value.node.name), file, seen, depth);
+    if (value.isFunctionExpression() || value.isArrowFunctionExpression() || value.isObjectMethod()) return symbol(data, value.node, file);
+    if (value.isMemberExpression()) {
+      const target = requireFile(value.get("object"), file);
+      const prop = property(value.node);
+      if (target && prop && !requireMutated(data, target)) return exported(target, prop, seen, depth + 1);
+    }
+    return null;
+  }
+  function thisTarget(data, p, callee) {
+    const name = property(callee);
+    if (!name || callee.object.type !== "ThisExpression") return null;
+    let context = p.parentPath;
+    while (context && !context.isClassMethod() && !context.isClassPrivateMethod() && !context.isClassProperty() && !context.isClassPrivateProperty()) {
+      if (context.isFunction() && !context.isArrowFunctionExpression()) return null;
+      context = context.parentPath;
+    }
+    if (!context) return null;
+    const cls = context.parentPath.parentPath;
+    if (!cls?.isClass() || cls.node.superClass) return null;
+    const className = cls.parentPath.isVariableDeclarator() && cls.parentPath.node.id.type === "Identifier" ? cls.parentPath.node.id.name : cls.node.id?.name;
+    const classBinding = className && (cls.parentPath.scope.getBinding(className) || cls.scope.getBinding(className));
+    let unsafe = false;
+    const mutates = (node) => node.type === "MemberExpression" && node.object.type === "ThisExpression" && (!property(node) || property(node) === name);
+    cls.traverse({
+      ThisExpression(q) { if (!q.parentPath.isMemberExpression() || q.parentPath.node.object !== q.node) unsafe = true; },
+      AssignmentExpression(q) { if (mutates(q.node.left)) unsafe = true; },
+      UpdateExpression(q) { if (mutates(q.node.argument)) unsafe = true; },
+      UnaryExpression(q) { if (q.node.operator === "delete" && mutates(q.node.argument)) unsafe = true; }
+    });
+    if (className) data.program.traverse({
+      Class(q) { if (q.node.superClass?.type === "Identifier" && q.node.superClass.name === className) unsafe = true; },
+      MemberExpression(q) {
+        if (q.node.object.type !== "Identifier" || q.node.object.name !== className || q.scope.getBinding(className) !== classBinding) return;
+        if (property(q.node) === "prototype") unsafe = true;
+        const parent = q.parentPath;
+        if ((!property(q.node) || property(q.node) === name) && ((parent.isAssignmentExpression() && parent.node.left === q.node) || parent.isUpdateExpression() || (parent.isUnaryExpression() && parent.node.operator === "delete"))) unsafe = true;
+      }
+    });
+    if (className) {
+      for (const ref of classBinding?.referencePaths || []) {
+        const parent = ref.parentPath;
+        if (parent.isCallExpression() && parent.node.callee !== ref.node) unsafe = true;
+        if (parent.isVariableDeclarator() && parent.node.init === ref.node) unsafe = true;
+        if (parent.isNewExpression() && parent.node.callee === ref.node && parent.parentPath.isVariableDeclarator()) {
+          const id = parent.parentPath.node.id;
+          const instance = id.type === "Identifier" && parent.scope.getBinding(id.name);
+          if (!instance?.constant || instance.referencePaths.some((use) => {
+            const member = use.parentPath;
+            return !member.isMemberExpression() || member.node.object !== use.node || !member.parentPath.isCallExpression() || member.parentPath.node.callee !== member.node;
+          })) unsafe = true;
+        }
+      }
+    }
+    const matches = cls.get("body.body").filter((member) => {
+      const node = member.node;
+      const memberName = node.key?.type === "PrivateName" ? `#${node.key.id.name}` : !node.computed ? node.key?.name : null;
+      return memberName === name && !!node.static === !!context.node.static;
+    });
+    if (unsafe || matches.length !== 1) return null;
+    const member = matches[0];
+    if ((member.isClassMethod() || member.isClassPrivateMethod()) && member.node.kind === "method") return symbol(data, member.node, data.file);
+    if ((member.isClassProperty() || member.isClassPrivateProperty()) && member.get("value").isArrowFunctionExpression()) return symbol(data, member.node.value, data.file);
+    return null;
+  }
   async function bindingTarget(data, binding, file, seen, depth) {
     if (!binding || !binding.constant) return null;
     const p = binding.path;
@@ -62,6 +208,20 @@ function createResolver(root, snapshot) {
     if (p.isVariableDeclarator()) {
       const init = p.node.init;
       if (init && ["ArrowFunctionExpression", "FunctionExpression"].includes(init.type) && p.node.id.type === "Identifier") return symbol(data, init, file);
+      if (p.node.id.type === "Identifier" && p.get("init").isMemberExpression()) {
+        const initPath = p.get("init");
+        const target = requireFile(initPath.get("object"), file);
+        const name = property(initPath.node);
+        if (target && name && !requireMutated(data, target)) return exported(target, name, seen, depth + 1);
+      }
+      const target = requireFile(p.get("init"), file);
+      if (target && !requireMutated(data, target)) {
+        if (p.node.id.type === "Identifier") return exported(target, COMMONJS_VALUE, seen, depth + 1);
+        if (p.node.id.type === "ObjectPattern") {
+          const item = p.node.id.properties.find((prop) => prop.type === "ObjectProperty" && !prop.computed && prop.value.type === "Identifier" && prop.value.name === binding.identifier.name);
+          if (item) return exported(target, item.key.name ?? item.key.value, seen, depth + 1);
+        }
+      }
     }
     if (p.isImportSpecifier() || p.isImportDefaultSpecifier()) {
       const declaration = p.parentPath.node;
@@ -79,6 +239,8 @@ function createResolver(root, snapshot) {
     const data = await load(file);
     if (!data || data.unavailable) return null;
     const candidates = [];
+    const common = await commonExport(data, file, name, seen, depth);
+    if (common) candidates.push(common);
     for (const statement of data.ast.program.body) {
       if (statement.type === "ExportDefaultDeclaration" && name === "default") {
         const decl = statement.declaration;
@@ -117,11 +279,28 @@ function createResolver(root, snapshot) {
       let target = null;
       const callee = p.node.callee;
       if (callee.type === "Identifier") target = await bindingTarget(data, p.scope.getBinding(callee.name), data.file, new Set(), 0);
+      else if (callee.type === "CallExpression") {
+        const targetFile = requireFile(p.get("callee"), data.file);
+        if (targetFile && !requireMutated(data, targetFile)) target = await exported(targetFile, COMMONJS_VALUE);
+      }
+      else if (callee.type === "MemberExpression" && callee.object.type === "ThisExpression") target = thisTarget(data, p, callee);
+      else if (callee.type === "MemberExpression" && property(callee) && callee.object.type === "CallExpression") {
+        const targetFile = requireFile(p.get("callee.object"), data.file);
+        if (targetFile && !requireMutated(data, targetFile)) target = await exported(targetFile, property(callee));
+      }
       else if (callee.type === "MemberExpression" && !callee.computed && callee.object.type === "Identifier" && callee.property.type === "Identifier") {
         const binding = p.scope.getBinding(callee.object.name);
         if (binding?.constant && binding.path.isImportNamespaceSpecifier() && binding.path.parentPath.node.importKind !== "type") {
           const targetFile = resolvePath(data.file, binding.path.parentPath.node.source.value);
           if (targetFile) target = await exported(targetFile, callee.property.name);
+        }
+        if (binding?.constant && binding.path.isVariableDeclarator() && binding.path.node.id.type === "Identifier") {
+          const targetFile = requireFile(binding.path.get("init"), data.file);
+          const safe = binding.referencePaths.every((ref) => {
+            const member = ref.parentPath;
+            return member.isMemberExpression() && member.node.object === ref.node && !member.node.computed && member.parentPath.isCallExpression() && member.parentPath.node.callee === member.node;
+          });
+          if (targetFile && safe && !requireMutated(data, targetFile)) target = await exported(targetFile, callee.property.name);
         }
       }
       Object.assign(call, target ? { status: "resolved", target } : { status: "unresolved", reason: "Target cannot be proven" });

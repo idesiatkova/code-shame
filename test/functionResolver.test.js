@@ -61,3 +61,40 @@ test("bounds large function neighborhoods", async (t) => {
   assert.equal(graph.edges.length, 79);
   assert.equal(graph.coverage.truncated, true);
 });
+
+test("resolves static CommonJS and lexical class calls conservatively", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "code-shame-commonjs-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const files = {
+    "lib.js": `function f() {} function g() {} module.exports = { f, renamed: g, method() {} };`,
+    "changed.js": `function f() {} module.exports = { f };`,
+    "direct.js": `module.exports = function direct() {};`,
+    "barrel.js": `module.exports = require('./lib');`,
+    "mutated-barrel.js": `const ns = require('./lib'); ns.f = other; module.exports = require('./lib');`,
+    "bad.js": `function f() {} exports.f = f; if (unknown) module.exports.f = other;`,
+    "detached.js": `function first() {} function second() {} exports.f = first; module.exports = { f: second }; exports.f = first;`,
+    "cycle1.js": `module.exports = require('./cycle2');`,
+    "cycle2.js": `module.exports = require('./cycle1');`,
+    "object-default.js": `module.exports = { default: function onlyProperty() {} };`,
+    "guards.js": `const obj = require('./object-default'); obj(); require('./direct').default(); require('./changed').f = other; require('./changed').f(); class C { run() {} execute() { this.run(); } } const c = new C(); c.run = other; class Base { run() {} execute() { this.run(); } } const Alias = Base; class Child extends Alias { run() {} }`,
+    "escape.js": `const ns = require('./lib'); const alias = ns; alias.f = other; require('./lib').f(); Object.assign(require('./changed'), { f: other }); require('./changed').f(); require('./mutated-barrel').f(); const C = class { run() {} execute() { this.run(); } }; C.prototype.run = other;`,
+    "calls.js": `const { f: alias, renamed } = require('./barrel'); const ns = require('./lib'); const direct = require('./direct'); const member = require('./lib').f; function caller() { alias(); renamed(); ns.f(); direct(); member(); require('./direct')(); require('./lib').method(); } function shadow(require) { require('./lib').f(); } const changed = require('./changed'); changed.f = other; changed.f(); const { f } = require('./bad'); f(); const { f: detached } = require('./detached'); detached(); const { f: cycle } = require('./cycle1'); cycle();`,
+    "class.js": `class Client { constructor() { this.value = 1; } run() {} #hidden() {} field = () => this.run(); execute() { this.run(); this.#hidden(); (() => this.run())(); function nested() { this.run(); } } static run() {} static execute() { this.run(); } } class Mutable { run() {} execute() { this.run(); } change() { this.run = other; } } class Base { run() {} execute() { this.run(); } } class Child extends Base { run() {} }`
+  };
+  for (const [file, content] of Object.entries(files)) await fs.writeFile(path.join(root, file), content);
+  const resolver = createResolver(root, { report: { architecture: { projectGraph: { nodes: Object.keys(files).map((path) => ({ path })), edges: [] } } } });
+  const calls = (await resolver.source("calls.js")).calls;
+  for (const name of ["alias", "renamed", "ns.f", "direct", "member", "require('./direct')", "require('./lib').method"]) assert.equal(calls.find((call) => call.name === name).status, "resolved", name);
+  for (const name of ["changed.f", "f"]) assert.equal(calls.find((call) => call.name === name).status, "unresolved", name);
+  assert.equal(calls.find((call) => call.name === "cycle").status, "unresolved");
+  assert.equal(calls.find((call) => call.name === "detached").target.name, "second");
+  assert.equal(calls.find((call) => call.name === "require('./lib').f").status, "unresolved");
+  const cls = await resolver.source("class.js");
+  const thisCalls = cls.calls.filter((call) => call.name === "this.run");
+  assert.deepEqual(thisCalls.map((call) => call.status), ["resolved", "resolved", "resolved", "unresolved", "resolved", "unresolved", "unresolved"]);
+  assert.equal(cls.calls.find((call) => call.name === "this.#hidden").status, "resolved");
+  const guards = (await resolver.source("guards.js")).calls;
+  assert.ok(guards.filter((call) => ["obj", "require('./direct').default", "require('./changed').f", "this.run"].includes(call.name)).every((call) => call.status === "unresolved"));
+  const escapes = (await resolver.source("escape.js")).calls;
+  assert.ok(escapes.filter((call) => ["require('./lib').f", "require('./changed').f", "require('./mutated-barrel').f", "this.run"].includes(call.name)).every((call) => call.status === "unresolved"));
+});
