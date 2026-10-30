@@ -3,6 +3,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { resolvePublicPath } = require("./paths");
 const { createScanService } = require("./scanService");
+const { exploreSource } = require("./sourceExplorer");
 const codeShameVersion = require("../package.json").version;
 const fallowVersion = require("fallow/package.json").version;
 
@@ -27,6 +28,12 @@ function createServer({ scanService, ...options } = {}) {
       const route = `${request.method} ${url.pathname}`;
       if (route === "GET /api/health") return sendJson(response, 200, { ok: true });
       if (route === "GET /api/report") return sendJson(response, 200, scans.getSnapshot());
+      if (route === "GET /api/source") {
+        const snapshot = scans.getSnapshot();
+        const result = await exploreSource(options.projectRoot || process.cwd(), url.searchParams.get("file"), snapshot);
+        if (scans.getSnapshot().report !== snapshot.report) return sendJson(response, 409, { error: "Scan changed while reading source", code: "STALE_SCAN" });
+        return sendJson(response, 200, result);
+      }
       if (route === "POST /api/scan") {
         scans.start();
         return sendJson(response, 202, scans.getSnapshot());
@@ -40,7 +47,7 @@ function createServer({ scanService, ...options } = {}) {
       }
       await serveStatic(response, url.pathname);
     } catch (error) {
-      sendJson(response, 500, { error: error.message || String(error) });
+      sendJson(response, error.status || 500, { error: error.message || String(error), ...(error.code ? { code: error.code } : {}) });
     }
   });
   server.once("close", () => scans.close());

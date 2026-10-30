@@ -1,11 +1,16 @@
 import { overview, searchFiles, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
 import { createStyledSelect } from "./styled-select.js";
+import { createSourceExplorer } from "./source-explorer.js";
 
 const NODE_WIDTH = 142;
 const NODE_HEIGHT = 48;
 const GROUP_PADDING_X = 28;
 
 function createRenderer({ container, details, fitButton, legend, stats }) {
+  const sourcePanel = document.createElement("section");
+  sourcePanel.className = "source-explorer"; sourcePanel.hidden = true;
+  details.parentElement?.after?.(sourcePanel);
+  const sourceExplorer = createSourceExplorer(sourcePanel);
   let graph = null;
   let currentModel = null;
   let selected = null;
@@ -133,6 +138,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   }).observe(container);
 
   function clear(message = "No project structure yet.") {
+    sourceExplorer.close();
     destroyGraph(); currentModel = null; selected = null; activeLayer = null; analysis = null;
     search.value = ""; direction.value = "both"; depth.value = "1"; view.value = "dependencies"; cycle.value = "";
     cycle.replaceChildren(new Option("Select a cycle", ""));
@@ -145,6 +151,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     renderPrompt(details, "Search for a file to explore its dependencies.");
   }
   function render(model) {
+    sourceExplorer.close();
     if (model?.state !== "ready") { clear(unavailableMessage(model)); return; }
     currentModel = model;
     const reasons = model.projectGraph?.complete === false ? model.projectGraph.diagnostics || [] : [];
@@ -161,6 +168,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     draw();
   }
   function draw() {
+    if (sourceExplorer.file && sourceExplorer.file !== selected) sourceExplorer.close();
     const focusedLayer = document.activeElement?.dataset?.layerId;
     destroyGraph();
     activeLayer = null;
@@ -227,7 +235,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     } else if (selected) {
       const node = projection.nodes.find((item) => item.canonicalId === selected);
       if (view.value === "impact" && !analysis) renderPrompt(details, "Impact analysis is unavailable for this report.");
-      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); }
+      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); const sourceButton = document.createElement("button"); sourceButton.type = "button"; sourceButton.className = "secondary-button source-explorer-open"; sourceButton.textContent = "Explore code"; sourceButton.addEventListener("click", () => sourceExplorer.open(node.path)); details.append(sourceButton); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); }
     } else renderPrompt(details, view.value === "impact" ? analysis ? "Search for a file to explore its consumers." : "Impact analysis is unavailable for this report." : "Search for a file to explore its dependencies. Select an arrow for its direction and count.");
   }
   function destroyGraph() { if (graph) graph.destroy(); graph = null; }

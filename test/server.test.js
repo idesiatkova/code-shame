@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const { once } = require("node:events");
 const test = require("node:test");
 const { createServer } = require("../src/server");
+const path = require("node:path");
 
 test("creates an isolated HTTP server without listening on import", async (t) => {
   let starts = 0;
@@ -42,4 +43,19 @@ test("creates an isolated HTTP server without listening on import", async (t) =>
   server.closeAllConnections();
   await stopped;
   assert.equal(closed, true);
+});
+
+test("source API is restricted to the active snapshot", async (t) => {
+  const report = { architecture: { projectGraph: { nodes: [{ path: "src/server.js" }] } } };
+  const server = createServer({ projectRoot: path.resolve(__dirname, ".."), scanService: { getSnapshot: () => ({ report }), close() {} } });
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const url = `http://127.0.0.1:${server.address().port}/api/source?file=`;
+  const response = await fetch(url + encodeURIComponent("src/server.js"));
+  assert.equal(response.status, 200);
+  assert.ok((await response.json()).symbols.some((symbol) => symbol.name === "createServer"));
+  const rejected = await fetch(url + encodeURIComponent("src/scanService.js"));
+  assert.equal(rejected.status, 404);
+  assert.equal((await rejected.json()).code, "NOT_IN_SNAPSHOT");
 });

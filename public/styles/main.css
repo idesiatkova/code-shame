@@ -1381,6 +1381,32 @@ li {
 .architecture-explore { flex: none; min-height: 24px; padding: 3px 6px; border: 1px solid var(--border); background: var(--control); color: var(--ink); font-size: 11px; line-height: 1.4; font-weight: 600; }
 .architecture-explore:hover { border-color: var(--muted); }
 .architecture-explore:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.source-explorer-open { min-height: 30px; padding: 6px 9px; font-size: 12px; font-weight: 600; }
+.source-explorer { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 7px; background: #151916; }
+.source-explorer[hidden] { display: none; }
+.source-explorer-header, .source-explorer-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.source-explorer-header h3 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.source-explorer button { min-height: 30px; padding: 6px 9px; font-size: 12px; font-weight: 600; }
+.source-explorer button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.source-explorer-actions:empty { display: none; }
+.source-explorer-actions { margin-top: 8px; }
+.source-explorer-status { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 10px 0; }
+.source-explorer-workspace { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.source-explorer-inventory, .source-explorer-detail { min-width: 0; }
+.source-explorer-search { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--ink); background: var(--control); font-size: 12px; }
+.source-explorer-list { display: grid; gap: 5px; max-height: 420px; overflow: auto; margin-top: 8px; padding: 2px; }
+.source-explorer-item { width: 100%; border: 1px solid var(--border); background: var(--control); color: var(--ink); text-align: left; overflow-wrap: anywhere; line-height: 1.5; }
+.source-explorer-item:hover, .source-explorer-item[aria-pressed="true"] { background: #38443b; }
+.source-explorer-detail h4 { margin: 0 0 8px; font-size: 13px; overflow-wrap: anywhere; }
+.source-explorer-signature { margin: 0 0 12px; color: var(--muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.source-explorer-code { max-height: 420px; overflow: auto; padding: 8px 0; border: 1px solid var(--border); border-radius: 5px; background: #101411; font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.source-explorer-line { display: flex; min-width: max-content; }
+.source-explorer-line-number { flex: 0 0 48px; color: var(--muted); text-align: right; padding-right: 12px; user-select: none; }
+.source-explorer-line-text { white-space: pre; padding-right: 12px; }
+.source-explorer-line.is-selected { background: #38443b; }
+.source-explorer-calls { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
+.source-explorer-calls h4, .source-explorer-calls p { width: 100%; }
+@media (max-width: 700px) { .source-explorer-workspace { grid-template-columns: minmax(0, 1fr); } .source-explorer-list { max-height: 190px; } .source-explorer { padding: 12px; } }
 .architecture-controls label { display: grid; gap: 4px; color: #aaa59a; font-size: 12px; }
 .architecture-controls label[hidden] { display: none; }
 .architecture-controls input, .architecture-controls select { max-width: 280px; padding: 8px; color: #f5f1e8; background: #202522; border: 1px solid #59625d; border-radius: 6px; }
