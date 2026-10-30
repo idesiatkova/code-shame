@@ -84,7 +84,11 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     setAttribute(key, value) { this.attributes[key] = value; }
     removeAttribute(key) { delete this.attributes[key]; }
     getAttribute(key) { return this.attributes[key] || key; }
-    querySelector() { return null; }
+    querySelector(selector) {
+      const mode = selector.match(/^\[data-mode="(.+)"\]$/)?.[1];
+      if (!mode) return null;
+      return this.children.find((child) => child.dataset?.mode === mode) || this.children.map((child) => child.querySelector?.(selector)).find(Boolean) || null;
+    }
     get options() { return this.children; }
     dispatchEvent(event) { this.fire(event.type); }
     focus() { globalThis.document.activeElement = this; }
@@ -122,30 +126,51 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const model = createDemoModel();
     renderer.render(model);
     const map = created.find((element) => element.className === "architecture-map-disclosure");
-    assert.ok(!map.open);
+    assert.equal(map.hidden, true);
     const browser = created.find((element) => element.className === "architecture-browser");
-    assert.equal(browser.children[1].className, "source-explorer");
-    const inventory = browser.children[2];
-    assert.equal(inventory.children[0].className, "architecture-browser-grid");
-    const firstFile = inventory.children[0].children[1].children[1].children[0];
-    firstFile.fire("click");
-    const selectedPanel = browser.children[0].children[1];
-    assert.match(selectedPanel.children[0].textContent, /File:/);
-    assert.equal(inventory.children[0].children[1].children[1].children[0].attributes["aria-pressed"], "true");
-    const sourceTrigger = selectedPanel.children[1];
-    inventory.children[0].children[0].children[1].children[1].fire("click");
-    assert.equal(browser.children[0].children[1].children[1], sourceTrigger);
-    selectedPanel.children[2].fire("click");
-    assert.equal(browser.children[0].children.length, 1);
+    const inventory = browser.children[0], workspace = browser.children[1], header = workspace.children[0];
+    assert.equal(workspace.children[2].className, "source-explorer");
+    assert.equal(inventory.children[2].children[0].attributes["aria-current"], "true");
+    assert.ok(inventory.children[2].children[1].children.every((item) => item.children[0].children[0].attributes["aria-expanded"] === "false"));
+    assert.equal(header.children[1].children[0].textContent, "Project overview");
+    const [initialSearch, initialResults] = browser.beforeElement.controls;
+    initialSearch.value = "domain/checkout.ts"; initialSearch.fire("input"); initialResults.value = "domain/checkout.ts"; initialResults.fire("change");
+    const domain = inventory.children[2].children[1].children.find((item) => item.children[0].children[1].textContent === "domain");
+    assert.equal(domain.children[0].children[0].attributes["aria-expanded"], "true");
+    assert.ok(domain.children[1].children.some((item) => item.children[0].textContent === "checkout.ts" && item.children[0].attributes["aria-current"] === "true"));
+    header.children[2].children.find((button) => button.textContent === "Source").fire("click");
+    assert.equal(workspace.children[2].hidden, false);
+    const sourceContent = workspace.children[2].children[0];
+    renderer.render({ state: "running" });
+    assert.equal(header.children[3].hidden, false);
+    assert.match(header.children[3].textContent, /Updating project structure/);
+    assert.equal(workspace.children[2].hidden, false);
+    assert.equal(workspace.children[2].children[0], sourceContent);
+    renderer.render(structuredClone(model));
+    assert.equal(header.children[3].hidden, true);
+    assert.equal(workspace.children[2].hidden, false);
+    assert.equal(workspace.children[2].children[0], sourceContent);
+    workspace.children[2].children[0].children[1].fire("click");
+    assert.equal(globalThis.document.activeElement, header.children[2].children.find((button) => button.dataset.mode === "source"));
+    header.children[2].children.find((button) => button.dataset.mode === "source").fire("click");
+    inventory.children[1].fire("click");
+    assert.equal(workspace.children[2].hidden, false);
+    assert.match(header.children[1].children[0].textContent, /domain\/checkout.ts/);
+    header.children[1].children[1].fire("click");
+    assert.equal(header.children[1].children[0].textContent, "Project overview");
+    assert.equal(initialSearch.value, "");
+    renderer.clear();
+    assert.equal(workspace.children[1].hidden, true);
+    assert.equal(workspace.children[1].children.length, 0);
     const withTests = structuredClone(model);
     withTests.projectGraph.nodes.push({ id: "test/example.test.js", path: "test/example.test.js", entryPoint: true });
     renderer.render(withTests);
-    const entries = inventory.children[0].children[2].children[1];
+    const entries = workspace.children[1].children[0].children[1];
     const testGroup = entries.children.find((child) => child.children?.[0]?.textContent === "Test entry points (1)");
     assert.ok(testGroup); assert.ok(!testGroup.open);
     assert.match(testGroup.children[1].textContent, /test directory or filename/);
     renderer.render(model);
-    map.open = true; map.fire("toggle");
+    header.children[2].children.at(-1).fire("click");
     container.clientWidth = 800; resize();
     assert.equal(lastRankDir, "TB");
     container.clientWidth = 1200; resize();
@@ -261,7 +286,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     results.value = "domain/checkout.ts"; results.fire("change");
     updated.projectGraph.nodes = updated.projectGraph.nodes.filter((node) => node.id !== "domain/checkout.ts");
     renderer.render(updated);
-    assert.match(stats.textContent, /graph files/);
+    assert.equal(workspace.children[1].hidden, false);
     renderer.clear();
     const legacy = structuredClone(model); delete legacy.projectGraph;
     renderer.render(legacy);

@@ -1338,14 +1338,26 @@ li {
 }
 
 .architecture-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: start; margin: 12px 0; }
-.architecture-browser { min-width: 0; }
+.architecture-browser { min-width: 0; display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.architecture-browser > div { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: #151916; }
+.architecture-workspace-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.architecture-workspace-tabs button, .architecture-browser > div:first-child > button { min-height: 30px; padding: 5px 9px; font-size: 12px; font-weight: 600; }
+.architecture-workspace-tabs [aria-current="true"] { background: #38443b; color: var(--ink); }
+.architecture-file-relations { margin-top: 12px; }
+.architecture-file-relations button { display: block; max-width: 100%; padding: 4px 7px; border: 0; background: transparent; color: #8bbcff; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.architecture-directory-list { display: block; margin-top: 8px; max-height: 420px; overflow: auto; }
+.architecture-directory-list ul { list-style: none; margin: 0; padding-left: 14px; }
+.architecture-tree-row { display: flex; align-items: start; }
+.architecture-tree-row .architecture-directory { flex: 1; }
+.architecture-directory-list .architecture-folder-toggle { flex: none; padding: 5px; color: var(--muted); }
+.architecture-workspace > div[hidden], .architecture-workspace > section[hidden] { display: none; }
 .architecture-scope { margin: 0 0 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .architecture-browser-grid { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 1.5fr) minmax(0, 1.2fr); gap: 14px; }
 .architecture-browser-grid > div { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: #151916; }
 .architecture-browser h3 { margin: 0 0 8px; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
-.architecture-directory-list, .architecture-browser-files { display: grid; gap: 3px; max-height: 240px; overflow: auto; }
+.architecture-browser-files { display: grid; gap: 3px; max-height: 240px; overflow: auto; }
 .architecture-directory-list button, .architecture-browser-files button, .architecture-entry button { min-width: 0; padding: 5px 7px; border: 0; border-radius: 4px; background: transparent; color: #8bbcff; font-size: 12px; line-height: 1.4; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.architecture-directory-list button:hover, .architecture-directory-list button[aria-pressed="true"], .architecture-browser-files button:hover, .architecture-browser-files button[aria-pressed="true"], .architecture-entry button:hover, .architecture-entry button[aria-pressed="true"] { background: #38443b; }
+.architecture-directory-list button:hover, .architecture-directory-list button[aria-current="true"], .architecture-browser-files button:hover, .architecture-browser-files button[aria-current="true"], .architecture-entry button:hover, .architecture-entry button[aria-current="true"] { background: #38443b; }
 .architecture-browser button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .architecture-entry { display: grid; margin-bottom: 8px; }
 .architecture-entry-list { max-height: 240px; overflow: auto; }
@@ -1362,10 +1374,11 @@ li {
   .topbar { gap: 8px; }
   .toolbar { flex-direction: row; flex-wrap: wrap; gap: 4px 12px; }
   .toolbar-actions { flex-direction: row; align-items: center; gap: 8px; padding: 0; border: 0; }
-  .architecture-browser-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .architecture-browser { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .architecture-browser-grid > div { padding: 9px; }
   .architecture-entries { grid-column: 1 / -1; grid-row: 1; }
-  .architecture-directory-list, .architecture-browser-files, .architecture-entry-list { max-height: 150px; }
+  .architecture-directory-list { max-height: min(280px, 35vh); }
+  .architecture-browser-files, .architecture-entry-list { max-height: 150px; }
 }
 .architecture-controls[hidden] { display: none; }
 .architecture-map { min-width: 0; }
