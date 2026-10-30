@@ -73,7 +73,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const cytoscape = (await import("cytoscape")).default;
   cytoscape.use((await import("cytoscape-dagre")).default);
   class Element {
-    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; }
+    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
     replaceChildren(...children) { this.children = children; }
     append(...children) { this.children.push(...children); }
@@ -85,8 +85,9 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     dispatchEvent(event) { this.fire(event.type); }
     focus() {}
     set innerHTML(value) {
-      this.controls = Array.from({ length: 5 }, () => new Element());
+      this.controls = Array.from({ length: 7 }, () => new Element());
       this.controls[2].value = "both"; this.controls[3].value = "1";
+      this.controls[5].value = "dependencies";
     }
     querySelectorAll(selector) { return selector === "input, select, button" ? this.controls : this.children.filter((child) => child.type === "button"); }
     fire(name) { this.listeners[name]?.(); }
@@ -94,9 +95,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option;
   globalThis.document = { createElement: () => new Element(), addEventListener() {} };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
-  let lastFit;
+  let lastFit, lastGraph;
   globalThis.window = { cytoscape: (options) => {
     const graph = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true });
+    lastGraph = graph;
     const fit = graph.fit.bind(graph);
     graph.fit = (collection, padding) => { lastFit = collection; return fit(collection, padding); };
     return graph;
@@ -106,7 +108,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const renderer = architecture.createRenderer({ container, details, legend, stats, fitButton: new Element() });
     const model = createDemoModel();
     renderer.render(model);
-    const [search, results, direction, depth] = legend.beforeElement.controls;
+    const [search, results, direction, depth, back, view, cycle] = legend.beforeElement.controls;
     assert.equal(results.children[0].text, "Search for a file");
     legend.children.find((button) => button.textContent.startsWith("UI / Components")).fire("click");
     const layerButton = legend.children.find((button) => button.textContent.startsWith("UI / Components"));
@@ -128,10 +130,62 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(search.value, "checkout");
     assert.equal(direction.value, "inbound"); assert.equal(depth.value, "2");
     assert.ok(results.children.some((option) => option.value === "new/checkout.ts"));
+    view.value = "impact"; view.fire("change");
+    assert.ok(details.children[2].children.some((item) => item.textContent === "Direct consumers"));
+    assert.ok(details.children[2].children.some((item) => item.textContent === "Other reachable consumers"));
+    assert.equal(direction.parentElement.hidden, true); assert.equal(cycle.parentElement.hidden, true);
+    renderer.render(updated);
+    assert.equal(view.value, "impact");
+    assert.ok(details.children[2].children.some((item) => item.textContent === "Direct consumers"));
+    const anotherFile = lastGraph.nodes('[type = "file"]').filter((node) => node.data("canonicalId") !== "domain/checkout.ts")[0];
+    assert.ok(anotherFile); anotherFile.emit("tap");
+    assert.equal(view.value, "impact");
+    const cyclic = structuredClone(updated);
+    cyclic.projectGraph.edges.push({ source: "domain/checkout.ts", target: "ui/Checkout.tsx" });
+    renderer.render(cyclic);
+    view.value = "cycles"; view.fire("change");
+    assert.equal(cycle.parentElement.hidden, false);
+    assert.ok(cycle.children.length > 1);
+    cycle.value = cycle.children[1].value; cycle.fire("change");
+    const selectedCycle = cycle.value;
+    assert.equal(details.children[0].textContent, "Cycle group");
+    renderer.render(cyclic);
+    assert.equal(cycle.value, selectedCycle);
+    assert.equal(details.children[0].textContent, "Cycle group");
+    renderer.render(updated);
+    assert.equal(cycle.value, "");
+    assert.equal(details.children[0].textContent, "Project structure");
+    back.fire("click");
+    assert.equal(view.value, "dependencies");
+    assert.equal(direction.parentElement.hidden, false); assert.equal(cycle.parentElement.hidden, true);
+    assert.match(stats.textContent, /graph files/);
+    results.value = "domain/checkout.ts"; results.fire("change");
     updated.projectGraph.nodes = updated.projectGraph.nodes.filter((node) => node.id !== "domain/checkout.ts");
     renderer.render(updated);
     assert.match(stats.textContent, /graph files/);
     renderer.clear();
     assert.equal(search.value, ""); assert.equal(direction.value, "both"); assert.equal(depth.value, "1");
   } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; }
+});
+
+test("analytics uses the full graph for unique consumers and cycle groups", async () => {
+  const { analytics, impact, projectSelection } = await import("../public/app/architectureProjection.js");
+  const ids = ["A", "B", "C", "D", "E", "F", "G"];
+  const pairs = [["A", "B"], ["B", "C"], ["A", "C"], ["D", "B"], ["D", "A"], ["E", "F"], ["F", "E"], ["F", "G"], ["G", "G"]];
+  const model = { nodes: [], projectGraph: { complete: false, nodes: ids.map((id) => ({ id, path: id })), edges: [...pairs, ["A", "B"]].map(([source, target]) => ({ source, target })) } };
+  const a = analytics(model);
+  assert.equal(a.outgoing.get("A").length, 2);
+  assert.equal(a.incoming.get("B").length, 2);
+  const result = impact(a, "C", 1);
+  assert.equal(result.direct, 2); assert.equal(result.transitive, 1);
+  assert.equal(result.totalFiles, 4); assert.equal(result.shownFiles, 1); assert.equal(result.complete, false);
+  assert.deepEqual(a.cycles, [["E", "F"], ["G"]]);
+  assert.equal(projectSelection(a, a.cycles[0], 1).totalEdges, 2);
+  assert.equal(impact(a, "E").direct, 1);
+  assert.equal(impact(a, "E").transitive, 0);
+  const chain = { nodes: [], projectGraph: { complete: true, nodes: ["A", "B", "C", "isolated"].map((id) => ({ id, path: id })), edges: [{ source: "A", target: "B" }, { source: "B", target: "C" }] } };
+  const chainImpact = impact(analytics(chain), "C");
+  assert.equal(chainImpact.direct, 1); assert.equal(chainImpact.transitive, 1);
+  assert.equal(chainImpact.totalFiles, 3);
+  assert.equal(analytics({ nodes: [] }), null);
 });

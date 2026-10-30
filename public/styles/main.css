@@ -1338,6 +1338,7 @@ li {
 .architecture-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin: 12px 0; }
 .architecture-controls[hidden] { display: none; }
 .architecture-controls label { display: grid; gap: 4px; color: #aaa59a; font-size: 12px; }
+.architecture-controls label[hidden] { display: none; }
 .architecture-controls input, .architecture-controls select { max-width: 280px; padding: 8px; color: #f5f1e8; background: #202522; border: 1px solid #59625d; border-radius: 6px; }
 .architecture-select { position: relative; min-width: 120px; max-width: 280px; color: #f5f1e8; }
 .architecture-select summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 10px; border: 1px solid #59625d; border-radius: 6px; background: #202522; cursor: pointer; list-style: none; overflow: hidden; white-space: nowrap; }

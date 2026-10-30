@@ -1,4 +1,4 @@
-import { overview, searchFiles, focus } from "./architectureProjection.js";
+import { overview, searchFiles, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
 
 const NODE_WIDTH = 142;
 const NODE_HEIGHT = 48;
@@ -54,32 +54,38 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   let currentModel = null;
   let selected = null;
   let activeLayer = null;
+  let analysis = null;
   const controls = document.createElement("div");
   controls.className = "architecture-controls";
   controls.innerHTML = `<label>Find file <input type="search" placeholder="Search file paths" autocomplete="off"></label>
     <label>Matching files <select aria-label="Matching files"><option value="">Search for a file</option></select></label>
     <label>Direction <select aria-label="Dependency direction"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
     <label>Depth <select aria-label="Dependency depth"><option value="1">1</option><option value="2">2</option></select></label>
-    <button type="button" class="secondary-button">Back to layers</button>`;
+    <button type="button" class="secondary-button">Back to layers</button>
+    <label>View <select aria-label="Graph view"><option value="dependencies">Dependencies</option><option value="impact">Impact</option><option value="cycles">Cycles</option></select></label>
+    <label>Cycle group <select aria-label="Cycle group"><option value="">Select a cycle</option></select></label>`;
   legend.before(controls);
-  const [search, results, direction, depth, back] = controls.querySelectorAll("input, select, button");
-  const dropdowns = [results, direction, depth].map(styledSelect);
+  const [search, results, direction, depth, back, view, cycle] = controls.querySelectorAll("input, select, button");
+  const dropdowns = [results, direction, depth, view, cycle].map(styledSelect);
   function refreshSearch() {
     const matches = currentModel ? searchFiles(currentModel, search.value) : [];
     results.replaceChildren(new Option(!search.value.trim() ? "Search for a file" : matches.length ? `${matches.length} matching files` : "No matching files", ""), ...matches.map((node) => new Option(node.path, node.canonicalId)));
     dropdowns[0].refresh();
   }
   search.addEventListener("input", refreshSearch);
-  results.addEventListener("change", () => { if (results.value) { selected = results.value; draw(); } });
+  results.addEventListener("change", () => { if (results.value) { selected = results.value; if (view.value === "cycles") { view.value = "dependencies"; dropdowns[3].refresh(); } draw(); } });
   direction.addEventListener("change", () => { if (selected) draw(); });
   depth.addEventListener("change", () => { if (selected) draw(); });
-  back.addEventListener("click", () => { selected = null; draw(); });
+  view.addEventListener("change", draw);
+  cycle.addEventListener("change", draw);
+  back.addEventListener("click", () => { selected = null; view.value = "dependencies"; dropdowns[3].refresh(); draw(); });
   fitButton.addEventListener("click", () => { if (graph) { graph.resize(); graph.fit(graph.elements(), 36); } });
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { if (graph && container.clientWidth) { graph.resize(); graph.fit(graph.elements(), 36); } }).observe(container);
 
   function clear(message = "No project structure yet.") {
-    destroyGraph(); currentModel = null; selected = null; activeLayer = null;
-    search.value = ""; direction.value = "both"; depth.value = "1";
+    destroyGraph(); currentModel = null; selected = null; activeLayer = null; analysis = null;
+    search.value = ""; direction.value = "both"; depth.value = "1"; view.value = "dependencies"; cycle.value = "";
+    cycle.replaceChildren(new Option("Select a cycle", ""));
     results.replaceChildren(new Option("Search for a file", ""));
     dropdowns.forEach((dropdown) => dropdown.refresh());
     controls.hidden = true;
@@ -90,7 +96,12 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   function render(model) {
     if (model?.state !== "ready") { clear(unavailableMessage(model)); return; }
     currentModel = model;
-    if (selected && !(model.projectGraph?.nodes || []).some((node) => node.id === selected)) selected = null;
+    analysis = analytics(model);
+    const previousCycle = cycle.value;
+    cycle.replaceChildren(new Option(analysis ? `${analysis.cycles.length} cycle groups` : "Unavailable", ""), ...(analysis?.cycles || []).map((group) => new Option(`${group[0]} · ${group.length} files`, JSON.stringify(group))));
+    cycle.value = [...cycle.options].some((option) => option.value === previousCycle) ? previousCycle : "";
+    dropdowns[4].refresh();
+    if (selected && !(model.projectGraph?.nodes || model.nodes?.filter((node) => node.type === "file").map((node) => ({ id: node.path })) || []).some((node) => node.id === selected)) selected = null;
     refreshSearch();
     controls.hidden = false;
     draw();
@@ -98,7 +109,11 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   function draw() {
     destroyGraph();
     activeLayer = null;
-    const projection = selected ? focus(currentModel, selected, direction.value, Number(depth.value)) : overview(currentModel);
+    direction.parentElement.hidden = depth.parentElement.hidden = view.value !== "dependencies";
+    cycle.parentElement.hidden = view.value !== "cycles";
+    const group = view.value === "cycles" && cycle.value ? analysis?.cycles.find((item) => JSON.stringify(item) === cycle.value) : null;
+    const impactResult = view.value === "impact" && selected ? impact(analysis, selected) : null;
+    const projection = group ? projectSelection(analysis, group) : impactResult || (selected && view.value !== "cycles" ? focus(currentModel, selected, direction.value, Number(depth.value)) : overview(currentModel));
     if (!projection.nodes.length) { clear("No project files were discovered for the architecture map."); return; }
     if (typeof window.cytoscape !== "function") { clear("Cytoscape.js could not be loaded."); return; }
     container.replaceChildren();
@@ -122,17 +137,22 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       else renderLayerDetails(details, node.data(), node.descendants());
       graph.fit(overview ? collection : node.add(node.descendants()), 44);
     };
-    bindGraphInteractions(graph, (id) => { selected = id; draw(); }, selectLayer, reset);
+    bindGraphInteractions(graph, (id) => { selected = id; if (view.value === "cycles") { view.value = "dependencies"; dropdowns[3].refresh(); } draw(); }, selectLayer, reset);
     renderLegend(legend, projection.nodes, selectLayer);
     const status = projection.complete ? "" : " · partial dependency graph";
-    stats.textContent = selected
+    stats.textContent = group || impactResult || (selected && view.value !== "cycles")
       ? `${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
       : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
-    back.disabled = !selected;
-    if (selected) {
+    back.disabled = !selected && view.value === "dependencies";
+    if (group) {
+      graph.nodes('[type = "file"]').addClass("is-selected"); graph.edges().addClass("is-active");
+      renderDetails(details, "Cycle group", analysis.data.graph.complete ? "Files in this cycle" : "Partial graph: additional cycles may be missing", [["Files", group.length], ["Shown", projection.shownFiles], ["Dependencies shown", `${projection.shownEdges} / ${projection.totalEdges}`]]);
+    } else if (view.value === "cycles") {
+      renderPrompt(details, analysis ? `${analysis.cycles.length} cycle groups${analysis.data.graph.complete ? "" : " found in the partial graph; more may be missing"}. Select a group to inspect it.` : "Cycle analysis is unavailable for this report.");
+    } else if (selected) {
       const node = projection.nodes.find((item) => item.canonicalId === selected);
-      if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel); }
-    } else renderPrompt(details, "Search for a file to explore its dependencies. Arrows show imports; edge labels count file dependencies.");
+      if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); if (view.value === "impact" && !analysis) renderPrompt(details, "Impact analysis is unavailable for this report."); }
+    } else renderPrompt(details, view.value === "impact" ? "Search for a file to explore its consumers." : "Search for a file to explore its dependencies. Arrows show imports; edge labels count file dependencies.");
   }
   function destroyGraph() { if (graph) graph.destroy(); graph = null; }
   return { clear, render };
@@ -352,19 +372,18 @@ function renderStats(element, model) {
   element.textContent = parts.join(" · ");
 }
 
-function renderFileDetails(element, data, graph, model) {
+function renderFileDetails(element, data, graph, model, analysis, impactResult) {
   const metrics = data.metrics || {};
-  const raw = model?.projectGraph?.edges || [];
-  const unique = new Map(raw.map((edge) => [JSON.stringify([edge.source, edge.target]), edge]));
-  const edges = model?.projectGraph ? [...unique.values()] : graph.edges().map((edge) => edge.data());
-  const id = model?.projectGraph ? data.canonicalId : data.id;
-  const outgoing = edges.filter((edge) => edge.source === id).length;
-  const incoming = edges.filter((edge) => edge.target === id).length;
+  const id = data.canonicalId;
+  const outgoing = analysis ? analysis.outgoing.get(id).length : "Unavailable";
+  const incoming = analysis ? analysis.incoming.get(id).length : "Unavailable";
+  const qualifier = analysis && !analysis.data.graph.complete ? " (at least)" : "";
   renderDetails(element, data.label, data.path, [
     ["Layer", layerLabel(graph, data.parent)],
     ["Entry point", data.entryPoint ? "Yes" : "No"],
-    ["Imports", outgoing],
-    ["Imported by", incoming],
+    [`Imports${qualifier}`, outgoing],
+    [`Imported by${qualifier}`, incoming],
+    ...(impactResult ? [[`Direct consumers${qualifier}`, impactResult.direct], [analysis.data.graph.complete ? "Other reachable consumers" : "Other reachable consumers (observed)", impactResult.transitive], ...(!analysis.data.graph.complete ? [["Impact", "Partial graph; missing dependencies may change these results"]] : [])] : []),
     ["Fallow fan-in", metrics.fanIn ?? "Unavailable"],
     ["Fallow fan-out", metrics.fanOut ?? "Unavailable"],
     ["Lines", metrics.lines ?? "Unavailable"],

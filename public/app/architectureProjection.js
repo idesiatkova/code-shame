@@ -70,4 +70,56 @@ function focus(model, selected, direction = 'both', depth = 1, limit = 60) {
   return { nodes: [...data.layers.values()].filter((layer) => layerIds.has(layer.layerId)).concat(files), edges, totalFiles: visited.size, totalEdges: allEdges.length, shownFiles: files.length, shownEdges: edges.length, complete: data.graph.complete };
 }
 
-export { overview, searchFiles, focus };
+function analytics(model) {
+  if (!model.projectGraph) return null;
+  const data = prepare(model);
+  const outgoing = new Map([...data.files.keys()].map((id) => [id, []]));
+  const incoming = new Map([...data.files.keys()].map((id) => [id, []]));
+  for (const { source, target } of data.edges) { outgoing.get(source).push(target); incoming.get(target).push(source); }
+  const visited = new Set(), order = [];
+  for (const id of data.files.keys()) {
+    if (visited.has(id)) continue;
+    visited.add(id);
+    const stack = [[id, 0]];
+    while (stack.length) {
+      const top = stack[stack.length - 1], neighbors = outgoing.get(top[0]);
+      if (top[1] < neighbors.length) {
+        const next = neighbors[top[1]++];
+        if (!visited.has(next)) { visited.add(next); stack.push([next, 0]); }
+      } else { order.push(top[0]); stack.pop(); }
+    }
+  }
+  visited.clear();
+  const cycles = [];
+  for (const id of order.reverse()) {
+    if (visited.has(id)) continue;
+    const group = [], stack = [id]; visited.add(id);
+    while (stack.length) {
+      const next = stack.pop(); group.push(next);
+      for (const source of incoming.get(next)) if (!visited.has(source)) { visited.add(source); stack.push(source); }
+    }
+    if (group.length > 1 || outgoing.get(id).includes(id)) cycles.push(group.sort());
+  }
+  cycles.sort((a, b) => a[0].localeCompare(b[0]));
+  return { data, incoming, outgoing, cycles };
+}
+
+function impact(analysis, selected, limit = 60) {
+  if (!analysis?.incoming.has(selected)) return null;
+  const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected);
+  const visited = new Set([selected]), queue = [selected];
+  for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) {
+    if (!visited.has(id)) { visited.add(id); queue.push(id); }
+  }
+  return { direct: direct.size, transitive: visited.size - 1 - direct.size, ...projectSelection(analysis, queue, limit) };
+}
+
+function projectSelection(analysis, ids, limit = 60) {
+  const { data } = analysis, all = new Set(ids), shown = new Set(ids.slice(0, Math.max(1, limit)));
+  const allEdges = data.edges.filter((edge) => all.has(edge.source) && all.has(edge.target));
+  const edges = allEdges.filter((edge) => shown.has(edge.source) && shown.has(edge.target)).slice(0, 300).map((edge, index) => ({ id: `analysis:${index}`, type: 'imports', source: data.files.get(edge.source).id, target: data.files.get(edge.target).id, weight: 1, crossLayer: data.files.get(edge.source).layerId !== data.files.get(edge.target).layerId }));
+  const files = [...shown].map((id) => data.files.get(id)), layers = new Set(files.map((file) => file.layerId));
+  return { nodes: [...data.layers.values()].filter((layer) => layers.has(layer.layerId)).concat(files), edges, totalFiles: all.size, totalEdges: allEdges.length, shownFiles: files.length, shownEdges: edges.length, complete: data.graph.complete };
+}
+
+export { overview, searchFiles, focus, analytics, impact, projectSelection };
