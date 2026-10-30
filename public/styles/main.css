@@ -1347,12 +1347,12 @@ li {
 .architecture-map-actions > button[hidden] { display: none; }
 .architecture-secondary { min-width: 0; }
 .architecture-secondary > div { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 8px; padding-left: 12px; border-left: 1px solid var(--border); }
-.architecture-secondary > summary, .architecture-diagnostics > summary { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; line-height: 1.4; cursor: pointer; list-style: none; }
-.architecture-secondary > summary::-webkit-details-marker, .architecture-diagnostics > summary::-webkit-details-marker { display: none; }
-.architecture-secondary > summary::after, .architecture-diagnostics > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
-.architecture-secondary[open] > summary::after, .architecture-diagnostics[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
-.architecture-secondary > summary:hover, .architecture-diagnostics > summary:hover { color: var(--ink); }
-.architecture-secondary > summary:focus-visible, .architecture-diagnostics > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.architecture-secondary > summary, .architecture-diagnostics > summary, .source-explorer-unresolved > summary { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; line-height: 1.4; cursor: pointer; list-style: none; }
+.architecture-secondary > summary::-webkit-details-marker, .architecture-diagnostics > summary::-webkit-details-marker, .source-explorer-unresolved > summary::-webkit-details-marker { display: none; }
+.architecture-secondary > summary::after, .architecture-diagnostics > summary::after, .source-explorer-unresolved > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+.architecture-secondary[open] > summary::after, .architecture-diagnostics[open] > summary::after, .source-explorer-unresolved[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.architecture-secondary > summary:hover, .architecture-diagnostics > summary:hover, .source-explorer-unresolved > summary:hover { color: var(--ink); }
+.architecture-secondary > summary:focus-visible, .architecture-diagnostics > summary:focus-visible, .source-explorer-unresolved > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .architecture-diagnostics { margin-top: 6px; }
 .architecture-diagnostics ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .architecture-control-hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
@@ -1406,6 +1406,13 @@ li {
 .source-explorer-line.is-selected { background: #38443b; }
 .source-explorer-calls { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
 .source-explorer-calls h4, .source-explorer-calls p { width: 100%; }
+.source-explorer-unresolved { width: 100%; color: var(--muted); font-size: 12px; }
+.source-explorer-unresolved button { display: block; margin-top: 6px; max-width: 100%; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.function-graph { margin-top: 18px; min-width: 0; }
+.function-graph-canvas { height: 300px; border: 1px solid var(--border); border-radius: 5px; background: #101411; }
+.function-graph-controls, .function-graph-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.function-graph-list h4, .function-graph-list p { width: 100%; }
+.function-graph-list button { text-align: left; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .source-explorer-workspace { grid-template-columns: minmax(0, 1fr); } .source-explorer-list { max-height: 190px; } .source-explorer { padding: 12px; } }
 .architecture-controls label { display: grid; gap: 4px; color: #aaa59a; font-size: 12px; }
 .architecture-controls label[hidden] { display: none; }

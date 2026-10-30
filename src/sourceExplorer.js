@@ -49,8 +49,7 @@ function inventory(source, file) {
   const diagnostics = [];
   let ast;
   try {
-    const ext = path.extname(file).toLowerCase();
-    ast = parse(source, { sourceType: "unambiguous", allowReturnOutsideFunction: true, errorRecovery: true, plugins: [...(/\.[cm]?tsx?$/.test(ext) ? ["typescript"] : []), ...([".jsx", ".tsx", ".js"].includes(ext) ? ["jsx"] : []), "decorators-legacy"] });
+    ast = parseSource(source, file);
     diagnostics.push(...ast.errors.map((error) => ({ message: error.message, line: error.loc?.line, column: error.loc?.column + 1 })));
   } catch (error) {
     return { symbols, calls, diagnostics: [{ message: error.message, line: error.loc?.line, column: error.loc?.column + 1 }] };
@@ -68,7 +67,7 @@ function inventory(source, file) {
       ownerId = id;
     }
     if (["CallExpression", "OptionalCallExpression", "NewExpression"].includes(node.type)) {
-      calls.push({ name: source.slice(node.callee.start, node.callee.end), line: node.loc.start.line, column: node.loc.start.column + 1, ownerId });
+      calls.push({ name: source.slice(node.callee.start, node.callee.end), line: node.loc.start.line, column: node.loc.start.column + 1, ownerId, start: node.start, end: node.end });
     }
     for (const value of Object.values(node)) {
       if (Array.isArray(value)) value.forEach((child) => visit(child, node, ownerId));
@@ -79,4 +78,9 @@ function inventory(source, file) {
   return { symbols, calls, diagnostics };
 }
 
-module.exports = { exploreSource, inventory, MAX_BYTES };
+function parseSource(source, file) {
+  const ext = path.extname(file).toLowerCase();
+  return parse(source, { sourceType: "unambiguous", allowReturnOutsideFunction: true, errorRecovery: true, plugins: [...(/\.[cm]?tsx?$/.test(ext) ? ["typescript"] : []), ...([".jsx", ".tsx", ".js"].includes(ext) ? ["jsx"] : []), "decorators-legacy"] });
+}
+
+module.exports = { exploreSource, inventory, parseSource, MAX_BYTES };

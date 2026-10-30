@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "@babel/parser": "7.28.5",
+    "@babel/traverse": "7.28.5",
     "cytoscape": "3.34.0",
     "cytoscape-dagre": "4.0.0",
     "fallow": "3.37.0",

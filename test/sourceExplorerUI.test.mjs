@@ -10,6 +10,8 @@ test("source explorer preserves keyboard context and ignores stale responses", a
     replaceChildren(...nodes) { for (const child of this.children) child.parent = null; this.children = []; this.append(...nodes); }
     addEventListener(name, handler) { this.listeners[name] = handler; }
     setAttribute(name, value) { this.attributes[name] = value; }
+    querySelector(selector) { for (const child of this.children) { if (child.className === selector.slice(1)) return child; const match = child.querySelector(selector); if (match) return match; } return null; }
+    remove() { if (this.parent) { this.parent.children = this.parent.children.filter((child) => child !== this); this.parent = null; } }
     contains(node) { return this === node || this.children.some((child) => child.contains(node)); }
     get isConnected() { return this === document.body || !!this.parent?.isConnected; }
     focus() { if (this.isConnected) document.activeElement = this; }
@@ -21,7 +23,7 @@ test("source explorer preserves keyboard context and ignores stale responses", a
     const pending = [], panel = new Element(), trigger = new Element(), outside = new Element();
     document.body.append(trigger, panel, outside); trigger.focus();
     const explorer = createSourceExplorer(panel, (url, options) => new Promise((resolve) => pending.push({ url, options, resolve })));
-    const response = (name) => ({ ok: true, json: async () => ({ file: name, source: "<script>\r\none\rtwo\nthree\u2028four\u2029five", symbols: [{ id: "f", name: "f", kind: "function", startLine: 1, endLine: 6, signature: "f()" }], calls: [{ name: "call", line: 2, ownerId: "f" }], diagnostics: [] }) });
+    const response = (name) => ({ ok: true, json: async () => ({ file: name, source: "<script>\r\none\rtwo\nthree\u2028four\u2029five", symbols: [{ id: "f", name: "f", kind: "function", startLine: 1, endLine: 6, signature: "f()" }], calls: [{ name: "c".repeat(120), line: 2, ownerId: "f" }], diagnostics: [] }) });
     const first = explorer.open("first.js");
     assert.equal(document.activeElement, panel); assert.equal(panel.scrolled, 1);
     const second = explorer.open("second.js", trigger);
@@ -39,13 +41,72 @@ test("source explorer preserves keyboard context and ignores stale responses", a
     const code = detail.children.find((node) => node.className === "source-explorer-code");
     assert.equal(code.tabIndex, 0); assert.equal(code.attributes.role, "region"); assert.equal(code.attributes["aria-label"], "Source code for f");
     assert.deepEqual(code.children.map((line) => line.children[1].textContent), ["<script>", "one", "two", "three", "four", "five"]);
-    assert.match(detail.children.find((node) => node.className === "source-explorer-calls").children[1].textContent, /unresolved syntax/);
+    const unresolved = detail.children.find((node) => node.className === "source-explorer-calls").children[1];
+    assert.equal(unresolved.children[0].textContent, "Unresolved calls (1)");
+    assert.match(unresolved.children[1].textContent, /unresolved syntax/);
+    assert.match(unresolved.children[1].textContent, /… · line 2/); assert.match(unresolved.children[1].title, /^c{120} · line 2/);
+    unresolved.children[1].click(); assert.equal(code.children[1].scrolled, 1);
     panel.children[1].children[0].click();
     [search, list] = workspace().children[0].children;
     assert.equal(search.value, "f"); assert.equal(document.activeElement, list.children[0]);
     panel.children[0].children[1].click(); assert.equal(document.activeElement, trigger); assert.equal(panel.hidden, true);
     const third = explorer.open("third.js", trigger); outside.focus(); explorer.close();
-    pending[2].resolve(response("third.js")); await third;
+    pending[3].resolve(response("third.js")); await third;
     assert.equal(document.activeElement, outside); assert.equal(panel.hidden, true); assert.equal(panel.children.length, 0);
   } finally { globalThis.document = old; }
+});
+
+test("function graph navigates across files, restores history, and ignores stale navigation", async () => {
+  const oldDocument = globalThis.document, oldWindow = globalThis.window;
+  class Element {
+    constructor() { this.children = []; this.listeners = {}; this.attributes = {}; this.value = ""; this.classList = { add() {}, remove() {} }; }
+    append(...nodes) { for (const node of nodes) { node.parent = this; this.children.push(node); } }
+    replaceChildren(...nodes) { for (const node of this.children) node.parent = null; this.children = []; this.append(...nodes); }
+    addEventListener(name, handler) { this.listeners[name] = handler; }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    querySelector(selector) { for (const child of this.children) { if (child.className === selector.slice(1)) return child; const match = child.querySelector(selector); if (match) return match; } return null; }
+    remove() { if (this.parent) { this.parent.children = this.parent.children.filter((child) => child !== this); this.parent = null; } }
+    contains(node) { return this === node || this.children.some((child) => child.contains(node)); }
+    get isConnected() { return this === document.body || !!this.parent?.isConnected; }
+    focus() { if (this.isConnected) document.activeElement = this; }
+    click() { this.focus(); this.listeners.click(); }
+  }
+  globalThis.document = { createElement: () => new Element(), body: new Element() };
+  let options, destroyed = 0;
+  let zoom = 0.3, centered;
+  globalThis.window = { cytoscape(config) { options = config; return { on() {}, destroy() { destroyed++; }, zoom(value) { if (value != null) zoom = value; return zoom; }, getElementById(id) { return id; }, center(id) { centered = id; } }; } };
+  try {
+    const pending = [], panel = new Element(), trigger = new Element(); document.body.append(trigger, panel);
+    const explorer = createSourceExplorer(panel, (url, options) => new Promise((resolve) => pending.push({ url, options, resolve })));
+    const source = (file, id, hash) => ({ ok: true, json: async () => ({ file, hash, source: "function f() {}", symbols: [{ id, name: id, kind: "function", startLine: 1, endLine: 1, signature: `${id}()` }], calls: [], diagnostics: [] }) });
+    const a = { file: "a.js", id: "a", name: "a", startLine: 1, hash: "a-hash" }, b = { file: "b.js", id: "b", name: "b", startLine: 1, hash: "b-hash" };
+    const open = explorer.open("a.js", trigger); pending[0].resolve(source("a.js", "a", "a-hash")); await open;
+    const workspace = () => panel.children.find((node) => node.className === "source-explorer-workspace");
+    let [search, list] = workspace().children[0].children; search.value = "a"; search.listeners.input(); list.children[0].click();
+    search = workspace().children[0].children[0]; search.focus();
+    pending[1].resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }], coverage: { files: ["a.js", "b.js"] }, unresolved: [] }) });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(workspace().children[0].children[0], search); assert.equal(document.activeElement, search);
+    assert.equal(zoom, 0.9); assert.equal(centered, JSON.stringify(["a.js", "a"]));
+    assert.equal(options.elements[2].data.source, JSON.stringify(["a.js", "a"]));
+    assert.equal(options.elements[2].data.target, JSON.stringify(["b.js", "b"]));
+    const section = workspace().children[1].children.find((node) => node.className === "function-graph");
+    const outgoing = section.children.find((node) => node.children[0]?.textContent === "Outgoing"); outgoing.children[1].click();
+    pending[2].resolve(source("b.js", "b", "b-hash")); await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(explorer.file, "a.js"); assert.equal(explorer.currentFile, "b.js"); assert.ok(destroyed);
+    assert.match(panel.children[0].children[2].textContent, /Architecture file: a.js.*Source file: b.js/);
+    panel.children[1].children[0].click();
+    assert.equal(explorer.currentFile, "a.js"); assert.equal(workspace().children[0].children[0].value, "a");
+    assert.equal(document.activeElement, workspace().children[1].children[0]);
+    const code = workspace().children[1].children.find((node) => node.className === "source-explorer-code"); code.focus();
+    pending[4].resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }], coverage: { files: ["a.js"] } }) });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(workspace().children[1].children.find((node) => node.className === "source-explorer-code"), code); assert.equal(document.activeElement, code);
+    const outgoingAgain = workspace().children[1].children.find((node) => node.className === "function-graph").children.find((node) => node.children[0]?.textContent === "Outgoing");
+    outgoingAgain.children[1].click();
+    panel.children[1].children[0].click();
+    pending[5].resolve(source("b.js", "b", "b-hash")); await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(explorer.currentFile, "a.js"); assert.equal(workspace().children[1].textContent, "Choose a symbol to inspect its source.");
+    explorer.close(true); assert.equal(document.activeElement, trigger);
+  } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; }
 });

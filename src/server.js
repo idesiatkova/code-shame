@@ -3,7 +3,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { resolvePublicPath } = require("./paths");
 const { createScanService } = require("./scanService");
-const { exploreSource } = require("./sourceExplorer");
+const { createResolver } = require("./functionResolver");
 const codeShameVersion = require("../package.json").version;
 const fallowVersion = require("fallow/package.json").version;
 
@@ -28,9 +28,11 @@ function createServer({ scanService, ...options } = {}) {
       const route = `${request.method} ${url.pathname}`;
       if (route === "GET /api/health") return sendJson(response, 200, { ok: true });
       if (route === "GET /api/report") return sendJson(response, 200, scans.getSnapshot());
-      if (route === "GET /api/source") {
+      if (route === "GET /api/source" || route === "GET /api/function-graph") {
         const snapshot = scans.getSnapshot();
-        const result = await exploreSource(options.projectRoot || process.cwd(), url.searchParams.get("file"), snapshot);
+        const resolver = createResolver(options.projectRoot || process.cwd(), snapshot);
+        const file = url.searchParams.get("file");
+        const result = route === "GET /api/source" ? await resolver.source(file) : await resolver.functionGraph(file, url.searchParams.get("symbol"));
         if (scans.getSnapshot().report !== snapshot.report) return sendJson(response, 409, { error: "Scan changed while reading source", code: "STALE_SCAN" });
         return sendJson(response, 200, result);
       }
