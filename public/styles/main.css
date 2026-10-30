@@ -1161,10 +1161,12 @@ li {
 }
 
 .architecture-legend-item:hover,
-.architecture-legend-item:focus-visible {
+.architecture-legend-item:focus-visible,
+.architecture-legend-item[aria-pressed="true"] {
   color: var(--ink);
   outline: none;
 }
+.architecture-legend-item[aria-pressed="true"] { background: color-mix(in srgb, var(--layer-color) 30%, var(--control)); border-color: var(--layer-color); }
 
 .architecture-body {
   display: grid;
@@ -1337,3 +1339,11 @@ li {
 .architecture-controls[hidden] { display: none; }
 .architecture-controls label { display: grid; gap: 4px; color: #aaa59a; font-size: 12px; }
 .architecture-controls input, .architecture-controls select { max-width: 280px; padding: 8px; color: #f5f1e8; background: #202522; border: 1px solid #59625d; border-radius: 6px; }
+.architecture-select { position: relative; min-width: 120px; max-width: 280px; color: #f5f1e8; }
+.architecture-select summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 10px; border: 1px solid #59625d; border-radius: 6px; background: #202522; cursor: pointer; list-style: none; overflow: hidden; white-space: nowrap; }
+.architecture-select summary::-webkit-details-marker { display: none; }
+.architecture-select summary::after { content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+.architecture-select[open] summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.architecture-select-options { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 100%; max-width: 360px; max-height: 240px; overflow: auto; padding: 4px; border: 1px solid #59625d; border-radius: 6px; background: #202522; box-shadow: 0 8px 24px #0008; }
+.architecture-select-option { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 4px; background: transparent; color: #f5f1e8; text-align: left; white-space: nowrap; cursor: pointer; }
+.architecture-select-option:hover, .architecture-select-option:focus-visible, .architecture-select-option[aria-pressed="true"] { background: #38443b; }

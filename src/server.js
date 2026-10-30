@@ -13,6 +13,7 @@ const MIME_TYPES = new Map([
 ]);
 const VENDOR_SCRIPT_PATHS = new Map([
   ["/vendor/cytoscape.js", resolveCytoscapeScriptPath()],
+  ["/vendor/cytoscape-dagre.js", require.resolve("cytoscape-dagre")],
   ["/vendor/lucide.js", resolveLucideScriptPath()]
 ]);
 

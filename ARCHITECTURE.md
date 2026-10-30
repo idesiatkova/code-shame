@@ -10,7 +10,7 @@ modules directly in tests without changing the backend module format.
 | Area | Modules | Responsibility |
 | --- | --- | --- |
 | CLI | `src/start.js` | Reads environment settings, listens on a port, handles shutdown. |
-| HTTP | `src/server.js`, `src/paths.js` | Creates a server, routes API requests, serves the public directory and two vendor scripts. |
+| HTTP | `src/server.js`, `src/paths.js` | Creates a server, routes API requests, serves the public directory and vendor scripts. |
 | Scan lifecycle | `src/scanService.js` | Owns one project's snapshot, active scan, cancellation, and project identity. |
 | Process adapter | `src/fallowClient.js` | Runs the installed Fallow launcher, parses JSON, enforces command deadlines, terminates its process tree. |
 | Analysis | `src/fallowReport.js`, `src/architectureAnalyzer.js`, `src/concurrency.js` | Normalizes primary results and performs bounded file inspections. |
@@ -23,7 +23,7 @@ modules directly in tests without changing the backend module format.
 | UI support | `public/app/navigation.js`, `public/app/icons.js`, `public/app/copy.js`, `public/app/html.js` | Provides navigation, vendor icon integration, clipboard handling, and HTML escaping. |
 | Demo | `public/app/demo.js` | Provides sample reports and graph fixtures without writing them to metric history. |
 
-Application modules use explicit imports and exports. Cytoscape and Lucide are
+Application modules use explicit imports and exports. Cytoscape, Dagre and Lucide are
 vendor UMD scripts; their globals are used only by their presentation adapters.
 The graph model does not depend on Cytoscape or browser APIs.
 
@@ -32,7 +32,7 @@ The graph model does not depend on Cytoscape or browser APIs.
 `public` is the complete, directly served browser application. Its root holds
 `index.html`, `app/` holds JavaScript modules, and `styles/` holds CSS. Keep server-only code and secrets outside it. Static
 paths are constrained to this directory. The vendor routes expose only the
-resolved Cytoscape and Lucide scripts, not the whole node_modules directory.
+resolved Cytoscape, Dagre and Lucide scripts, not the whole node_modules directory.
 
 `src` contains Node.js code and is not served to the browser. Importing
 `src/server.js` exports `createServer(options)` without opening a port or
@@ -127,8 +127,12 @@ after the child exits.
 
 The existing top-level `nodes` and `edges` are the dashboard projection: `layer`,
 visible `file`, and `summary` nodes plus visible directed `imports` edges with
-weight 1. The renderer marks a partial graph in its statistics and uses a
-deterministic preset layout and fixed node positions.
+weight 1. The renderer marks a partial graph in its statistics. The overview
+aggregates directed file imports between layers; within-layer imports appear in
+layer details rather than as loops. File focus keeps the bounded neighborhood
+and direction/depth controls. Both views use Dagre for topology-aware positions
+and edge routing, including cycles, with top-down flow in narrow containers and
+left-to-right flow in wide containers.
 
 ## Verification
 

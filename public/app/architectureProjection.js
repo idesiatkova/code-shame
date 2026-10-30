@@ -39,7 +39,7 @@ function overview(model) {
     item.weight++;
     counts.set(key, item);
   }
-  return { nodes: [...data.layers.values()].map((layer) => ({ ...layer, type: "overview-layer", displayLabel: `${layer.label} · ${layer.fileCount} files` })), edges: [...counts.values()], fileCount: data.files.size, edgeCount: data.edges.length, complete: data.graph.complete };
+  return { nodes: [...data.layers.values()].map((layer) => ({ ...layer, type: "overview-layer", withinLayer: counts.get(JSON.stringify([layer.id, layer.id]))?.weight || 0, displayLabel: `${layer.label} · ${layer.fileCount} files` })), edges: [...counts.values()].filter((edge) => edge.crossLayer), fileCount: data.files.size, edgeCount: data.edges.length, complete: data.graph.complete };
 }
 
 function searchFiles(model, query) {

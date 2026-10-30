@@ -2,16 +2,58 @@ import { overview, searchFiles, focus } from "./architectureProjection.js";
 
 const NODE_WIDTH = 142;
 const NODE_HEIGHT = 48;
-const CHILD_GAP_X = 18;
-const CHILD_GAP_Y = 26;
-const GROUP_GAP = 48;
 const GROUP_PADDING_X = 28;
-const GROUP_PADDING_Y = 78;
+
+function styledSelect(select) {
+  const menu = document.createElement("details");
+  menu.className = "architecture-select";
+  const summary = document.createElement("summary");
+  summary.setAttribute("aria-label", select.getAttribute("aria-label"));
+  const list = document.createElement("div");
+  list.className = "architecture-select-options";
+  menu.append(summary, list);
+  select.hidden = true;
+  select.after(menu);
+  function refresh() {
+    const options = [...select.options];
+    summary.textContent = options.find((option) => option.value === select.value)?.text || options[0]?.text || "";
+    list.replaceChildren(...options.map((option) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = option.text;
+      button.className = "architecture-select-option";
+      button.setAttribute("aria-pressed", String(option.value === select.value));
+      button.addEventListener("click", () => {
+        select.value = option.value;
+        menu.open = false;
+        refresh();
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        summary.focus();
+      });
+      return button;
+    }));
+  }
+  menu.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && menu.open) { menu.open = false; summary.focus(); event.preventDefault(); }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    menu.open = true;
+    const buttons = [...list.querySelectorAll("button")];
+    const index = buttons.indexOf(document.activeElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : event.key === "ArrowDown" ? Math.min(index + 1, buttons.length - 1) : index <= 0 ? buttons.length - 1 : index - 1;
+    buttons[next]?.focus();
+  });
+  menu.addEventListener("focusout", (event) => { if (!menu.contains(event.relatedTarget)) menu.open = false; });
+  document.addEventListener("click", (event) => { if (!menu.contains(event.target)) menu.open = false; });
+  refresh();
+  return { refresh };
+}
 
 function createRenderer({ container, details, fitButton, legend, stats }) {
   let graph = null;
   let currentModel = null;
   let selected = null;
+  let activeLayer = null;
   const controls = document.createElement("div");
   controls.className = "architecture-controls";
   controls.innerHTML = `<label>Find file <input type="search" placeholder="Search file paths" autocomplete="off"></label>
@@ -21,9 +63,11 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     <button type="button" class="secondary-button">Back to layers</button>`;
   legend.before(controls);
   const [search, results, direction, depth, back] = controls.querySelectorAll("input, select, button");
+  const dropdowns = [results, direction, depth].map(styledSelect);
   function refreshSearch() {
     const matches = currentModel ? searchFiles(currentModel, search.value) : [];
     results.replaceChildren(new Option(!search.value.trim() ? "Search for a file" : matches.length ? `${matches.length} matching files` : "No matching files", ""), ...matches.map((node) => new Option(node.path, node.canonicalId)));
+    dropdowns[0].refresh();
   }
   search.addEventListener("input", refreshSearch);
   results.addEventListener("change", () => { if (results.value) { selected = results.value; draw(); } });
@@ -34,9 +78,10 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { if (graph && container.clientWidth) { graph.resize(); graph.fit(graph.elements(), 36); } }).observe(container);
 
   function clear(message = "No project structure yet.") {
-    destroyGraph(); currentModel = null; selected = null;
+    destroyGraph(); currentModel = null; selected = null; activeLayer = null;
     search.value = ""; direction.value = "both"; depth.value = "1";
     results.replaceChildren(new Option("Search for a file", ""));
+    dropdowns.forEach((dropdown) => dropdown.refresh());
     controls.hidden = true;
     container.replaceChildren(emptyState(message));
     legend.replaceChildren(); stats.textContent = "";
@@ -52,13 +97,33 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   }
   function draw() {
     destroyGraph();
+    activeLayer = null;
     const projection = selected ? focus(currentModel, selected, direction.value, Number(depth.value)) : overview(currentModel);
     if (!projection.nodes.length) { clear("No project files were discovered for the architecture map."); return; }
     if (typeof window.cytoscape !== "function") { clear("Cytoscape.js could not be loaded."); return; }
     container.replaceChildren();
-    graph = window.cytoscape(createGraphOptions(container, projection, calculatePositions(projection.nodes, container.clientWidth || 960)));
-    bindGraphInteractions(graph, details, (id) => { selected = id; draw(); });
-    renderLegend(legend, graph, projection.nodes, details);
+    graph = window.cytoscape(createGraphOptions(container, projection));
+    const reset = () => {
+      activeLayer = null;
+      resetFocus(graph);
+      legend.querySelectorAll("button").forEach((button) => button.setAttribute("aria-pressed", "false"));
+      graph.fit(graph.elements(), 36);
+      renderPrompt(details, "Search for a file to explore its dependencies. Arrows show imports; edge labels count file dependencies.");
+    };
+    const selectLayer = (id) => {
+      if (activeLayer === id) { reset(); return; }
+      activeLayer = id;
+      const node = graph.getElementById(id);
+      const overview = node.data("type") === "overview-layer";
+      const collection = overview ? node.closedNeighborhood() : node.add(node.descendants()).add(node.descendants().connectedEdges());
+      focusCollection(graph, collection, node);
+      legend.querySelectorAll("button").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.layerId === id)));
+      if (overview) renderOverviewLayerDetails(details, node);
+      else renderLayerDetails(details, node.data(), node.descendants());
+      graph.fit(overview ? collection : node.add(node.descendants()), 44);
+    };
+    bindGraphInteractions(graph, (id) => { selected = id; draw(); }, selectLayer, reset);
+    renderLegend(legend, projection.nodes, selectLayer);
     const status = projection.complete ? "" : " · partial dependency graph";
     stats.textContent = selected
       ? `${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
@@ -73,13 +138,13 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   return { clear, render };
 }
 
-function createGraphOptions(container, model, positions) {
+function createGraphOptions(container, model) {
   return {
     autoungrabify: true,
     boxSelectionEnabled: false,
     container,
-    elements: toCytoscapeElements(model, positions),
-    layout: { name: "preset", fit: true, padding: 36 },
+    elements: toCytoscapeElements(model),
+    layout: { name: "dagre", rankDir: container?.clientWidth && container.clientWidth < 900 ? "TB" : "LR", nodeSep: 45, rankSep: 100, edgeSep: 24, nodeDimensionsIncludeLabels: true, useDagreEdgeControlPoints: true, automaticDagreEdgeStyle: true, fit: true, padding: 36 },
     maxZoom: 2.4,
     minZoom: 0.25,
     style: graphStyle(),
@@ -101,65 +166,6 @@ function toCytoscapeElements(model, positions = new Map()) {
   return [...nodes, ...edges];
 }
 
-function calculatePositions(nodes, containerWidth) {
-  const overviewLayers = nodes.filter((node) => node.type === "overview-layer");
-  if (overviewLayers.length) {
-    const columns = containerWidth >= 700 ? 3 : containerWidth >= 450 ? 2 : 1;
-    const positions = new Map();
-    overviewLayers.forEach((node, index) => positions.set(node.id, {
-      x: 110 + (index % columns) * 220,
-      y: 50 + Math.floor(index / columns) * 105
-    }));
-    return positions;
-  }
-  const layers = nodes.filter((node) => node.type === "layer");
-  const childrenByParent = new Map();
-  nodes.filter((node) => node.type !== "layer").forEach((node) => {
-    const siblings = childrenByParent.get(node.parent);
-    if (siblings) siblings.push(node);
-    else childrenByParent.set(node.parent, [node]);
-  });
-  const columns = containerWidth >= 700 ? 3 : containerWidth >= 450 ? 2 : 1;
-  const availableWidth = Math.max(320, containerWidth - GROUP_GAP * (columns + 1));
-  const targetGroupWidth = Math.floor(availableWidth / columns);
-  const childColumns = 1;
-  const contentWidth = childColumns * NODE_WIDTH + (childColumns - 1) * CHILD_GAP_X;
-  const groupWidth = Math.max(200, targetGroupWidth, contentWidth + GROUP_PADDING_X * 2);
-  const positions = new Map();
-  let rowTop = GROUP_GAP;
-
-  for (let rowStart = 0; rowStart < layers.length; rowStart += columns) {
-    const rowLayers = layers.slice(rowStart, rowStart + columns);
-    const rowHeight = Math.max(...rowLayers.map((layerNode) => {
-      const childCount = (childrenByParent.get(layerNode.id) || []).length;
-      return groupHeight(childCount, childColumns);
-    }));
-
-    rowLayers.forEach((layerNode, columnIndex) => {
-      const children = childrenByParent.get(layerNode.id) || [];
-      const centerX = GROUP_GAP + columnIndex * (groupWidth + GROUP_GAP) + groupWidth / 2;
-      const left = centerX - contentWidth / 2 + NODE_WIDTH / 2;
-      const top = rowTop + GROUP_PADDING_Y;
-
-      if (!children.length) positions.set(layerNode.id, { x: centerX, y: rowTop + 70 });
-      children.forEach((child, childIndex) => {
-        positions.set(child.id, {
-          x: left + (childIndex % childColumns) * (NODE_WIDTH + CHILD_GAP_X),
-          y: top + Math.floor(childIndex / childColumns) * (NODE_HEIGHT + CHILD_GAP_Y)
-        });
-      });
-    });
-
-    rowTop += rowHeight + GROUP_GAP;
-  }
-
-  return positions;
-}
-
-function groupHeight(childCount, childColumns) {
-  const rows = Math.max(1, Math.ceil(childCount / childColumns));
-  return GROUP_PADDING_Y + rows * NODE_HEIGHT + Math.max(0, rows - 1) * CHILD_GAP_Y + GROUP_PADDING_Y / 2;
-}
 
 function graphStyle() {
   return [
@@ -248,7 +254,7 @@ function graphStyle() {
       selector: "edge",
       style: {
         width: "mapData(weight, 1, 5, 1, 4)",
-        label: "data(weight)",
+        label: "",
         "font-size": 10,
         color: "#f5f1e8",
         "text-background-color": "#202522",
@@ -261,6 +267,7 @@ function graphStyle() {
         "arrow-scale": 0.72
       }
     },
+    { selector: "edge[weight > 1]", style: { label: "data(weight)" } },
     {
       selector: "edge.cross-layer",
       style: {
@@ -293,23 +300,17 @@ function graphStyle() {
   ];
 }
 
-function bindGraphInteractions(graph, details, selectFile) {
+function bindGraphInteractions(graph, selectFile, selectLayer, reset) {
   graph.on("tap", 'node[type = "file"]', (event) => {
     const node = event.target;
     selectFile(node.data("canonicalId"));
   });
   graph.on("tap", 'node[type = "layer"], node[type = "overview-layer"]', (event) => {
-    const node = event.target;
-    const isOverview = node.data("type") === "overview-layer";
-    const collection = isOverview ? node.closedNeighborhood() : node.add(node.descendants()).add(node.descendants().connectedEdges());
-    focusCollection(graph, collection, node);
-    if (isOverview) renderOverviewLayerDetails(details, node);
-    else renderLayerDetails(details, node.data(), node.descendants());
+    selectLayer(event.target.id());
   });
   graph.on("tap", (event) => {
     if (event.target !== graph) return;
-    resetFocus(graph);
-    renderPrompt(details, "Select a file to inspect its role and Fallow metrics.");
+    reset();
   });
 }
 
@@ -323,26 +324,17 @@ function resetFocus(graph) {
   graph.elements().removeClass("is-muted is-active is-selected");
 }
 
-function renderLegend(element, graph, nodes, details) {
+function renderLegend(element, nodes, selectLayer) {
   const layers = nodes.filter((node) => node.type === "layer" || node.type === "overview-layer");
   element.replaceChildren(...layers.map((layerNode) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "architecture-legend-item";
+    button.dataset.layerId = layerNode.id;
+    button.setAttribute("aria-pressed", "false");
     button.style.setProperty("--layer-color", layerNode.color);
     button.textContent = `${layerNode.label} · ${formatNumber(layerNode.fileCount)}`;
-    button.addEventListener("click", () => {
-      const node = graph.getElementById(layerNode.id);
-      const collection = layerNode.type === "overview-layer" ? node.closedNeighborhood() : node.add(node.descendants()).add(node.descendants().connectedEdges());
-      focusCollection(graph, collection, node);
-      if (layerNode.type === "overview-layer") {
-        renderOverviewLayerDetails(details, node);
-        graph.fit(collection, 44);
-      } else {
-        renderLayerDetails(details, node.data(), node.descendants());
-        graph.fit(node.add(node.descendants()), 44);
-      }
-    });
+    button.addEventListener("click", () => selectLayer(layerNode.id));
     return button;
   }));
 }
@@ -388,7 +380,7 @@ function renderOverviewLayerDetails(element, node) {
     ["Files", node.data("fileCount")],
     ["Outbound to other layers", sum((edge) => edge.source === id && edge.target !== id)],
     ["Inbound from other layers", sum((edge) => edge.target === id && edge.source !== id)],
-    ["Within layer", sum((edge) => edge.source === id && edge.target === id)]
+    ["Within layer", node.data("withinLayer") || 0]
   ]);
 }
 
@@ -440,7 +432,7 @@ function formatNumber(value) {
   return new Intl.NumberFormat().format(Number(value) || 0);
 }
 
-export { calculatePositions, createGraphOptions, createRenderer, toCytoscapeElements };
+export { createGraphOptions, createRenderer, toCytoscapeElements };
 
 function unavailableMessage(model) {
   if (model?.state === "running") return "Building project structure…";

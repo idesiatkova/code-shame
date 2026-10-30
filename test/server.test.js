@@ -26,6 +26,7 @@ test("creates an isolated HTTP server without listening on import", async (t) =>
   assert.match((await fetch(`${url}/app/main.js`)).headers.get("content-type"), /javascript/);
   assert.match((await fetch(`${url}/styles/main.css`)).headers.get("content-type"), /text\/css/);
   assert.equal((await fetch(`${url}/vendor/cytoscape.js`)).status, 200);
+  assert.equal((await fetch(`${url}/vendor/cytoscape-dagre.js`)).status, 200);
   assert.equal((await fetch(`${url}/api/missing`)).status, 404);
   assert.notEqual((await fetch(`${url}/%2e%2e%2fsrc/server.js`)).status, 200);
   const stopped = once(server, "close");
