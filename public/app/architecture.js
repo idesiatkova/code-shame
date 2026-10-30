@@ -403,12 +403,17 @@ function renderFileDetails(element, data, graph, model, analysis, impactResult) 
     ["Entry point", data.entryPoint ? "Yes" : "No"],
     [`Imports${qualifier}`, outgoing],
     [`Imported by${qualifier}`, incoming],
-    ...(impactResult ? [[`Direct consumers${qualifier}`, impactResult.direct], [analysis.data.graph.complete ? "Other reachable consumers" : "Other reachable consumers (observed)", impactResult.transitive], ...(!analysis.data.graph.complete ? [["Impact", "Partial graph; missing dependencies may change these results"]] : [])] : []),
+    ...(impactResult ? [[`Direct consumers${qualifier}`, impactResult.direct], [analysis.data.graph.complete ? "Other reachable consumers" : "Other reachable consumers (observed)", impactResult.transitive]] : []),
     ["Fallow fan-in", metrics.fanIn ?? "Unavailable"],
     ["Fallow fan-out", metrics.fanOut ?? "Unavailable"],
     ["Lines", metrics.lines ?? "Unavailable"],
     ["Maintainability", metrics.maintainability == null ? "Unavailable" : Number(metrics.maintainability).toFixed(1)]
   ]);
+  if (impactResult && !analysis.data.graph.complete) {
+    const note = document.createElement("p");
+    note.textContent = "Partial graph: missing dependencies may change these results.";
+    element.append(note);
+  }
 }
 
 function renderOverviewLayerDetails(element, node) {

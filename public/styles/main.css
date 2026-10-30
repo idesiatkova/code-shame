@@ -1227,7 +1227,7 @@ li {
 
 .architecture-details dl {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 8px 12px;
   margin: 16px 0 0;
   font-size: 12px;
@@ -1239,6 +1239,7 @@ li {
 
 .architecture-details dd {
   margin: 0;
+  overflow-wrap: anywhere;
   color: var(--ink);
   font-weight: 650;
   text-align: right;
