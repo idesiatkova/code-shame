@@ -62,6 +62,8 @@ class GraphModelBuilder {
 function createArchitecturePlan({ listOutput, configOutput, fileScores = [], maxFiles = DEFAULT_MAX_FILES }) {
   const files = uniqueStrings(asArray(objectValue(listOutput).files).map(normalizePath)).sort();
   const entryPoints = new Set(asArray(objectValue(listOutput).entry_points).map((entry) => normalizePath(entry?.path)).filter(Boolean));
+  const entryPointSources = new Map(asArray(objectValue(listOutput).entry_points)
+    .map((entry) => [normalizePath(entry?.path), stringValue(entry?.source)]));
   const classifier = createLayerClassifier(configOutput, files);
   const scoreByPath = new Map(asArray(fileScores).map((score) => [normalizePath(score.path), normalizeScore(score)]));
   const assignments = files.map((filePath) => ({
@@ -80,6 +82,7 @@ function createArchitecturePlan({ listOutput, configOutput, fileScores = [], max
     assignments,
     configOutput: objectValue(configOutput),
     entryPoints,
+    entryPointSources,
     files,
     layers,
     visibleAssignments,
@@ -109,7 +112,8 @@ function buildProjectArchitecture(plan, inspections, extracted) {
       directories: Array.from(groupBy(plan.files, (filePath) => path.posix.dirname(filePath)), ([directory, files]) => ({ path: directory, files }))
         .sort((a, b) => a.path.localeCompare(b.path)),
       entryPoints: plan.files.filter((filePath) => plan.entryPoints.has(filePath))
-        .map((filePath) => ({ path: filePath, evidence: "Reported by Fallow entry_points" })),
+        .map((filePath) => ({ path: filePath, evidence: plan.entryPointSources.get(filePath)
+          ? `Fallow: ${plan.entryPointSources.get(filePath)}` : "Reported by Fallow entry_points" })),
       scope: { listedFileCount: plan.files.length }
     },
     totalFileCount: plan.files.length,

@@ -134,7 +134,7 @@ test("represents files omitted from a capped graph with summary nodes", () => {
 test("overview lists every file by directory and only reported entry points", () => {
   const files = Array.from({ length: 55 }, (_, index) => `src/feature/file-${String(index).padStart(2, "0")}.js`);
   const plan = createArchitecturePlan({
-    listOutput: { files: [...files.reverse(), "root.js", "src/other.js"], entry_points: [{ path: "./src/feature/file-54.js" }, { path: "root.js" }, { path: "missing.js" }] },
+    listOutput: { files: [...files.reverse(), "root.js", "src/other.js"], entry_points: [{ path: "./src/feature/file-54.js", source: "package.json main" }, { path: "root.js" }, { path: "missing.js" }] },
     configOutput: {}
   });
   const graph = buildProjectArchitecture(plan, []);
@@ -149,7 +149,7 @@ test("overview lists every file by directory and only reported entry points", ()
   ]);
   assert.deepEqual(graph.overview.entryPoints, [
     { path: "root.js", evidence: "Reported by Fallow entry_points" },
-    { path: "src/feature/file-54.js", evidence: "Reported by Fallow entry_points" }
+    { path: "src/feature/file-54.js", evidence: "Fallow: package.json main" }
   ]);
 });
 
