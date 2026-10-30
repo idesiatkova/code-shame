@@ -26,6 +26,20 @@ test("architecture analyzer composes Fallow list, config, and inspect queries", 
   assert.deepEqual(inspected.sort(), ["src/components/App.js", "src/store/session.js"]);
   assert.equal(graph.state, "ready");
   assert.equal(graph.visibleFileCount, 2);
+  assert.equal(graph.projectGraph.complete, true);
+});
+
+test("a capped scan reports partial coverage even when every requested inspection succeeds", async () => {
+  const client = {
+    listProject: async () => ({ data: { files: ["a.js", "b.js"] } }),
+    resolvedConfig: async () => ({ data: {} }),
+    inspectFile: async (file) => ({ data: { evidence: { trace_file: { data: { file, imports_from: ["b.js"], imported_by: [] } } } } })
+  };
+  const graph = await new ProjectArchitectureAnalyzer({ client, maxFiles: 1 }).analyze({});
+  assert.equal(graph.projectGraph.complete, false);
+  assert.equal(graph.projectGraph.nodes.length, 2);
+  assert.equal(graph.projectGraph.edges.length, 1);
+  assert.equal(graph.edges.length, 0);
 });
 
 test("mapConcurrent preserves input ordering", async () => {

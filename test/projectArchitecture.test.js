@@ -73,9 +73,47 @@ test("builds compound nodes and de-duplicated cross-layer import edges", () => {
   assert.ok(graph.nodes.some((node) => node.type === "layer" && node.layerId === "ui"));
   assert.ok(graph.nodes.some((node) => node.type === "file" && node.id === "file:src/components/Button.js"));
   assert.equal(graph.edges.length, 2);
+  assert.equal(graph.edges.every((edge) => edge.weight === 1), true);
   assert.equal(graph.edges.every((edge) => edge.type === "imports"), true);
   assert.equal(graph.edges.every((edge) => edge.crossLayer), true);
   assert.equal(graph.crossLayerEdgeCount, 2);
+});
+
+test("preserves known hidden dependencies in the canonical graph while projecting the UI", () => {
+  const plan = createArchitecturePlan({
+    listOutput: { files: ["./src/A.js", "src\\B.js", "src/C.js"] }, configOutput: {}, maxFiles: 2
+  });
+  const graph = buildProjectArchitecture(plan, [
+    inspection("src/A.js", ["./src/B.js"], []),
+    inspection("src/B.js", ["src/C.js", "external-package"], ["src/A.js"])
+  ]);
+  assert.deepEqual(graph.projectGraph.nodes.map((node) => node.path), ["src/A.js", "src/B.js", "src/C.js", "external-package"]);
+  assert.deepEqual(graph.projectGraph.edges.map((edge) => [edge.source, edge.target]), [
+    ["src/A.js", "src/B.js"], ["src/B.js", "src/C.js"], ["src/B.js", "external-package"]
+  ]);
+  assert.equal(graph.edges.length, 1);
+  assert.equal(graph.edges[0].weight, 1);
+  assert.equal(graph.projectGraph.complete, false);
+  assert.ok(graph.projectGraph.diagnostics.some((message) => message.includes("external-package")));
+});
+
+test("complete requires a valid unique trace for each listed file", () => {
+  const plan = createArchitecturePlan({ listOutput: { files: ["a.js", "b.js"] }, configOutput: {} });
+  const incomplete = buildProjectArchitecture(plan, [inspection("a.js", [], []), inspection("a.js", [], []), { filePath: "b.js", report: {} }]);
+  assert.equal(incomplete.projectGraph.schemaVersion, 1);
+  assert.equal(incomplete.projectGraph.complete, false);
+  assert.ok(incomplete.projectGraph.diagnostics.length);
+  const complete = buildProjectArchitecture(plan, [inspection("a.js", [], []), inspection("b.js", [], [])]);
+  assert.equal(complete.projectGraph.complete, true);
+  assert.deepEqual(complete.projectGraph.diagnostics, []);
+});
+
+test("preserves valid relationships from a partially malformed trace", () => {
+  const plan = createArchitecturePlan({ listOutput: { files: ["a.js", "b.js"] }, configOutput: {} });
+  const partial = inspection("a.js", ["b.js"], null);
+  const graph = buildProjectArchitecture(plan, [partial, inspection("b.js", [], [])]);
+  assert.deepEqual(graph.projectGraph.edges.map(({ source, target }) => [source, target]), [["a.js", "b.js"]]);
+  assert.equal(graph.projectGraph.complete, false);
 });
 
 test("represents files omitted from a capped graph with summary nodes", () => {

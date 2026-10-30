@@ -46,11 +46,7 @@ class GraphModelBuilder {
       throw new Error("Graph edges require id, source, and target.");
     }
 
-    const existing = this.edges.get(edge.id);
-    if (existing) {
-      existing.weight = (Number(existing.weight) || 1) + (Number(edge.weight) || 1);
-      return;
-    }
+    if (this.edges.has(edge.id)) return;
     this.edges.set(edge.id, edge);
   }
 
@@ -64,10 +60,10 @@ class GraphModelBuilder {
 }
 
 function createArchitecturePlan({ listOutput, configOutput, fileScores = [], maxFiles = DEFAULT_MAX_FILES }) {
-  const files = uniqueStrings(objectValue(listOutput).files).sort();
-  const entryPoints = new Set(asArray(objectValue(listOutput).entry_points).map((entry) => stringValue(entry.path)).filter(Boolean));
+  const files = uniqueStrings(asArray(objectValue(listOutput).files).map(normalizePath)).sort();
+  const entryPoints = new Set(asArray(objectValue(listOutput).entry_points).map((entry) => normalizePath(entry.path)).filter(Boolean));
   const classifier = createLayerClassifier(configOutput, files);
-  const scoreByPath = new Map(asArray(fileScores).map((score) => [stringValue(score.path), normalizeScore(score)]));
+  const scoreByPath = new Map(asArray(fileScores).map((score) => [normalizePath(score.path), normalizeScore(score)]));
   const assignments = files.map((filePath) => ({
     filePath,
     layer: classifier.classify(filePath),
@@ -92,6 +88,7 @@ function createArchitecturePlan({ listOutput, configOutput, fileScores = [], max
 }
 
 function buildProjectArchitecture(plan, inspections) {
+  const projectGraph = buildCanonicalGraph(plan, inspections);
   const builder = new GraphModelBuilder();
   const context = {
     inspections: asArray(inspections),
@@ -100,11 +97,12 @@ function buildProjectArchitecture(plan, inspections) {
   contributeLayerNodes(context, builder);
   contributeFileNodes(context, builder);
   contributeOverflowNodes(context, builder);
-  contributeImportRelationships(context, builder);
+  contributeImportRelationships(projectGraph, plan, builder);
 
   const graph = builder.build({
     state: "ready",
     source: "fallow",
+    projectGraph,
     totalFileCount: plan.files.length,
     visibleFileCount: plan.visibleAssignments.length,
     truncated: plan.visibleAssignments.length < plan.files.length,
@@ -161,19 +159,50 @@ function contributeOverflowNodes({ plan }, builder) {
   });
 }
 
-function contributeImportRelationships({ inspections, plan }, builder) {
-  const layerByPath = new Map(plan.assignments.map((assignment) => [assignment.filePath, assignment.layer.id]));
-
-  inspections.filter((inspection) => !inspection.error).forEach((inspection) => {
+function buildCanonicalGraph(plan, inspections) {
+  const nodes = new Map(plan.assignments.map((assignment) => [assignment.filePath, {
+    id: assignment.filePath, path: assignment.filePath, layerId: assignment.layer.id, entryPoint: assignment.entryPoint
+  }]));
+  const edges = new Map();
+  const inspected = new Set();
+  const diagnostics = [];
+  const knownPaths = new Set(plan.files);
+  function addEdge(source, target) {
+    source = normalizePath(source);
+    target = normalizePath(target);
+    if (!source || !target) {
+      diagnostics.push("A dependency has an invalid endpoint.");
+      return;
+    }
+    for (const endpoint of [source, target]) {
+      if (!nodes.has(endpoint)) {
+        nodes.set(endpoint, { id: endpoint, path: endpoint, layerId: null, entryPoint: false });
+        diagnostics.push(`Dependency endpoint is absent from the project file list: ${endpoint}`);
+      }
+    }
+    const key = JSON.stringify([source, target, "unknown"]);
+    edges.set(key, { source, target, kind: "unknown", provenance: "fallow" });
+  }
+  asArray(inspections).forEach((inspection) => {
+    if (!inspection || inspection.error) return;
     const trace = objectValue(objectValue(objectValue(inspection.report).evidence).trace_file);
     const traceData = objectValue(trace.data);
-    const inspectedPath = stringValue(traceData.file) || inspection.filePath;
-    asArray(traceData.imports_from).forEach((dependencyPath) => {
-      addImportEdge(builder, inspectedPath, stringValue(dependencyPath), plan.visiblePaths, layerByPath);
-    });
-    asArray(traceData.imported_by).forEach((importerPath) => {
-      addImportEdge(builder, stringValue(importerPath), inspectedPath, plan.visiblePaths, layerByPath);
-    });
+    const inspectedPath = normalizePath(traceData.file);
+    if ((trace.status && trace.status !== "ok") || !knownPaths.has(inspectedPath) || inspectedPath !== normalizePath(inspection.filePath)) return;
+    if (Array.isArray(traceData.imports_from) && Array.isArray(traceData.imported_by)) inspected.add(inspectedPath);
+    asArray(traceData.imports_from).forEach((dependency) => addEdge(inspectedPath, dependency));
+    asArray(traceData.imported_by).forEach((importer) => addEdge(importer, inspectedPath));
+  });
+  if (inspected.size < plan.files.length) {
+    diagnostics.push(`Valid traces available for ${inspected.size} of ${plan.files.length} project files.`);
+  }
+  return { schemaVersion: 1, complete: diagnostics.length === 0, nodes: Array.from(nodes.values()), edges: Array.from(edges.values()), diagnostics };
+}
+
+function contributeImportRelationships(projectGraph, plan, builder) {
+  const layerByPath = new Map(plan.assignments.map((assignment) => [assignment.filePath, assignment.layer.id]));
+  projectGraph.edges.forEach((edge) => {
+    addImportEdge(builder, edge.source, edge.target, plan.visiblePaths, layerByPath);
   });
 }
 
@@ -420,6 +449,10 @@ function numberOr(value, fallback) {
 
 function stringValue(value) {
   return typeof value === "string" ? value : "";
+}
+
+function normalizePath(value) {
+  return stringValue(value).replace(/\\/g, "/").replace(/^(\.\/)+/, "");
 }
 
 module.exports = {

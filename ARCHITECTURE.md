@@ -14,7 +14,7 @@ modules directly in tests without changing the backend module format.
 | Scan lifecycle | `src/scanService.js` | Owns one project's snapshot, active scan, cancellation, and project identity. |
 | Process adapter | `src/fallowClient.js` | Runs the installed Fallow launcher, parses JSON, enforces command deadlines, terminates its process tree. |
 | Analysis | `src/fallowReport.js`, `src/architectureAnalyzer.js`, `src/concurrency.js` | Normalizes primary results and performs bounded file inspections. |
-| Graph model | `src/projectArchitecture.js` | Classifies files, selects a representative subset, builds renderer-independent nodes and edges. |
+| Graph model | `src/projectArchitecture.js` | Builds a canonical file dependency graph and projects a representative subset for the dashboard. |
 | Browser bootstrap | `public/app/main.js` | Connects DOM elements, navigation, renderers, and scan controls. |
 | Scan controls | `public/app/scan-controller.js` | Owns HTTP requests, polling, auto-refresh timers, busy state, and disposal. |
 | Report presentation | `public/app/report.js`, `public/app/overview.js`, `public/app/findings.js`, `public/app/format.js` | Renders report sections, metric charts, and copyable text. |
@@ -103,16 +103,20 @@ Configured Fallow boundary zones take precedence over automatic path-based
 categories. File selection balances layers and prioritizes entry points,
 coupling, size, and low maintainability. Hidden files become summary nodes.
 
-The graph contains `layer`, `file`, and `summary` nodes plus directed `imports`
-edges. Layer nodes are compound parents. File nodes carry their paths and
-metrics. Import relationships are derived from both `imports_from` and
-`imported_by`, with stable ids deduplicating edges between visible files.
+The `report.architecture.projectGraph` field is the canonical graph, with
+`schemaVersion: 1`, `complete`, `diagnostics`, file nodes and directed edges from
+importer to imported file. Paths use forward slashes without leading `./`.
+Edges have `kind: "unknown"` and `provenance: "fallow"` and are deduplicated by
+source, target and kind. Endpoints absent from the file list are retained as
+nodes with no layer and reported in diagnostics. Completeness requires a valid
+trace for every listed file and no unresolved endpoints. Since only visible
+files are inspected, a capped scan is partial; missing or failed traces also
+make it partial.
 
-`buildProjectArchitecture(plan, inspections)` directly builds the supported node
-and edge types. There is no plugin registry or contributor configuration. To add
-a graph type, change the builder, its frontend adapter, and their focused tests
-together. The renderer uses a deterministic preset layout and fixed node
-positions.
+The existing top-level `nodes` and `edges` are the dashboard projection: `layer`,
+visible `file`, and `summary` nodes plus visible directed `imports` edges with
+weight 1. The renderer marks a partial graph in its statistics and uses a
+deterministic preset layout and fixed node positions.
 
 ## Verification
 

@@ -302,6 +302,7 @@ function renderStats(element, model) {
     `${formatNumber(model.crossLayerEdgeCount)} cross-layer`
   ];
   if (model.truncated) parts.push(`${formatNumber(model.visibleFileCount)} shown`);
+  if (model.projectGraph && !model.projectGraph.complete) parts.push("partial dependency graph");
   if (model.inspectionErrorCount) parts.push(`${formatNumber(model.inspectionErrorCount)} traces unavailable`);
   element.textContent = parts.join(" · ");
 }
