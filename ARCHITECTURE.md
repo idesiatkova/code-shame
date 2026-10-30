@@ -132,7 +132,9 @@ aggregates directed file imports between layers; within-layer imports appear in
 layer details rather than as loops. File focus keeps the bounded neighborhood
 and direction/depth controls. Both views use Dagre for topology-aware positions
 and edge routing, including cycles, with top-down flow in narrow containers and
-left-to-right flow in wide containers.
+left-to-right flow in wide containers. The layout updates when the container
+crosses that breakpoint; users can pan and zoom while nodes remain fixed.
+Partial graph diagnostics are available below the map statistics.
 
 ## Verification
 

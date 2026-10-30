@@ -131,6 +131,27 @@ test("represents files omitted from a capped graph with summary nodes", () => {
   assert.ok(graph.nodes.some((node) => node.type === "summary" && node.hiddenFileCount === 2));
 });
 
+test("preserves missing and zero metrics for visible and hidden files in both graph sources", () => {
+  const plan = createArchitecturePlan({
+    listOutput: { files: ["src/A.js", "src/B.js", "src/C.js"] },
+    configOutput: {},
+    maxFiles: 1,
+    fileScores: [
+      { path: "src/B.js", fan_in: 0, fan_out: null, lines: 0, maintainability_index: 0 },
+      { path: "src/C.js", fan_in: 1, maintainability_index: 100 }
+    ]
+  });
+  // Missing values retain their former zero-based ranking, so A and B tie ahead of C.
+  assert.deepEqual(plan.visibleAssignments.map((item) => item.filePath), ["src/A.js"]);
+  const missing = { path: "src/A.js", fanIn: null, fanOut: null, lines: null, maintainability: null };
+  const zero = { path: "src/B.js", fanIn: 0, fanOut: null, lines: 0, maintainability: 0 };
+  for (const graph of [buildProjectArchitecture(plan, []), buildProjectArchitecture(plan, [], { edges: [], diagnostics: [] })]) {
+    assert.deepEqual(graph.nodes.find((node) => node.path === "src/A.js").metrics, missing);
+    assert.deepEqual(graph.projectGraph.nodes.find((node) => node.path === "src/A.js").metrics, missing);
+    assert.deepEqual(graph.projectGraph.nodes.find((node) => node.path === "src/B.js").metrics, zero);
+  }
+});
+
 function inspection(filePath, importsFrom, importedBy) {
   return {
     filePath,

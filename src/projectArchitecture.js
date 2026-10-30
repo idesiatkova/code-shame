@@ -163,7 +163,7 @@ function contributeOverflowNodes({ plan }, builder) {
 
 function buildCanonicalGraph(plan, inspections) {
   const nodes = new Map(plan.assignments.map((assignment) => [assignment.filePath, {
-    id: assignment.filePath, path: assignment.filePath, layerId: assignment.layer.id, entryPoint: assignment.entryPoint
+    id: assignment.filePath, path: assignment.filePath, layerId: assignment.layer.id, entryPoint: assignment.entryPoint, metrics: assignment.score
   }]));
   const edges = new Map();
   const inspected = new Set();
@@ -203,7 +203,7 @@ function buildCanonicalGraph(plan, inspections) {
 
 function buildExtractedGraph(plan, extracted) {
   const nodes = plan.assignments.map((assignment) => ({
-    id: assignment.filePath, path: assignment.filePath, layerId: assignment.layer.id, entryPoint: assignment.entryPoint
+    id: assignment.filePath, path: assignment.filePath, layerId: assignment.layer.id, entryPoint: assignment.entryPoint, metrics: assignment.score
   }));
   const edges = new Map(extracted.edges.map((edge) => [JSON.stringify([edge.source, edge.target, edge.kind]), edge]));
   return { schemaVersion: 1, complete: extracted.diagnostics.length === 0, nodes, edges: Array.from(edges.values()), diagnostics: extracted.diagnostics };
@@ -327,7 +327,7 @@ function compareAssignmentPriority(left, right) {
 }
 
 function architecturePriority(score) {
-  return score.fanIn * 20 + score.fanOut * 4 + score.lines / 100 + Math.max(0, 100 - score.maintainability);
+  return (score.fanIn ?? 0) * 20 + (score.fanOut ?? 0) * 4 + (score.lines ?? 0) / 100 + Math.max(0, 100 - (score.maintainability ?? 0));
 }
 
 function layerSummary(definition, assignments, visiblePaths) {
@@ -346,15 +346,15 @@ function layerSummary(definition, assignments, visiblePaths) {
 function normalizeScore(score) {
   return {
     path: stringValue(score.path),
-    fanIn: numberOr(score.fan_in, 0),
-    fanOut: numberOr(score.fan_out, 0),
-    lines: numberOr(score.lines, 0),
-    maintainability: numberOr(score.maintainability_index, 0)
+    fanIn: numberOr(score.fan_in, null),
+    fanOut: numberOr(score.fan_out, null),
+    lines: numberOr(score.lines, null),
+    maintainability: numberOr(score.maintainability_index, null)
   };
 }
 
 function emptyScore(filePath) {
-  return { path: filePath, fanIn: 0, fanOut: 0, lines: 0, maintainability: 0 };
+  return { path: filePath, fanIn: null, fanOut: null, lines: null, maintainability: null };
 }
 
 function layer(id, label, kind, matches) {
@@ -453,6 +453,7 @@ function objectValue(value) {
 }
 
 function numberOr(value, fallback) {
+  if (value == null || value === "") return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }

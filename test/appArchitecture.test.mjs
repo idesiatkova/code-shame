@@ -21,12 +21,13 @@ test("maps graph nodes and edges to Cytoscape elements", () => {
   assert.equal(elements.filter((element) => element.data.type === "imports").length, model.edges.length);
 });
 
-test("keeps the architecture map fixed in place", () => {
+test("allows panning and zooming while keeping nodes fixed", () => {
   const model = createDemoModel();
   const options = architecture.createGraphOptions({}, model, new Map());
 
   assert.equal(options.autoungrabify, true);
-  assert.equal(options.userPanningEnabled, false);
+  assert.equal(options.userPanningEnabled, true);
+  assert.equal(options.minZoom, 0.05);
   assert.equal(options.boxSelectionEnabled, false);
   assert.equal(architecture.createGraphOptions({ clientWidth: 800 }, model).layout.rankDir, "TB");
   assert.equal(architecture.createGraphOptions({ clientWidth: 1200 }, model).layout.rankDir, "LR");
@@ -83,23 +84,27 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     getAttribute(key) { return this.attributes[key] || key; }
     get options() { return this.children; }
     dispatchEvent(event) { this.fire(event.type); }
-    focus() {}
+    focus() { globalThis.document.activeElement = this; }
+    contains(element) { return this === element || this.children.some((child) => child.contains?.(element)); }
     set innerHTML(value) {
       this.controls = Array.from({ length: 7 }, () => new Element());
       this.controls[2].value = "both"; this.controls[3].value = "1";
       this.controls[5].value = "dependencies";
     }
     querySelectorAll(selector) { return selector === "input, select, button" ? this.controls : this.children.filter((child) => child.type === "button"); }
-    fire(name) { this.listeners[name]?.(); }
+    fire(name, event) { this.listeners[name]?.(event); }
   }
-  const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option;
+  const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option, oldResizeObserver = globalThis.ResizeObserver;
+  let resize;
+  globalThis.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} };
   globalThis.document = { createElement: () => new Element(), addEventListener() {} };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
-  let lastFit, lastGraph;
+  let lastFit, lastGraph, lastRankDir;
   globalThis.window = { cytoscape: (options) => {
     const graph = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true });
     lastGraph = graph;
     const fit = graph.fit.bind(graph);
+    graph.layout = (layoutOptions) => { lastRankDir = layoutOptions.rankDir; return { run() {} }; };
     graph.fit = (collection, padding) => { lastFit = collection; return fit(collection, padding); };
     return graph;
   } };
@@ -108,6 +113,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const renderer = architecture.createRenderer({ container, details, legend, stats, fitButton: new Element() });
     const model = createDemoModel();
     renderer.render(model);
+    container.clientWidth = 800; resize();
+    assert.equal(lastRankDir, "TB");
+    container.clientWidth = 1200; resize();
+    assert.equal(lastRankDir, "LR");
     const [search, results, direction, depth, back, view, cycle] = legend.beforeElement.controls;
     assert.equal(results.children[0].text, "Search for a file");
     legend.children.find((button) => button.textContent.startsWith("UI / Components")).fire("click");
@@ -118,9 +127,16 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(details.children[0].textContent, "UI / Components");
     assert.ok(details.children[2].children.some((item) => item.textContent === "Outbound to other layers"));
     layerButton.fire("click");
-    assert.equal(layerButton.attributes["aria-pressed"], "false");
+    assert.equal(legend.children.find((button) => button.textContent.startsWith("UI / Components")).attributes["aria-pressed"], "false");
     assert.equal(details.children[0].textContent, "Project structure");
     search.value = "checkout"; search.fire("input");
+    const menu = results.afterElement, summary = menu.children[0], options = menu.children[1];
+    assert.ok(options.children.every((button) => button.tabIndex === -1));
+    summary.focus();
+    menu.fire("keydown", { key: "ArrowDown", preventDefault() {} });
+    assert.equal(globalThis.document.activeElement, options.children[0]);
+    menu.fire("focusout", { relatedTarget: direction });
+    assert.equal(menu.open, false);
     results.value = "domain/checkout.ts"; results.fire("change");
     direction.value = "inbound"; depth.value = "2";
     const updated = structuredClone(model);
@@ -137,9 +153,16 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     renderer.render(updated);
     assert.equal(view.value, "impact");
     assert.ok(details.children[2].children.some((item) => item.textContent === "Direct consumers"));
+    search.value = "domain/checkout"; search.fire("input");
     const anotherFile = lastGraph.nodes('[type = "file"]').filter((node) => node.data("canonicalId") !== "domain/checkout.ts")[0];
     assert.ok(anotherFile); anotherFile.emit("tap");
+    assert.equal(results.value, anotherFile.data("canonicalId"));
+    assert.equal(search.value, "domain/checkout");
+    assert.ok(results.children.some((option) => option.value === results.value));
     assert.equal(view.value, "impact");
+    lastGraph.emit("tap");
+    assert.ok(details.children[2].children.some((item) => item.textContent === "Direct consumers"));
+    assert.equal(lastGraph.nodes('[type = "file"].is-selected').length, 1);
     const cyclic = structuredClone(updated);
     cyclic.projectGraph.edges.push({ source: "domain/checkout.ts", target: "ui/Checkout.tsx" });
     renderer.render(cyclic);
@@ -149,13 +172,18 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     cycle.value = cycle.children[1].value; cycle.fire("change");
     const selectedCycle = cycle.value;
     assert.equal(details.children[0].textContent, "Cycle group");
+    lastGraph.emit("tap");
+    assert.equal(details.children[0].textContent, "Cycle group");
+    assert.ok(lastGraph.nodes('[type = "file"].is-selected').length > 0);
     renderer.render(cyclic);
     assert.equal(cycle.value, selectedCycle);
     assert.equal(details.children[0].textContent, "Cycle group");
     renderer.render(updated);
     assert.equal(cycle.value, "");
     assert.equal(details.children[0].textContent, "Project structure");
+    assert.match(details.children[1].textContent, /No cycle groups found/);
     back.fire("click");
+    assert.equal(results.value, "");
     assert.equal(view.value, "dependencies");
     assert.equal(direction.parentElement.hidden, false); assert.equal(cycle.parentElement.hidden, true);
     assert.match(stats.textContent, /graph files/);
@@ -165,7 +193,13 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.match(stats.textContent, /graph files/);
     renderer.clear();
     assert.equal(search.value, ""); assert.equal(direction.value, "both"); assert.equal(depth.value, "1");
-  } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; }
+    updated.projectGraph.complete = false;
+    updated.projectGraph.diagnostics = ["Unresolved imports <example>"];
+    renderer.render(updated);
+    assert.equal(stats.afterElement.hidden, false);
+    assert.equal(stats.afterElement.children[1].children[0].textContent, "Unresolved imports <example>");
+    renderer.clear();
+  } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; }
 });
 
 test("analytics uses the full graph for unique consumers and cycle groups", async () => {

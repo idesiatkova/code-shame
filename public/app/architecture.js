@@ -9,6 +9,8 @@ function styledSelect(select) {
   menu.className = "architecture-select";
   const summary = document.createElement("summary");
   summary.setAttribute("aria-label", select.getAttribute("aria-label"));
+  const summaryText = document.createElement("span");
+  summary.append(summaryText);
   const list = document.createElement("div");
   list.className = "architecture-select-options";
   menu.append(summary, list);
@@ -16,10 +18,12 @@ function styledSelect(select) {
   select.after(menu);
   function refresh() {
     const options = [...select.options];
-    summary.textContent = options.find((option) => option.value === select.value)?.text || options[0]?.text || "";
+    summaryText.textContent = options.find((option) => option.value === select.value)?.text || options[0]?.text || "";
+    summary.title = summaryText.textContent;
     list.replaceChildren(...options.map((option) => {
       const button = document.createElement("button");
       button.type = "button";
+      button.tabIndex = -1;
       button.textContent = option.text;
       button.className = "architecture-select-option";
       button.setAttribute("aria-pressed", String(option.value === select.value));
@@ -67,9 +71,20 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   legend.before(controls);
   const [search, results, direction, depth, back, view, cycle] = controls.querySelectorAll("input, select, button");
   const dropdowns = [results, direction, depth, view, cycle].map(styledSelect);
+  const diagnostics = document.createElement("details");
+  diagnostics.className = "architecture-diagnostics";
+  const diagnosticsSummary = document.createElement("summary");
+  diagnosticsSummary.textContent = "Why the dependency graph is partial";
+  const diagnosticsList = document.createElement("ul");
+  diagnostics.append(diagnosticsSummary, diagnosticsList);
+  stats.after(diagnostics);
   function refreshSearch() {
     const matches = currentModel ? searchFiles(currentModel, search.value) : [];
-    results.replaceChildren(new Option(!search.value.trim() ? "Search for a file" : matches.length ? `${matches.length} matching files` : "No matching files", ""), ...matches.map((node) => new Option(node.path, node.canonicalId)));
+    const matchCount = matches.length;
+    const selectedFile = selected && currentModel ? (currentModel.projectGraph?.nodes || currentModel.nodes || []).find((node) => (node.id === selected || node.path === selected) && node.path) : null;
+    if (selectedFile && !matches.some((node) => node.canonicalId === selected)) matches.unshift({ path: selectedFile.path, canonicalId: selected });
+    results.replaceChildren(new Option(!search.value.trim() ? "Search for a file" : matchCount ? `${matchCount} matching files` : "No matching files", ""), ...matches.map((node) => new Option(node.path, node.canonicalId)));
+    results.value = selected || "";
     dropdowns[0].refresh();
   }
   search.addEventListener("input", refreshSearch);
@@ -78,9 +93,16 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   depth.addEventListener("change", () => { if (selected) draw(); });
   view.addEventListener("change", draw);
   cycle.addEventListener("change", draw);
-  back.addEventListener("click", () => { selected = null; view.value = "dependencies"; dropdowns[3].refresh(); draw(); });
+  back.addEventListener("click", () => { selected = null; refreshSearch(); view.value = "dependencies"; dropdowns[3].refresh(); draw(); });
   fitButton.addEventListener("click", () => { if (graph) { graph.resize(); graph.fit(graph.elements(), 36); } });
-  if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => { if (graph && container.clientWidth) { graph.resize(); graph.fit(graph.elements(), 36); } }).observe(container);
+  let rankDir = null;
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(() => {
+    if (!graph || !container.clientWidth) return;
+    graph.resize();
+    const layout = createGraphOptions(container, {}).layout;
+    if (layout.rankDir !== rankDir) { rankDir = layout.rankDir; graph.layout(layout).run(); }
+    else graph.fit(graph.elements(), 36);
+  }).observe(container);
 
   function clear(message = "No project structure yet.") {
     destroyGraph(); currentModel = null; selected = null; activeLayer = null; analysis = null;
@@ -88,6 +110,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     cycle.replaceChildren(new Option("Select a cycle", ""));
     results.replaceChildren(new Option("Search for a file", ""));
     dropdowns.forEach((dropdown) => dropdown.refresh());
+    diagnostics.hidden = true; diagnosticsList.replaceChildren();
     controls.hidden = true;
     container.replaceChildren(emptyState(message));
     legend.replaceChildren(); stats.textContent = "";
@@ -96,6 +119,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   function render(model) {
     if (model?.state !== "ready") { clear(unavailableMessage(model)); return; }
     currentModel = model;
+    const reasons = model.projectGraph?.complete === false ? model.projectGraph.diagnostics || [] : [];
+    diagnostics.hidden = reasons.length === 0;
+    diagnosticsList.replaceChildren(...reasons.map((reason) => { const item = document.createElement("li"); item.textContent = reason; return item; }));
     analysis = analytics(model);
     const previousCycle = cycle.value;
     cycle.replaceChildren(new Option(analysis ? `${analysis.cycles.length} cycle groups` : "Unavailable", ""), ...(analysis?.cycles || []).map((group) => new Option(`${group[0]} · ${group.length} files`, JSON.stringify(group))));
@@ -117,13 +143,11 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (!projection.nodes.length) { clear("No project files were discovered for the architecture map."); return; }
     if (typeof window.cytoscape !== "function") { clear("Cytoscape.js could not be loaded."); return; }
     container.replaceChildren();
-    graph = window.cytoscape(createGraphOptions(container, projection));
+    const options = createGraphOptions(container, projection);
+    rankDir = options.layout.rankDir;
+    graph = window.cytoscape(options);
     const reset = () => {
-      activeLayer = null;
-      resetFocus(graph);
-      legend.querySelectorAll("button").forEach((button) => button.setAttribute("aria-pressed", "false"));
-      graph.fit(graph.elements(), 36);
-      renderPrompt(details, "Search for a file to explore its dependencies. Arrows show imports; edge labels count file dependencies.");
+      draw();
     };
     const selectLayer = (id) => {
       if (activeLayer === id) { reset(); return; }
@@ -137,7 +161,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       else renderLayerDetails(details, node.data(), node.descendants());
       graph.fit(overview ? collection : node.add(node.descendants()), 44);
     };
-    bindGraphInteractions(graph, (id) => { selected = id; if (view.value === "cycles") { view.value = "dependencies"; dropdowns[3].refresh(); } draw(); }, selectLayer, reset);
+    bindGraphInteractions(graph, (id) => { selected = id; refreshSearch(); if (view.value === "cycles") { view.value = "dependencies"; dropdowns[3].refresh(); } draw(); }, selectLayer, reset);
     renderLegend(legend, projection.nodes, selectLayer);
     const status = projection.complete ? "" : " · partial dependency graph";
     stats.textContent = group || impactResult || (selected && view.value !== "cycles")
@@ -146,9 +170,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     back.disabled = !selected && view.value === "dependencies";
     if (group) {
       graph.nodes('[type = "file"]').addClass("is-selected"); graph.edges().addClass("is-active");
-      renderDetails(details, "Cycle group", analysis.data.graph.complete ? "Files in this cycle" : "Partial graph: additional cycles may be missing", [["Files", group.length], ["Shown", projection.shownFiles], ["Dependencies shown", `${projection.shownEdges} / ${projection.totalEdges}`]]);
+      renderDetails(details, "Cycle group", analysis.data.graph.complete ? "Files in this cycle group" : "Partial graph: additional cycles may be missing", [["Files", group.length], ["Shown", projection.shownFiles], ["Dependencies shown", `${projection.shownEdges} / ${projection.totalEdges}`]]);
     } else if (view.value === "cycles") {
-      renderPrompt(details, analysis ? `${analysis.cycles.length} cycle groups${analysis.data.graph.complete ? "" : " found in the partial graph; more may be missing"}. Select a group to inspect it.` : "Cycle analysis is unavailable for this report.");
+      renderPrompt(details, analysis ? analysis.cycles.length ? `${analysis.cycles.length} cycle groups${analysis.data.graph.complete ? "" : " found in the partial graph; more may be missing"}. Select a group to inspect it.` : `No cycle groups found${analysis.data.graph.complete ? "." : " in the partial graph; some may be missing."}` : "Cycle analysis is unavailable for this report.");
     } else if (selected) {
       const node = projection.nodes.find((item) => item.canonicalId === selected);
       if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); if (view.value === "impact" && !analysis) renderPrompt(details, "Impact analysis is unavailable for this report."); }
@@ -166,10 +190,10 @@ function createGraphOptions(container, model) {
     elements: toCytoscapeElements(model),
     layout: { name: "dagre", rankDir: container?.clientWidth && container.clientWidth < 900 ? "TB" : "LR", nodeSep: 45, rankSep: 100, edgeSep: 24, nodeDimensionsIncludeLabels: true, useDagreEdgeControlPoints: true, automaticDagreEdgeStyle: true, fit: true, padding: 36 },
     maxZoom: 2.4,
-    minZoom: 0.25,
+    minZoom: 0.05,
     style: graphStyle(),
     textureOnViewport: true,
-    userPanningEnabled: false
+    userPanningEnabled: true
   };
 }
 
@@ -338,10 +362,6 @@ function focusCollection(graph, collection, selectedNode) {
   graph.elements().addClass("is-muted").removeClass("is-active is-selected");
   collection.removeClass("is-muted").addClass("is-active");
   selectedNode.addClass("is-selected");
-}
-
-function resetFocus(graph) {
-  graph.elements().removeClass("is-muted is-active is-selected");
 }
 
 function renderLegend(element, nodes, selectLayer) {
