@@ -19,7 +19,7 @@ function createScanService({
   let closed = false;
 
   function getSnapshot() {
-    return { ...snapshot, projectId, running: Boolean(activeScan) };
+    return { ...snapshot, projectId, projectName: path.basename(root) || root, running: Boolean(activeScan) };
   }
 
   function start() {

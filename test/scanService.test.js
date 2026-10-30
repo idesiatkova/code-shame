@@ -59,6 +59,8 @@ test("cancels active work on shutdown and isolates service instances", async () 
   assert.equal(first.getSnapshot().running, false);
   assert.equal(second.getSnapshot().state, "idle");
   assert.notEqual(first.getSnapshot().projectId, second.getSnapshot().projectId);
+  assert.equal(first.getSnapshot().projectName, "project-a");
+  assert.equal(second.getSnapshot().projectName, "project-b");
   await first.start();
   assert.equal(first.getSnapshot().running, false);
   await second.close();

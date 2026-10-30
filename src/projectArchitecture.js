@@ -61,7 +61,7 @@ class GraphModelBuilder {
 
 function createArchitecturePlan({ listOutput, configOutput, fileScores = [], maxFiles = DEFAULT_MAX_FILES }) {
   const files = uniqueStrings(asArray(objectValue(listOutput).files).map(normalizePath)).sort();
-  const entryPoints = new Set(asArray(objectValue(listOutput).entry_points).map((entry) => normalizePath(entry.path)).filter(Boolean));
+  const entryPoints = new Set(asArray(objectValue(listOutput).entry_points).map((entry) => normalizePath(entry?.path)).filter(Boolean));
   const classifier = createLayerClassifier(configOutput, files);
   const scoreByPath = new Map(asArray(fileScores).map((score) => [normalizePath(score.path), normalizeScore(score)]));
   const assignments = files.map((filePath) => ({
@@ -105,6 +105,13 @@ function buildProjectArchitecture(plan, inspections, extracted) {
     state: "ready",
     source: "fallow",
     projectGraph,
+    overview: {
+      directories: Array.from(groupBy(plan.files, (filePath) => path.posix.dirname(filePath)), ([directory, files]) => ({ path: directory, files }))
+        .sort((a, b) => a.path.localeCompare(b.path)),
+      entryPoints: plan.files.filter((filePath) => plan.entryPoints.has(filePath))
+        .map((filePath) => ({ path: filePath, evidence: "Reported by Fallow entry_points" })),
+      scope: { listedFileCount: plan.files.length }
+    },
     totalFileCount: plan.files.length,
     visibleFileCount: plan.visibleAssignments.length,
     truncated: plan.visibleAssignments.length < plan.files.length,

@@ -131,6 +131,37 @@ test("represents files omitted from a capped graph with summary nodes", () => {
   assert.ok(graph.nodes.some((node) => node.type === "summary" && node.hiddenFileCount === 2));
 });
 
+test("overview lists every file by directory and only reported entry points", () => {
+  const files = Array.from({ length: 55 }, (_, index) => `src/feature/file-${String(index).padStart(2, "0")}.js`);
+  const plan = createArchitecturePlan({
+    listOutput: { files: [...files.reverse(), "root.js", "src/other.js"], entry_points: [{ path: "./src/feature/file-54.js" }, { path: "root.js" }, { path: "missing.js" }] },
+    configOutput: {}
+  });
+  const graph = buildProjectArchitecture(plan, []);
+
+  assert.equal(graph.truncated, true);
+  assert.equal(plan.entryPoints.has("missing.js"), true);
+  assert.equal(graph.overview.scope.listedFileCount, 57);
+  assert.deepEqual(graph.overview.directories, [
+    { path: ".", files: ["root.js"] },
+    { path: "src", files: ["src/other.js"] },
+    { path: "src/feature", files: [...files].sort() }
+  ]);
+  assert.deepEqual(graph.overview.entryPoints, [
+    { path: "root.js", evidence: "Reported by Fallow entry_points" },
+    { path: "src/feature/file-54.js", evidence: "Reported by Fallow entry_points" }
+  ]);
+});
+
+test("overview does not invent entry points when Fallow reports none", () => {
+  const plan = createArchitecturePlan({ listOutput: { files: ["index.js"] }, configOutput: {} });
+  assert.deepEqual(buildProjectArchitecture(plan, []).overview.entryPoints, []);
+  const empty = createArchitecturePlan({ listOutput: {}, configOutput: {} });
+  assert.deepEqual(buildProjectArchitecture(empty, []).overview, {
+    directories: [], entryPoints: [], scope: { listedFileCount: 0 }
+  });
+});
+
 test("preserves missing and zero metrics for visible and hidden files in both graph sources", () => {
   const plan = createArchitecturePlan({
     listOutput: { files: ["src/A.js", "src/B.js", "src/C.js"] },
