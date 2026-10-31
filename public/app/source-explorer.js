@@ -60,7 +60,8 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       const symbol = result.symbols.find((item) => item.id === target.id);
       if (!symbol || (target.hash && target.hash !== result.hash) || (target.name && symbol.name !== target.name) || (target.startLine && symbol.startLine !== target.startLine)) throw new Error("The target symbol has changed or is no longer available. Reopen the source to refresh.");
       if (site && !hasCallSite(result, symbol, { ...site, hash: target.hash })) throw new Error("The call site has changed or is no longer available. Reopen the source to refresh.");
-      file = target.file; data = result; query = ""; selected = symbol; location = site ? { ...site, hash: result.hash } : null; navigationError = null; pendingPage = null;
+      if (file !== target.file || selected?.id !== symbol.id) query = "";
+      file = target.file; data = result; selected = symbol; location = site ? { ...site, hash: result.hash } : null; navigationError = null; pendingPage = null;
       canBack = !!onNavigate(false, true);
       panel.setAttribute("aria-label", `Source explorer for ${file}`); render(panel.contains(document.activeElement) ? { detail: true } : undefined); onNavigate(true); loadGraph();
     } catch (error) {
@@ -80,7 +81,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     header.append(element("h3", "", `Source: ${file}`), closeButton);
     if (file !== anchor) header.append(element("p", "source-explorer-status", `Architecture file: ${anchor} · Source file: ${file}`));
     const actions = element("div", "source-explorer-actions");
-    if (canBack) actions.append(button("Previous location", onBack));
+    if (canBack) { const previous = button("Previous location", onBack); previous.dataset.previousLocation = "true"; actions.append(previous); }
     if (selected) actions.append(button("Back to symbols", () => { onNavigate(true); const id = selected.id; cancelNavigation(); clearGraph(); selected = location = pendingPage = null; canBack = !!onNavigate(false, true); render(id); onNavigate(true); }));
     panel.replaceChildren(header, actions);
     if (restorePanelFocus || (focusTarget?.restore && canRestoreFocus)) panel.focus({ preventScroll: true });
@@ -212,10 +213,10 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       if (caller && callee) section.append(element("p", "source-explorer-status", `Selected resolved call: ${caller.name} (${caller.file}) → ${callee.name} (${callee.file}) · ${chosen.file}:${chosen.line}:${chosen.column}`));
     }
     if (typeof window !== "undefined" && typeof window.cytoscape === "function") {
-      graph = window.cytoscape({ container: canvas, elements: [...localNodes.map((node) => ({ data: { id: key(node), label: `${node.name}\n${node.file}`, target: node }, classes: key(node) === rootKey ? "root" : "" })), ...localEdges.map((edge, index) => ({ data: { id: `edge-${index}`, source: key(edge.source), target: key(edge.target) }, classes: location && edge.file === file && edge.line === location.line && edge.column === location.column ? "selected-call" : "" }))], layout: { name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80, padding: 30 }, style: [{ selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 150, "text-valign": "center", "text-halign": "center", color: "#f1f5f1", "font-size": 11, width: 170, height: 54, shape: "round-rectangle", "background-color": "#46584a" } }, { selector: "node.root", style: { "background-color": "#688b6e", "border-width": 3, "border-color": "#d4e6d5" } }, { selector: "edge", style: { width: 2, "line-color": "#9db4a0", "target-arrow-color": "#9db4a0", "target-arrow-shape": "triangle", "curve-style": "bezier" } }, { selector: "edge.selected-call", style: { width: 4, "line-color": "#f5d080", "target-arrow-color": "#f5d080" } }] });
+      graph = window.cytoscape({ container: canvas, elements: [...localNodes.map((node) => ({ data: { id: key(node), label: `${node.name}\n${node.file}${node.startLine ? `:${node.startLine}` : ""}`, target: node }, classes: key(node) === rootKey ? "root" : "" })), ...localEdges.map((edge, index) => ({ data: { id: `edge-${index}`, source: key(edge.source), target: key(edge.target) }, classes: location && edge.file === file && edge.line === location.line && edge.column === location.column ? "selected-call" : "" }))], layout: { name: "dagre", rankDir: "LR", nodeSep: 18, rankSep: 45, padding: 15 }, style: [{ selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 150, "text-valign": "center", "text-halign": "center", color: "#f1f5f1", "font-size": 11, width: 170, height: 54, shape: "round-rectangle", "background-color": "#46584a" } }, { selector: "node.root", style: { "background-color": "#688b6e", "border-width": 3, "border-color": "#d4e6d5" } }, { selector: "edge", style: { width: 2, "line-color": "#9db4a0", "target-arrow-color": "#9db4a0", "target-arrow-shape": "triangle", "curve-style": "bezier" } }, { selector: "edge.selected-call", style: { width: 4, "line-color": "#f5d080", "target-arrow-color": "#f5d080" } }] });
       graphNeedsLayout = panel.hidden;
       const initialZoom = graph.zoom();
-      if (initialZoom < 0.9 || initialZoom > 1.4) { graph.zoom(Math.max(0.9, Math.min(1.4, initialZoom))); graph.center(graph.getElementById(rootKey)); }
+      if (initialZoom < 0.75 || initialZoom > 1.2) { graph.zoom(initialZoom < 0.75 ? 0.9 : 1.2); graph.center(graph.getElementById(rootKey)); }
       graph.on("tap", "node", (event) => { const target = event.target.data("target"); if (key(target) !== rootKey) navigate(target); });
       graph.on("tap", "edge", (event) => {
         const edge = localEdges[Number(event.target.id().slice(5))];
@@ -270,7 +271,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       const result = await response.json();
       if (sequence !== request) return;
       data = result; selected = restored?.symbol ? data.symbols.find((item) => item.id === restored.symbol) : null;
-      if (restored?.sourceHash && restored.sourceHash !== data.hash) { canBack = false; restored = { file: restored.file, symbol: restored.symbol, query: restored.query, location: restored.location, invalidLocation: restored.invalidLocation }; }
+      if (restored?.sourceHash && restored.sourceHash !== data.hash) { canBack = false; if (restored.retained) { selected = null; query = ""; restored = { file: restored.file }; } else restored = { file: restored.file, symbol: restored.symbol, query: restored.query, location: restored.location, invalidLocation: restored.invalidLocation }; }
       if (restoreFocusCancelled) restored = { ...restored, focus: panel.contains(document.activeElement) ? document.activeElement?.dataset?.navigationFocus : null };
       const site = restored?.location;
       if (hasCallSite(data, selected, site)) location = site;
@@ -291,7 +292,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     if (!graph) return;
     graph.resize();
     if (graphNeedsLayout) {
-      graph.layout({ name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80, padding: 30 }).run();
+      graph.layout({ name: "dagre", rankDir: "LR", nodeSep: 18, rankSep: 45, padding: 15 }).run();
       graph.fit(graph.elements(), 30); graphNeedsLayout = false;
     }
   }
@@ -299,5 +300,6 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
   panel.addEventListener("focusin", () => { if (!rendering) { cancelPage(); pendingFocus = null; if (restoring) restoreFocusCancelled = true; else onNavigate(true); } });
   for (const event of ["wheel", "touchstart", "pointerdown", "keydown"]) globalThis.window?.addEventListener?.(event, cancelPage, { passive: true });
   globalThis.window?.addEventListener?.("scroll", () => { if (!rendering && !panel.hidden && !restoring && !pendingPage) onNavigate(true); });
-  return { open, close, resize, get file() { return anchor; }, get currentFile() { return file; }, get canBack() { return canBack; }, get state() { const { scroll, scrollLeft, listScroll, pageX, pageY, unresolvedOpen, focus } = snapshot(); return { file, symbol: selected?.id || "", query, location, sourceHash: data?.hash || "", scroll, scrollLeft, listScroll, pageX, pageY, unresolvedOpen, focus }; } };
+  function invalidateBack() { canBack = false; [...(panel.querySelector(".source-explorer-actions")?.children || [])].find((child) => child.dataset.previousLocation)?.remove(); }
+  return { open, close, resize, invalidateBack, get file() { return anchor; }, get currentFile() { return file; }, get canBack() { return canBack; }, get state() { const { scroll, scrollLeft, listScroll, pageX, pageY, unresolvedOpen, focus } = snapshot(); return { file, symbol: selected?.id || "", query, location, sourceHash: data?.hash || "", scroll, scrollLeft, listScroll, pageX, pageY, unresolvedOpen, focus }; } };
 }

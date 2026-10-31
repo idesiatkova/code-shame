@@ -154,7 +154,9 @@ test("call sites validate owner, position and hash across same and different fil
     scrollIntoView() { this.scrolled = true; }
     click() { this.focus(); this.listeners.click(); }
   }
-  globalThis.document = { createElement: () => new Element(), body: new Element() }; globalThis.window = {};
+  const graphHandlers = {}; let graphOptions;
+  globalThis.document = { createElement: () => new Element(), body: new Element() };
+  globalThis.window = { cytoscape(options) { graphOptions = options; return { on(_event, selector, handler) { graphHandlers[selector] = handler; }, destroy() {}, zoom() { return 1; }, getElementById(id) { return id; }, center() {} }; } };
   try {
     const pending = [], panel = new Element(), outside = new Element(); document.body.append(panel, outside);
     const explorer = createSourceExplorer(panel, (url, options) => new Promise((resolve) => pending.push({ url, options, resolve })));
@@ -166,21 +168,26 @@ test("call sites validate owner, position and hash across same and different fil
     const opened = explorer.open("a.js"); pending[0].resolve(source(a, [callA])); await opened;
     const workspace = () => panel.children.find((node) => node.className === "source-explorer-workspace");
     workspace().children[0].children[1].children[0].click();
+    const sameFileSearch = workspace().children[0].children[0]; sameFileSearch.value = "a"; sameFileSearch.listeners.input();
     const calls = () => workspace().children[1].children.find((node) => node.className === "source-explorer-calls");
     calls().children[1].children[0].click(); pending[2].resolve(source(a, [callA])); await new Promise(setImmediate);
     assert.deepEqual(explorer.state.location, { line: 2, column: 2, hash: hashA });
+    assert.equal(explorer.state.query, "a");
     assert.equal(workspace().children[1].children.find((node) => node.className === "source-explorer-code").children[1].scrolled, true);
     pending[3].resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [{ source: b, target: a, file: "b.js", line: 2, column: 2 }], coverage: { files: ["a.js", "b.js"] } }) }); await new Promise(setImmediate);
+    assert.match(graphOptions.elements[1].data.label, /b\.js:1/);
     const incoming = () => workspace().children[1].children.find((node) => node.className === "function-graph").children.find((node) => node.children[0]?.textContent === "Incoming");
+    assert.equal(incoming().children[1].children[0].textContent.includes("b.js"), true);
     const search = workspace().children[0].children[0]; search.value = "a"; search.listeners.input();
     const code = workspace().children[1].children.find((node) => node.className === "source-explorer-code"); code.scrollTop = 33; code.scrollLeft = 44;
     workspace().children[0].children[1].scrollTop = 55;
-    incoming().children[1].children[0].click(); pending[4].resolve(source({ ...b, hash: "changed" }, [callB])); await new Promise(setImmediate);
+    graphHandlers.edge({ target: { id: () => "edge-0" } }); pending[4].resolve(source({ ...b, hash: "changed" }, [callB])); await new Promise(setImmediate);
     assert.equal(explorer.currentFile, "a.js"); assert.match(panel.children.find((node) => node.attributes.role === "status").textContent, /changed/);
     assert.equal(explorer.state.query, "a"); assert.equal(explorer.state.location.line, 2); assert.equal(explorer.state.scroll, 33); assert.equal(explorer.state.scrollLeft, 44); assert.equal(explorer.state.listScroll, 55);
-    incoming().children[1].children[0].click(); outside.focus(); pending[5].resolve(source(b, [callB])); await new Promise(setImmediate);
+    graphHandlers.edge({ target: { id: () => "edge-0" } }); outside.focus(); pending[5].resolve(source(b, [callB])); await new Promise(setImmediate);
     assert.equal(document.activeElement, outside);
     assert.equal(explorer.currentFile, "b.js"); assert.equal(explorer.state.symbol, "b"); assert.equal(explorer.state.location.line, 2);
+    assert.equal(explorer.state.query, "");
     const staleLink = explorer.open("a.js", null, { file: "a.js", symbol: "a", location: { line: 2, column: 2, hash: hashA } });
     pending.at(-1).resolve(source(a, [{ ...callA, ownerId: "other" }])); await staleLink;
     assert.equal(explorer.state.location, null); assert.match(panel.children.at(-1).textContent, /linked call site is no longer available/);

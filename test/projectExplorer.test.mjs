@@ -4,11 +4,11 @@ import { createProjectExplorer } from "../public/app/project-explorer.js";
 
 class Element {
   constructor() {
-    this.children = []; this.attributes = {}; this.dataset = {}; this.listeners = {};
+    this.children = []; this.attributes = {}; this.dataset = {}; this.listeners = {}; this.scrollTop = 0;
     this.style = { setProperty() {} }; this.classList = { add: (name) => { this.className = name; } };
   }
   append(...children) { for (const child of children) { child.parentElement = this; this.children.push(child); } }
-  replaceChildren(...children) { this.children = []; this.append(...children); }
+  replaceChildren(...children) { this.children = []; this.scrollTop = 0; this.append(...children); }
   setAttribute(name, value) { this.attributes[name] = value; }
   getAttribute(name) { return this.attributes[name] ?? null; }
   addEventListener(name, fn) { this.listeners[name] = fn; }
@@ -26,7 +26,7 @@ class Element {
     document.activeElement = this;
     for (let node = this; node; node = node.parentElement) node.listeners.focusin?.({ target: this });
   }
-  scrollIntoView(options) { document.events?.push({ type: "scroll", path: this.dataset.path, options }); }
+  scrollIntoView(options) { document.events?.push({ type: "scroll", path: this.parentElement?.dataset.path, className: this.className, options }); }
 }
 
 test("tree navigates, selects, reveals and collapses without losing selection", () => {
@@ -94,7 +94,7 @@ test("reveal controls focus and scrolling independently", () => {
     explorer.reveal("other/a.js", { focus: false, scroll: true });
     assert.deepEqual(document.events, [
       { type: "focus", path: "src/nested", options: { preventScroll: true } },
-      { type: "scroll", path: "other/a.js", options: { block: "nearest" } }
+      { type: "scroll", path: "other/a.js", className: "project-tree-row", options: { block: "nearest" } }
     ]);
     assert.equal(document.activeElement.dataset.path, "src/nested");
     document.events.length = 0;
@@ -104,6 +104,34 @@ test("reveal controls focus and scrolling independently", () => {
     explorer.reveal("src/nested/file.js", { focus: false, scroll: false });
     assert.deepEqual(document.events, []);
     assert.equal(document.activeElement, outside);
+  } finally { globalThis.document = previous; }
+});
+
+test("selection rerenders preserve scroll and keyboard navigation scrolls the row", () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: () => new Element(), createElementNS: () => new Element(), events: [] };
+  try {
+    const host = new Element(), files = ["src/nested/file.js", "other/a.js"];
+    const explorer = createProjectExplorer({ container: host, onSelect: ({ path, kind }) => explorer.update({ files, selectedPath: path, selectedKind: kind }) });
+    const tree = host.children[0];
+    const byPath = (path) => tree.querySelectorAll('[role="treeitem"]').find((item) => item.dataset.path === path);
+    explorer.update({ files });
+    explorer.toggleAll();
+    tree.scrollTop = 52;
+    document.events.length = 0;
+    tree.listeners.click({ target: byPath("src").children[0].children[2] });
+    assert.equal(tree.scrollTop, 52);
+    assert.equal(byPath("src").getAttribute("aria-expanded"), "true");
+    assert.deepEqual(document.events, [
+      { type: "focus", path: "src", options: { preventScroll: true } },
+      { type: "focus", path: "src", options: { preventScroll: true } }
+    ]);
+    document.events.length = 0;
+    tree.listeners.keydown({ target: document.activeElement, key: "ArrowDown", preventDefault() {} });
+    assert.deepEqual(document.events, [
+      { type: "focus", path: "src/nested", options: { preventScroll: true } },
+      { type: "scroll", path: "src/nested", className: "project-tree-row", options: { block: "nearest" } }
+    ]);
   } finally { globalThis.document = previous; }
 });
 

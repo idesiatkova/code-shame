@@ -61,6 +61,8 @@ test("projects full graph, including hidden files, with unique directed dependen
   assert.ok(out.nodes.some((node) => node.path === "api/checkout-api.ts"));
   assert.ok(!focus(model, "ui/Checkout.tsx", "outbound", 1).nodes.some((node) => node.path === "api/checkout-api.ts"));
   assert.ok(focus(model, "domain/checkout.ts", "inbound", 1).nodes.some((node) => node.path === "ui/Checkout.tsx"));
+  const neighborhood = focus(model, "domain/checkout.ts", "both", 1);
+  assert.ok(neighborhood.edges.every((edge) => edge.source === "file:domain/checkout.ts" || edge.target === "file:domain/checkout.ts"));
   const capped = focus(model, "ui/Checkout.tsx", "outbound", 2, 1);
   assert.equal(capped.shownFiles, 1);
   assert.ok(capped.totalFiles > capped.shownFiles);
@@ -71,7 +73,7 @@ test("projects full graph, including hidden files, with unique directed dependen
 });
 
 test("directory graph aggregates canonical imports between immediate children", async () => {
-  const { directoryGraph } = await import("../public/app/architectureProjection.js");
+  const { directoryGraph, directoryPage } = await import("../public/app/architectureProjection.js");
   const paths = ["src/a.js", "src/nested/b.js", "src/nested/c.js", "test/a.js", "root.js"];
   const model = { nodes: [], projectGraph: { complete: false, nodes: paths.map((path) => ({ id: path, path })), edges: [{ source: paths[0], target: paths[1] }, { source: paths[0], target: paths[2] }, { source: paths[1], target: paths[2] }, { source: paths[3], target: paths[0] }] } };
   const root = directoryGraph(model);
@@ -82,6 +84,11 @@ test("directory graph aggregates canonical imports between immediate children", 
   assert.equal(nested.edges[0].weight, 2);
   assert.equal(directoryGraph(model, "src/nested").edges.length, 1);
   assert.ok(directoryGraph(model, "src", ["src/uninspected.js"]).nodes.some((node) => node.path === "src/uninspected.js"));
+  const many = directoryGraph(model, ".", Array.from({ length: 14 }, (_, i) => `extra${i}.js`));
+  const last = directoryPage(many, 999);
+  assert.equal(last.page, last.pages - 1);
+  assert.ok(last.nodes.length <= 6);
+  assert.ok(last.edges.every((edge) => last.nodes.some((node) => node.id === edge.source) && last.nodes.some((node) => node.id === edge.target)));
 });
 
 test("renderer keeps focus and refreshes search results across snapshots", async () => {
@@ -109,6 +116,8 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     get options() { return this.children; }
     dispatchEvent(event) { this.fire(event.type); }
     focus() { globalThis.document.activeElement = this; }
+    get scrollTop() { for (let node = this; node; node = node.parent) if (node.hidden) return 0; return this._scrollTop || 0; }
+    set scrollTop(value) { this._scrollTop = value; }
     contains(element) { return this === element || this.children.some((child) => child.contains?.(element)); }
     set innerHTML(value) {
       this.controls = Array.from({ length: 7 }, () => new Element());
@@ -233,6 +242,8 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     search.value = "domain/checkout.ts"; search.fire("input");
     search.fire("keydown", { key: "Enter", preventDefault() {} });
     assert.match(stats.textContent, /files shown/);
+    assert.equal(lastGraph.nodes('[type = "layer"]').length, 0);
+    assert.ok(lastGraph.nodes('[type = "file"]').length > 1);
     assert.equal(lastGraph.zoom(), 1);
     assert.equal(lastCentered.data("canonicalId"), "domain/checkout.ts");
     direction.value = "outbound"; direction.fire("change"); depth.value = "2"; depth.fire("change");
@@ -354,6 +365,28 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(lastGraph.nodes('[type = "file"]').length, 0);
     assert.match(stats.textContent, /graph files/);
     renderer.clear();
+    const large = structuredClone(model);
+    for (let i = 0; i < 14; i++) large.projectGraph.nodes.push({ id: `extra${String(i).padStart(2, "0")}.js`, path: `extra${String(i).padStart(2, "0")}.js` });
+    setLocation("/?page=architecture"); renderer.render(large);
+    header.children[2].children.at(-1).fire("click");
+    assert.equal(lastGraph.nodes().length, 6);
+    details.scrollTop = 30;
+    details.querySelector(".architecture-directory-pages").children[1].fire("click");
+    assert.match(location.hash, /view=map.*page=2/);
+    assert.equal(globalThis.document.activeElement.textContent, "Next page");
+    assert.equal(details.scrollTop, 30);
+    assert.ok(details.children.indexOf(details.querySelector(".architecture-directory-pages")) < details.children.findIndex((child) => child.textContent?.startsWith("Page ")));
+    const pageFile = lastGraph.nodes('[type = "file"]')[0].data("path");
+    lastGraph.nodes('[type = "file"]')[0].emit("tap");
+    assert.match(location.hash, /file=/);
+    back.fire("click"); assert.match(location.hash, /page=2/);
+    assert.ok(lastGraph.nodes().some((node) => node.data("path") === pageFile));
+    history.go(-1); assert.match(location.hash, /file=/);
+    history.go(-1); assert.match(location.hash, /page=2/);
+    history.go(-1); assert.doesNotMatch(location.hash, /page=/);
+    setLocation("/?page=architecture#view=map&page=999"); listeners.popstate();
+    assert.match(location.hash, new RegExp(`page=${Math.ceil((14 + new Set(model.projectGraph.nodes.map((node) => node.path.split("/")[0])).size) / 6)}`));
+    renderer.clear();
     assert.equal(search.value, ""); assert.equal(direction.value, "both"); assert.equal(depth.value, "1");
     updated.projectGraph.complete = false;
     updated.projectGraph.diagnostics = ["Unresolved imports <example>"];
@@ -389,6 +422,61 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.ok(reloadedPanel.children.some((child) => /linked call site is no longer available/.test(child.textContent || "")));
     assert.ok(!reloadedPanel.children[1].children.some((child) => child.textContent === "Previous location"));
     renderer3.clear();
+    const other = { id: "g", name: "g", kind: "function", startLine: 1, endLine: 1, signature: "g()" };
+    const otherHash = "b".repeat(64), otherPath = "ui/Checkout.tsx";
+    const linked = { ...source, calls: [{ ...source.calls[0], status: "resolved", target: { ...other, file: otherPath, hash: otherHash } }] };
+    globalThis.fetch = async (url) => ({ ok: true, json: async () => url.startsWith("/api/source?") ? (url.includes(encodeURIComponent(otherPath)) ? { file: otherPath, hash: otherHash, source: "function g() {}", symbols: [other], calls: [], diagnostics: [] } : linked) : { nodes: [], edges: [], coverage: { files: [] } } });
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=source&symbol=f");
+    const renderer4 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer4.render(model); await new Promise(setImmediate);
+    const panel4 = created.filter((element) => element.className === "source-explorer").at(-1);
+    panel4.querySelector(".source-explorer-call").children[1].fire("click"); await new Promise(setImmediate);
+    assert.equal(panel4.children[1].children[0].textContent, "Previous location");
+    const header4 = created.filter((element) => element.className === "architecture-browser").at(-1).children[1].children[0];
+    header4.children[2].children.find((button) => button.dataset.mode === "map").fire("click");
+    header4.children[2].children.find((button) => button.dataset.mode === "source").fire("click");
+    assert.match(location.hash, /file=ui%2FCheckout.tsx.*view=source.*symbol=g/);
+    assert.equal(panel4.querySelector(".source-explorer-heading").textContent.includes("g"), true);
+    assert.ok(!panel4.children[1].children.some((child) => child.textContent === "Previous location"));
+    history.go(-1); history.go(-1); await new Promise(setImmediate);
+    assert.equal(panel4.children[1].children[0].textContent, "Previous location");
+    panel4.children[1].children[0].fire("click"); await new Promise(setImmediate);
+    assert.match(location.hash, /file=domain%2Fcheckout.ts.*symbol=f/);
+    panel4.querySelector(".source-explorer-code").scrollTop = 211.5;
+    header4.children[2].children.find((button) => button.dataset.mode === "map").fire("click");
+    assert.equal(history.state.retainedSource.state.symbol, "f");
+    assert.equal(history.state.retainedSource.state.scroll, 211.5);
+    renderer4.clear();
+    let sourceFetches = 0;
+    const fetchBeforeReload = globalThis.fetch;
+    globalThis.fetch = (...args) => { if (args[0].startsWith("/api/source?")) sourceFetches++; return fetchBeforeReload(...args); };
+    const details5 = new Element();
+    const renderer5 = architecture.createRenderer({ container: new Element(), details: details5, legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer5.render(model); await new Promise(setImmediate);
+    assert.equal(sourceFetches, 0);
+    const header5 = created.filter((element) => element.className === "architecture-browser").at(-1).children[1].children[0];
+    details5.children.find((button) => button.textContent === "Explore code").fire("click"); await new Promise(setImmediate);
+    assert.equal(sourceFetches, 1);
+    assert.match(location.hash, /file=domain%2Fcheckout.ts.*view=source.*symbol=f/);
+    const panel5 = created.filter((element) => element.className === "source-explorer").at(-1);
+    assert.match(panel5.querySelector(".source-explorer-heading").textContent, /f/);
+    assert.equal(panel5.querySelector(".source-explorer-code").scrollTop, 211.5);
+    header5.children[2].children.find((button) => button.dataset.mode === "map").fire("click");
+    renderer5.clear();
+    const rendererTab = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    rendererTab.render(model);
+    const headerTab = created.filter((element) => element.className === "architecture-browser").at(-1).children[1].children[0];
+    headerTab.children[2].children.find((button) => button.dataset.mode === "source").fire("click"); await new Promise(setImmediate);
+    assert.match(location.hash, /view=source.*symbol=f/);
+    headerTab.children[2].children.find((button) => button.dataset.mode === "map").fire("click");
+    rendererTab.clear();
+    globalThis.fetch = async (url) => ({ ok: true, json: async () => url.startsWith("/api/source?") ? { ...source, hash: "c".repeat(64) } : { nodes: [], edges: [], coverage: { files: [] } } });
+    const renderer6 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer6.render(model);
+    const header6 = created.filter((element) => element.className === "architecture-browser").at(-1).children[1].children[0];
+    header6.children[2].children.find((button) => button.dataset.mode === "source").fire("click"); await new Promise(setImmediate);
+    assert.doesNotMatch(location.hash, /symbol=/);
+    renderer6.clear();
   } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; globalThis.fetch = oldFetch; }
 });
 

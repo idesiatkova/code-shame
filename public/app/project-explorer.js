@@ -52,7 +52,8 @@ export function createProjectExplorer({ container, onSelect, onExpansionChange =
     return svg;
   }
 
-  function render(restoreFocus = false, preventScroll = false) {
+  function render(restoreFocus = false) {
+    const scrollTop = tree.scrollTop;
     focusPath = visibleAncestor(focusPath);
     const items = new Map();
     function branch(node, level) {
@@ -97,7 +98,8 @@ export function createProjectExplorer({ container, onSelect, onExpansionChange =
       return item;
     }
     tree.replaceChildren(branch(root, 1));
-    if (restoreFocus) items.get(focusPath)?.focus({ preventScroll });
+    tree.scrollTop = scrollTop;
+    if (restoreFocus) items.get(focusPath)?.focus({ preventScroll: true });
     const folders = [...nodes.values()].filter((node) => node.parent && node.kind !== "file");
     onExpansionChange(folders.some((node) => expanded.has(node.path)), folders.length > 0);
     return items;
@@ -166,7 +168,8 @@ export function createProjectExplorer({ container, onSelect, onExpansionChange =
       default: return;
     }
     event.preventDefault();
-    target?.focus();
+    if (target) target.focus({ preventScroll: true });
+    if (tree.contains(document.activeElement)) document.activeElement.querySelector(".project-tree-row")?.scrollIntoView?.({ block: "nearest" });
   });
 
   return {
@@ -185,8 +188,8 @@ export function createProjectExplorer({ container, onSelect, onExpansionChange =
       for (let parent = node.parent; parent; parent = parent.parent) expanded.add(parent.path);
       if (expand && node.kind !== "file") expanded.add(node.path);
       if (focus) focusPath = path;
-      const items = render(focus || hadFocus, true);
-      if (scroll) items.get(path)?.scrollIntoView?.({ block: "nearest" });
+      const items = render(focus || hadFocus);
+      if (scroll) items.get(path)?.querySelector(".project-tree-row")?.scrollIntoView?.({ block: "nearest" });
     },
     toggleAll() {
       if (!root) return;

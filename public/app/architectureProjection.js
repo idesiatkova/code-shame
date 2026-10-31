@@ -76,6 +76,14 @@ function directoryGraph(model, directory = '.', listedPaths = []) {
   return { nodes: [...nodes.values()].sort((a, b) => a.path.localeCompare(b.path)), edges: [...pairs.values()], fileCount: membership.size, edgeCount: pairs.size, complete: data.graph.complete };
 }
 
+function directoryPage(projection, page, size = 6) {
+  const pages = Math.max(1, Math.ceil(projection.nodes.length / size));
+  const index = Math.max(0, Math.min(pages - 1, Number.isInteger(page) ? page : 0));
+  const nodes = projection.nodes.slice(index * size, (index + 1) * size);
+  const ids = new Set(nodes.map((node) => node.id));
+  return { ...projection, nodes, edges: projection.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)), page: index, pages };
+}
+
 function focus(model, selected, direction = 'both', depth = 1, limit = 60) {
   const data = prepare(model);
   if (!data.files.has(selected)) return { nodes: [], edges: [], totalFiles: 0, totalEdges: 0, shownFiles: 0, shownEdges: 0 };
@@ -90,7 +98,7 @@ function focus(model, selected, direction = 'both', depth = 1, limit = 60) {
     for (const id of next) visited.add(id);
     frontier = next;
   }
-  const allEdges = data.edges.filter((edge) => visited.has(edge.source) && visited.has(edge.target));
+  const allEdges = data.edges.filter((edge) => visited.has(edge.source) && visited.has(edge.target) && (depth !== 1 || (direction !== 'inbound' && edge.source === selected) || (direction !== 'outbound' && edge.target === selected)));
   const shown = new Set([...visited].slice(0, Math.max(1, limit)));
   const edges = allEdges.filter((edge) => shown.has(edge.source) && shown.has(edge.target)).slice(0, 300).map((edge, index) => ({ id: `focus:${index}`, type: 'imports', source: data.files.get(edge.source).id, target: data.files.get(edge.target).id, weight: 1, crossLayer: data.files.get(edge.source).layerId !== data.files.get(edge.target).layerId }));
   const files = [...shown].map((id) => data.files.get(id));
@@ -150,4 +158,4 @@ function projectSelection(analysis, ids, limit = 60) {
   return { nodes: [...data.layers.values()].filter((layer) => layers.has(layer.layerId)).concat(files), edges, totalFiles: all.size, totalEdges: allEdges.length, shownFiles: files.length, shownEdges: edges.length, complete: data.graph.complete };
 }
 
-export { overview, directoryGraph, searchFiles, focus, analytics, impact, projectSelection };
+export { overview, directoryGraph, directoryPage, searchFiles, focus, analytics, impact, projectSelection };

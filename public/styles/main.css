@@ -1131,6 +1131,9 @@ li {
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .architecture-legend {
@@ -1207,7 +1210,9 @@ li {
 
 .architecture-details {
   align-self: start;
-  min-height: 180px;
+  height: clamp(280px, 40vh, 420px);
+  min-height: 0;
+  overflow: auto;
   padding: 14px;
 }
 
@@ -1369,6 +1374,7 @@ li {
 .architecture-map-actions { grid-column: 1 / -1; position: sticky; top: 0; z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--control); }
 .architecture-context { flex: 1 1 180px; min-width: 0; color: var(--ink); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .architecture-context:not([hidden]) { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.architecture-context > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .architecture-map-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; font-weight: 650; }
 .architecture-map-actions > button[hidden] { display: none; }
 .architecture-secondary { min-width: 0; }
@@ -1481,10 +1487,13 @@ li {
 .project-tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .architecture-workspace { min-width: 0; padding: 0 20px 20px !important; }
 .architecture-directory-list button { display: block; min-height: 0; margin: 4px 0; padding: 4px 6px; font-size: 12px; text-align: left; overflow-wrap: anywhere; }
+.architecture-directory-pages { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.architecture-directory-pages button { min-height: 30px; padding: 4px 8px; font-size: 12px; }
 .architecture-directory-list p { margin: 2px 0; overflow-wrap: anywhere; }
 .architecture-workspace > div:first-child { padding-top: 16px; }
 .architecture-scope { margin-bottom: 7px; }
 .architecture-selected-file { margin-bottom: 8px; color: #d4dad6; }
+.architecture-selected-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .architecture-selected-file button { border: 0; padding: 0; min-height: 0; background: transparent; color: #9bb9d6; font-weight: 500; }
 .architecture-workspace-tabs { display: flex; flex-wrap: wrap; gap: 20px; margin: 0 -20px 18px; padding: 0 20px; border-bottom: 1px solid #383d3a; }
 .architecture-workspace-tabs button { min-height: 38px; padding: 8px 1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #aab0ac; font-weight: 500; }
