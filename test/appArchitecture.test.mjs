@@ -27,6 +27,7 @@ test("allows panning and zooming while keeping nodes fixed", () => {
 
   assert.equal(options.autoungrabify, true);
   assert.equal(options.userPanningEnabled, true);
+  assert.notEqual(options.textureOnViewport, true);
   assert.equal(options.minZoom, 0.05);
   assert.equal(options.boxSelectionEnabled, false);
   assert.equal(architecture.createGraphOptions({ clientWidth: 800 }, model).layout.rankDir, "TB");
@@ -95,7 +96,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const cytoscape = (await import("cytoscape")).default;
   cytoscape.use((await import("cytoscape-dagre")).default);
   class Element {
-    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; this.classList = { toggle() {}, add() {} }; }
+    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.clientHeight = 300; this.parentElement = {}; this.classList = { toggle() {}, add() {} }; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
     replaceChildren(...children) { this.children = children; children.forEach((child) => { child.parent = this; }); }
     append(...children) { this.children.push(...children); children.forEach((child) => { child.parent = this; }); }
@@ -130,25 +131,26 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   }
   const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option, oldResizeObserver = globalThis.ResizeObserver, oldFetch = globalThis.fetch;
   let resize;
-  globalThis.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} };
+  globalThis.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} disconnect() {} };
   const created = [];
   globalThis.document = { createElement: () => { const element = new Element(); created.push(element); return element; }, createElementNS: () => new Element(), addEventListener() {} };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
-  let lastFit, lastGraph, lastRankDir, lastCentered;
+  let lastFit, lastGraph, lastRankDir, lastCentered, fitCalls = 0, graphCreations = 0, layoutCalls = 0;
   const locations = ["/?page=architecture"], location = { pathname: "/", search: "?page=architecture", hash: "" }, listeners = {};
   let position = 0;
   const setLocation = (url) => { const parsed = new URL(url, "http://localhost"); Object.assign(location, { pathname: parsed.pathname, search: parsed.search, hash: parsed.hash }); };
   const states = [null];
   const history = { get state() { return states[position]; }, pushState(state, _title, url) { locations.splice(++position, Infinity, url); states.splice(position, Infinity, state); setLocation(url); }, replaceState(state, _title, url) { locations[position] = url; states[position] = state; setLocation(url); }, go(delta) { position += delta; setLocation(locations[position]); listeners.popstate(); }, back() { this.go(-1); } };
   globalThis.window = { location, history, addEventListener(name, listener) { listeners[name] = listener; }, cytoscape: (options) => {
+    graphCreations++;
     const graph = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true });
     lastGraph = graph;
     const fit = graph.fit.bind(graph);
     const center = graph.center.bind(graph);
     graph.zoom(0.4);
     graph.center = (collection) => { lastCentered = collection; return center(collection); };
-    graph.layout = (layoutOptions) => { lastRankDir = layoutOptions.rankDir; return { run() {} }; };
-    graph.fit = (collection, padding) => { lastFit = collection; return fit(collection, padding); };
+    graph.layout = (layoutOptions) => { layoutCalls++; lastRankDir = layoutOptions.rankDir; return { run() {} }; };
+    graph.fit = (collection, padding) => { lastFit = collection; fitCalls++; return fit(collection, padding); };
     return graph;
   } };
   try {
@@ -227,9 +229,9 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(map.hidden, false);
     assert.equal(header.children[1].children[0].textContent, "Project overview");
     container.clientWidth = 800; resize();
-    assert.equal(lastRankDir, undefined);
+    assert.equal(lastRankDir, "TB");
     container.clientWidth = 1200; resize();
-    assert.equal(lastRankDir, undefined);
+    assert.equal(lastRankDir, "LR");
     const [search, results, direction, depth, back, view, cycle] = controls.controls;
     assert.ok(results.children.length > 1);
     assert.equal(direction.disabled, true); assert.equal(depth.disabled, true);
@@ -477,6 +479,125 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     header6.children[2].children.find((button) => button.dataset.mode === "source").fire("click"); await new Promise(setImmediate);
     assert.doesNotMatch(location.hash, /symbol=/);
     renderer6.clear();
+
+    // Fit and manual cameras survive resize and browser reload in their own history entry.
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=map");
+    states[position] = { retainedSource: { marker: true }, nativePrevious: { marker: true } };
+    const canvas7 = new Element(), fit7 = new Element();
+    const renderer7 = architecture.createRenderer({ container: canvas7, details: new Element(), legend: new Element(), stats: new Element(), fitButton: fit7 });
+    renderer7.render(model, "Same name", "project-a");
+    const beforePollGraph = lastGraph, beforePollCreations = graphCreations, beforePollLayouts = layoutCalls;
+    renderer7.render({ state: "running" }, "Same name", "project-a");
+    renderer7.render(structuredClone(model), "Same name", "project-a");
+    assert.equal(lastGraph, beforePollGraph); assert.equal(graphCreations, beforePollCreations); assert.equal(layoutCalls, beforePollLayouts);
+    const changedMetrics = structuredClone(model);
+    changedMetrics.projectGraph.nodes[0].metrics = { ...changedMetrics.projectGraph.nodes[0].metrics, maintainability: 42 };
+    renderer7.render(changedMetrics, "Same name", "project-a"); assert.equal(graphCreations, beforePollCreations + 1);
+    const changedTopology = structuredClone(changedMetrics); changedTopology.projectGraph.edges = [];
+    renderer7.render(changedTopology, "Same name", "project-a");
+    assert.equal(graphCreations, beforePollCreations + 2); assert.equal(lastGraph.edges().length, 0);
+    renderer7.render(model, "Same name", "project-a"); assert.equal(graphCreations, beforePollCreations + 3);
+    fit7.fire("click");
+    const beforeResizeFit = fitCalls;
+    canvas7.clientWidth = 390; canvas7.clientHeight = 500; resize();
+    assert.ok(fitCalls > beforeResizeFit); assert.equal(lastRankDir, "TB");
+    const fitAfterResize = fitCalls, layoutsAfterResize = layoutCalls; resize();
+    assert.equal(fitCalls, fitAfterResize); assert.equal(layoutCalls, layoutsAfterResize);
+    canvas7.clientWidth = 900; resize(); assert.equal(lastRankDir, "LR");
+    const graphBeforePan = lastGraph, creationsBeforePan = graphCreations, layoutsBeforePan = layoutCalls;
+    lastGraph.zoom(0.75); lastGraph.pan({ x: 100, y: 80 });
+    assert.equal(lastGraph, graphBeforePan); assert.equal(graphCreations, creationsBeforePan); assert.equal(layoutCalls, layoutsBeforePan);
+    const cameraEntries = locations.length;
+    assert.equal(locations.length, cameraEntries); assert.equal(history.state.camera.mode, "manual");
+    assert.equal(history.state.nativePrevious.marker, true); assert.equal(history.state.retainedSource.marker, true);
+    const manual = history.state.camera;
+    canvas7.clientWidth = 390; resize();
+    assert.equal(lastGraph.zoom(), manual.zoom); assert.equal(lastGraph.pan().x, manual.pan.x - 255);
+    const savedCamera = history.state.camera;
+    renderer7.clear();
+    const canvas8 = new Element(), fit8 = new Element();
+    const renderer8 = architecture.createRenderer({ container: canvas8, details: new Element(), legend: new Element(), stats: new Element(), fitButton: fit8 });
+    renderer8.render(model, "Same name", "project-a");
+    assert.equal(lastGraph.zoom(), savedCamera.zoom); assert.deepEqual(lastGraph.pan(), savedCamera.pan);
+    fit8.fire("click"); assert.equal(history.state.camera.mode, "fit");
+    renderer8.clear();
+    const fitCount = fitCalls;
+    const renderer9 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer9.render(model, "Same name", "project-a"); assert.ok(fitCalls > fitCount);
+    renderer9.clear();
+    states[position].camera = { ...savedCamera, zoom: NaN };
+    const renderer10 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer10.render(model, "Same name", "project-a"); assert.notEqual(lastGraph.zoom(), savedCamera.zoom);
+    renderer10.clear();
+    states[position].camera = savedCamera;
+    const foreignRenderer = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    foreignRenderer.render(model, "Same name", "project-b"); assert.notEqual(lastGraph.zoom(), savedCamera.zoom);
+    foreignRenderer.clear();
+
+    // Selecting another file from Source keeps the tab and Back restores its state.
+    let sourceFetch = fetchBeforeReload;
+    globalThis.fetch = (...args) => sourceFetch(...args);
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=source&symbol=f");
+    const renderer11 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer11.render(model); await new Promise(setImmediate);
+    const panel11 = created.filter((element) => element.className === "source-explorer").at(-1);
+    panel11.querySelector(".source-explorer-code").scrollTop = 177;
+    const controls11 = created.filter((element) => element.className === "architecture-controls").at(-1);
+    controls11.controls[1].value = otherPath; controls11.controls[1].fire("change"); await new Promise(setImmediate);
+    assert.match(location.hash, /file=ui%2FCheckout.tsx.*view=source/); assert.doesNotMatch(location.hash, /symbol=/);
+    assert.match(panel11.attributes["aria-label"], /ui\/Checkout.tsx/);
+    history.go(-1); await new Promise(setImmediate);
+    assert.match(location.hash, /domain%2Fcheckout.ts.*symbol=f/); assert.equal(panel11.querySelector(".source-explorer-code").scrollTop, 177);
+    let finishOther;
+    sourceFetch = (url, options) => url.startsWith("/api/source?") && url.includes(encodeURIComponent(otherPath))
+      ? new Promise((resolve) => { finishOther = resolve; }) : fetchBeforeReload(url, options);
+    controls11.controls[1].value = otherPath; controls11.controls[1].fire("change");
+    const tree11 = created.filter((element) => element.className === "project-tree").at(-1);
+    const findPath = (node, path) => node.dataset?.path === path ? node : node.children?.map((child) => findPath(child, path)).find(Boolean);
+    const item11 = findPath(tree11, "domain/checkout.ts"), row11 = item11.children[0];
+    row11.parentElement = item11;
+    tree11.fire("click", { target: { closest: (selector) => selector === ".project-tree-row" ? row11 : null } });
+    await new Promise(setImmediate);
+    finishOther({ ok: true, json: async () => ({ file: otherPath, hash: otherHash, source: "function g() {}", symbols: [other], calls: [], diagnostics: [] }) });
+    await new Promise(setImmediate);
+    assert.match(location.hash, /domain%2Fcheckout.ts.*view=source/);
+    assert.match(panel11.attributes["aria-label"], /domain\/checkout.ts/);
+    assert.equal(document.activeElement.dataset.path, "domain/checkout.ts");
+    renderer11.clear();
+
+    history.replaceState({}, "", "/?page=architecture#file=domain%2Fcheckout.ts&view=map");
+    const renderer12 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer12.render(model);
+    history.pushState({}, "", "/?page=architecture#file=ui%2FCheckout.tsx&view=map"); listeners.popstate();
+    lastGraph.zoom(0.73); lastGraph.pan({ x: 37, y: 52 });
+    history.go(-1); await new Promise((resolve) => setTimeout(resolve, 200)); history.go(1);
+    assert.equal(lastGraph.zoom(), 0.73); assert.deepEqual(lastGraph.pan(), { x: 37, y: 52 });
+    const replaceState = history.replaceState;
+    history.replaceState = () => { throw new DOMException("Rate limited", "SecurityError"); };
+    assert.doesNotThrow(() => lastGraph.pan({ x: 38, y: 52 }));
+    history.replaceState = replaceState;
+    renderer12.clear();
+    const clearedState = structuredClone(history.state);
+    await new Promise((resolve) => setTimeout(resolve, 200)); assert.deepEqual(history.state, clearedState);
+
+    history.replaceState({}, "", "/?page=architecture#view=map&page=999");
+    const renderer13 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer13.render(large);
+    assert.doesNotMatch(location.hash, /page=999/);
+    lastGraph.zoom(0.73); lastGraph.pan({ x: 21, y: 34 });
+    const oldPageHash = location.hash;
+    renderer13.clear();
+    const renderer14 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer14.render(large); assert.equal(lastGraph.zoom(), 0.73); assert.deepEqual(lastGraph.pan(), { x: 21, y: 34 });
+    const shrunk = structuredClone(large);
+    shrunk.projectGraph.nodes = shrunk.projectGraph.nodes.filter((node) => !/^extra(?:0[4-9]|1[0-3])\.js$/.test(node.path));
+    renderer14.render(shrunk);
+    assert.notEqual(location.hash, oldPageHash);
+    lastGraph.zoom(0.68); lastGraph.pan({ x: 44, y: 55 });
+    renderer14.clear();
+    const renderer15 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer15.render(shrunk); assert.equal(lastGraph.zoom(), 0.68); assert.deepEqual(lastGraph.pan(), { x: 44, y: 55 });
+    renderer15.clear();
   } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; globalThis.fetch = oldFetch; }
 });
 

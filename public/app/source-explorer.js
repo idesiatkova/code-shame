@@ -2,7 +2,7 @@ import { createSymbolContext } from "./symbol-context.js";
 import { hasCallSite } from "./source-navigation.js";
 
 export function createSourceExplorer(panel, fetchSource = fetch, onClose = () => {}, onNavigate = () => {}, isListed = () => true, onBack = () => {}) {
-  let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", location = null, graphData, graphError, navigationError, graph, graphRequest = 0, graphNeedsLayout = false, rendering = false, restoring = false, restoreFocusCancelled = false, pageMoved = false, pendingFocus = null, pendingPage = null, canBack = false;
+  let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", location = null, graphData, graphError, navigationError, graph, graphObserver, graphRequest = 0, graphNeedsLayout = false, graphAdjusting = false, rendering = false, restoring = false, restoreFocusCancelled = false, pageMoved = false, pendingFocus = null, pendingPage = null, canBack = false;
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -20,7 +20,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     trigger = null; query = ""; pendingFocus = navigationError = pendingPage = null; restoring = canBack = false;
   }
   function clearGraph() {
-    graphRequest++; graphController?.abort(); graphController = null; graph?.destroy(); graph = null; graphData = graphError = null;
+    graphRequest++; graphController?.abort(); graphController = null; graphObserver?.disconnect(); graphObserver = null; graph?.destroy(); graph = null; graphData = graphError = null;
   }
   function cancelNavigation() { request++; controller?.abort(); controller = null; }
   function select(symbol) { onNavigate(true); pendingFocus = navigationError = pendingPage = null; cancelNavigation(); clearGraph(); selected = symbol; location = null; canBack = !!onNavigate(false, true); render({ detail: true }); onNavigate(true); loadGraph(); }
@@ -199,7 +199,8 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     section.append(element("p", "source-explorer-status", [note, ...diagnostics.map((d) => typeof d === "string" ? d : [d.file, d.message].filter(Boolean).join(": "))].filter(Boolean).join(" · ")));
     const canvas = element("div", "function-graph-canvas"); canvas.setAttribute("aria-hidden", "true");
     const controls = element("div", "function-graph-controls");
-    controls.append(button("Fit", () => { graph?.resize(); graph?.fit(graph.elements(), 30); }), ...[["Zoom in", 1.25], ["Zoom out", 0.8]].map(([label, factor]) => button(label, () => { if (graph) graph.zoom({ level: graph.zoom() * factor, renderedPosition: { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 } }); })));
+    let fitMode = true, size = { width: canvas.clientWidth, height: canvas.clientHeight };
+    controls.append(button("Fit", () => { if (!graph) return; fitMode = true; graphAdjusting = true; graph.resize(); graph.fit(graph.elements(), 30); graphAdjusting = false; }), ...[["Zoom in", 1.25], ["Zoom out", 0.8]].map(([label, factor]) => button(label, () => { if (graph) graph.zoom({ level: graph.zoom() * factor, renderedPosition: { x: canvas.clientWidth / 2, y: canvas.clientHeight / 2 } }); })));
     section.append(controls, canvas);
     const key = (node) => JSON.stringify([node.file, node.id]);
     const rootKey = key({ file, id: selected.id });
@@ -217,6 +218,21 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       graphNeedsLayout = panel.hidden;
       const initialZoom = graph.zoom();
       if (initialZoom < 0.75 || initialZoom > 1.2) { graph.zoom(initialZoom < 0.75 ? 0.9 : 1.2); graph.center(graph.getElementById(rootKey)); }
+      graph.on("pan zoom", () => { if (!graphAdjusting) fitMode = false; });
+      graphObserver?.disconnect();
+      if (typeof ResizeObserver !== "undefined") {
+        const observedGraph = graph;
+        graphObserver = new ResizeObserver(() => {
+          if (graph !== observedGraph || panel.hidden || !canvas.clientWidth || !canvas.clientHeight) return;
+          const next = { width: canvas.clientWidth, height: canvas.clientHeight };
+          if (size.width === next.width && size.height === next.height) return;
+          const pan = graph.pan(); graphAdjusting = true; graph.resize();
+          if (fitMode) graph.fit(graph.elements(), 30);
+          else if (size.width && size.height) graph.pan({ x: pan.x + (next.width - size.width) / 2, y: pan.y + (next.height - size.height) / 2 });
+          size = next; graphAdjusting = false;
+        });
+        graphObserver.observe(canvas);
+      }
       graph.on("tap", "node", (event) => { const target = event.target.data("target"); if (key(target) !== rootKey) navigate(target); });
       graph.on("tap", "edge", (event) => {
         const edge = localEdges[Number(event.target.id().slice(5))];
@@ -259,7 +275,8 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     canBack = !!restored?.canBack;
     if (!restored) onNavigate();
     panel.setAttribute("aria-label", `Source explorer for ${file}`); panel.tabIndex = -1; render();
-    rendering = true; panel.focus({ preventScroll: true }); rendering = false; if (!restored) panel.scrollIntoView?.({ block: "start" });
+    if (!restored?.preserveFocus) { rendering = true; panel.focus({ preventScroll: true }); rendering = false; }
+    if (!restored) panel.scrollIntoView?.({ block: "start" });
     panel.append(element("p", "source-explorer-status", "Loading source…"));
     const sequence = ++request; controller = new AbortController();
     try {
@@ -290,11 +307,13 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
   }
   function resize() {
     if (!graph) return;
+    graphAdjusting = true;
     graph.resize();
     if (graphNeedsLayout) {
       graph.layout({ name: "dagre", rankDir: "LR", nodeSep: 18, rankSep: 45, padding: 15 }).run();
       graph.fit(graph.elements(), 30); graphNeedsLayout = false;
     }
+    graphAdjusting = false;
   }
   const cancelPage = () => { if (!rendering && !panel.hidden) { pendingPage = null; if (restoring) pageMoved = true; } };
   panel.addEventListener("focusin", () => { if (!rendering) { cancelPage(); pendingFocus = null; if (restoring) restoreFocusCancelled = true; else onNavigate(true); } });
