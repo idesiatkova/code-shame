@@ -85,13 +85,13 @@ test("function graph navigates across files, restores history, and ignores stale
     click() { this.focus(); this.listeners.click(); }
   }
   globalThis.document = { createElement: () => new Element(), body: new Element() };
-  let options, destroyed = 0;
+  let options, destroyed = 0, maxScroll = 1200; const windowListeners = {};
   let zoom = 0.3, centered;
-  globalThis.window = { cytoscape(config) { options = config; return { on() {}, destroy() { destroyed++; }, zoom(value) { if (value != null) zoom = value; return zoom; }, getElementById(id) { return id; }, center(id) { centered = id; } }; } };
+  globalThis.window = { scrollX: 0, scrollY: 0, addEventListener(name, listener) { windowListeners[name] = listener; }, scrollTo(x, y) { this.scrollX = x; this.scrollY = Math.min(y, maxScroll); }, cytoscape(config) { options = config; return { on() {}, destroy() { destroyed++; }, zoom(value) { if (value != null) zoom = value; return zoom; }, getElementById(id) { return id; }, center(id) { centered = id; } }; } };
   try {
     const pending = [], panel = new Element(), trigger = new Element(); document.body.append(trigger, panel);
-    let checkpoint;
-    const explorer = createSourceExplorer(panel, (url, options) => new Promise((resolve) => pending.push({ url, options, resolve })), undefined, (replace) => { if (replace) checkpoint = explorer.state; });
+    let checkpoint, backPending; const entries = [];
+    const explorer = createSourceExplorer(panel, (url, options) => new Promise((resolve) => pending.push({ url, options, resolve })), undefined, (replace, transition) => { if (replace) checkpoint = explorer.state; if (transition) { entries.push(checkpoint); return true; } }, undefined, () => { backPending = explorer.open("a.js", trigger, entries.pop()); });
     const source = (file, id, hash) => ({ ok: true, json: async () => ({ file, hash, source: "function f() {}", symbols: [{ id, name: id, kind: "function", startLine: 1, endLine: 1, signature: `${id}()` }], calls: [], diagnostics: [] }) });
     const a = { file: "a.js", id: "a", name: "a", startLine: 1, hash: "a-hash" }, b = { file: "b.js", id: "b", name: "b", startLine: 1, hash: "b-hash" };
     const open = explorer.open("a.js", trigger); pending[0].resolve(source("a.js", "a", "a-hash")); await open;
@@ -105,25 +105,33 @@ test("function graph navigates across files, restores history, and ignores stale
     assert.equal(options.elements[2].data.source, JSON.stringify(["a.js", "a"]));
     assert.equal(options.elements[2].data.target, JSON.stringify(["b.js", "b"]));
     const section = workspace().children[1].children.find((node) => node.className === "function-graph");
-    const outgoing = section.children.find((node) => node.children[0]?.textContent === "Outgoing"); outgoing.children[1].children[1].click();
+    const outgoing = section.children.find((node) => node.children[0]?.textContent === "Outgoing"); window.scrollY = 900; outgoing.children[1].children[1].click();
     pending[2].resolve(source("b.js", "b", "b-hash")); await new Promise((resolve) => setImmediate(resolve));
     assert.equal(explorer.file, "a.js"); assert.equal(explorer.currentFile, "b.js"); assert.ok(destroyed);
     assert.match(panel.children[0].children[2].textContent, /Architecture file: a.js.*Source file: b.js/);
-    panel.children[1].children[0].click();
+    maxScroll = 200; panel.children[1].children[0].click();
+    pending.at(-1).resolve(source("a.js", "a", "a-hash")); await backPending;
+    assert.equal(window.scrollY, 200); assert.equal(explorer.state.pageY, 900);
     assert.equal(explorer.currentFile, "a.js"); assert.equal(workspace().children[0].children[0].value, "a");
     assert.equal(document.activeElement, panel);
     assert.equal(explorer.state.focus, "edge:Outgoing:a.js:1:2:declaration");
-    pending[4].resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }], coverage: { files: ["a.js"] } }) });
+    maxScroll = 1200; pending.at(-1).resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }], coverage: { files: ["a.js"] } }) });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(document.activeElement.dataset.navigationFocus, "edge:Outgoing:a.js:1:2:declaration");
     assert.equal(checkpoint.focus, "edge:Outgoing:a.js:1:2:declaration");
+    assert.equal(window.scrollY, 900);
     const code = workspace().children[1].children.find((node) => node.className === "source-explorer-code"); code.focus(); panel.listeners.focusin();
     assert.equal(workspace().children[1].children.find((node) => node.className === "source-explorer-code"), code); assert.equal(document.activeElement, code);
     const outgoingAgain = workspace().children[1].children.find((node) => node.className === "function-graph").children.find((node) => node.children[0]?.textContent === "Outgoing");
     outgoingAgain.children[1].children[1].click();
-    panel.children[1].children[0].click();
-    pending[5].resolve(source("b.js", "b", "b-hash")); await new Promise((resolve) => setImmediate(resolve));
+    panel.children[1].children.at(-1).click();
+    pending.at(-1).resolve(source("b.js", "b", "b-hash")); await new Promise((resolve) => setImmediate(resolve));
     assert.equal(explorer.currentFile, "a.js"); assert.equal(workspace().children[1].textContent, "Choose a symbol to inspect its source.");
+    maxScroll = 200; const delayedPage = explorer.open("a.js", trigger, { file: "a.js", symbol: "a", pageX: 0, pageY: 900 });
+    pending.at(-1).resolve(source("a.js", "a", "a-hash")); await delayedPage;
+    windowListeners.wheel(); window.scrollY = 50; maxScroll = 1200;
+    pending.at(-1).resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [], coverage: { files: ["a.js"] } }) }); await new Promise(setImmediate);
+    assert.equal(window.scrollY, 50);
     explorer.close(true); assert.equal(document.activeElement, trigger);
   } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; }
 });
@@ -171,7 +179,6 @@ test("call sites validate owner, position and hash across same and different fil
     incoming().children[1].children[0].click(); outside.focus(); pending[5].resolve(source(b, [callB])); await new Promise(setImmediate);
     assert.equal(document.activeElement, outside);
     assert.equal(explorer.currentFile, "b.js"); assert.equal(explorer.state.symbol, "b"); assert.equal(explorer.state.location.line, 2);
-    panel.children[1].children[0].click(); assert.equal(explorer.currentFile, "a.js");
     const staleLink = explorer.open("a.js", null, { file: "a.js", symbol: "a", location: { line: 2, column: 2, hash: hashA } });
     pending.at(-1).resolve(source(a, [{ ...callA, ownerId: "other" }])); await staleLink;
     assert.equal(explorer.state.location, null); assert.match(panel.children.at(-1).textContent, /linked call site is no longer available/);

@@ -12,7 +12,7 @@ const GROUP_PADDING_X = 28;
 function createRenderer({ container, details, fitButton, legend, stats }) {
   const sourcePanel = document.createElement("section");
   sourcePanel.className = "source-explorer"; sourcePanel.hidden = true;
-  const sourceExplorer = createSourceExplorer(sourcePanel, fetch, () => { showMode("overview"); saveNavigation(); browserHeader.querySelector('[data-mode="source"]')?.focus(); }, (replace) => saveNavigation(replace), (path) => listedFiles().includes(path));
+  const sourceExplorer = createSourceExplorer(sourcePanel, fetch, () => { showMode("overview"); saveNavigation(); browserHeader.querySelector('[data-mode="source"]')?.focus(); }, (replace, sourceTransition) => saveNavigation(replace, sourceTransition), (path) => listedFiles().includes(path), () => window.history.back());
   const browser = document.createElement("section");
   browser.className = "architecture-browser";
   const browserHeader = document.createElement("div");
@@ -33,7 +33,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   const navigationStatus = document.createElement("p"); navigationStatus.setAttribute("role", "status");
   let navigationReady = false;
   const listedFiles = () => structure.directories.flatMap((item) => item.files);
-  function saveNavigation(replace = false) {
+  function saveNavigation(replace = false, sourceTransition = false) {
     if (!navigationReady || !window.history?.pushState || !window.location) return;
     navigationStatus.textContent = "";
     const params = new URLSearchParams();
@@ -56,7 +56,14 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     const hash = params.toString();
     const url = `${window.location.pathname}${window.location.search}${hash ? `#${hash}` : ""}`;
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (replace || currentUrl !== url) window.history[replace ? "replaceState" : "pushState"]({ source: mode === "source" ? sourceExplorer.state : null }, "", url);
+    if (replace || currentUrl !== url) {
+      const previous = window.history.state;
+      const sourceBack = mode === "source" && (replace ? sourceExplorer.canBack && previous?.sourceBack?.project === projectName && previous.sourceBack.anchor === selected && previous.sourceBack.url === currentUrl : sourceTransition && new URLSearchParams(window.location.hash.slice(1)).get("view") === "source");
+      window.history[replace ? "replaceState" : "pushState"]({ source: mode === "source" ? sourceExplorer.state : null, sourceBack: sourceBack ? { project: projectName, anchor: selected, url } : null }, "", url);
+      return !!sourceBack;
+    }
+    const marker = window.history.state?.sourceBack;
+    return mode === "source" && marker?.project === projectName && marker.anchor === selected && marker.url === currentUrl;
   }
   function restoreNavigation() {
     if (!navigationReady || !window.location) return;
@@ -80,7 +87,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       const { location, invalid } = readLocation(params);
       const symbol = params.get("symbol");
       const saved = invalid ? null : matchingSavedState(window.history.state?.source, source, symbol, location);
-      sourceExplorer.open(selected, browserHeader.querySelector('[data-mode="source"]'), { ...saved, file: source, symbol, query: params.get("q"), location, invalidLocation: invalid });
+      const marker = window.history.state?.sourceBack;
+      const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      sourceExplorer.open(selected, browserHeader.querySelector('[data-mode="source"]'), { ...saved, file: source, symbol, query: params.get("q"), location, invalidLocation: invalid, canBack: !!saved && marker?.project === projectName && marker.anchor === selected && marker.url === currentUrl });
     }
     else browserHeader.querySelector(".architecture-selected-file")?.focus();
   }
