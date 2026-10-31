@@ -202,22 +202,37 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     section.append(controls, canvas);
     const key = (node) => JSON.stringify([node.file, node.id]);
     const rootKey = key({ file, id: selected.id });
+    const localEdges = edges.filter((edge) => key(edge.source) === rootKey || key(edge.target) === rootKey);
+    const localKeys = new Set([rootKey, ...localEdges.flatMap((edge) => [key(edge.source), key(edge.target)])]);
+    const localNodes = nodes.filter((node) => localKeys.has(key(node)));
+    const chosen = localEdges.find((edge) => location && edge.file === file && edge.line === location.line && edge.column === location.column);
+    if (chosen) {
+      const caller = nodes.find((node) => key(node) === key(chosen.source));
+      const callee = nodes.find((node) => key(node) === key(chosen.target));
+      if (caller && callee) section.append(element("p", "source-explorer-status", `Selected resolved call: ${caller.name} (${caller.file}) → ${callee.name} (${callee.file}) · ${chosen.file}:${chosen.line}:${chosen.column}`));
+    }
     if (typeof window !== "undefined" && typeof window.cytoscape === "function") {
-      graph = window.cytoscape({ container: canvas, elements: [...nodes.map((node) => ({ data: { id: key(node), label: `${node.name}\n${node.file}`, target: node }, classes: key(node) === rootKey ? "root" : "" })), ...edges.map((edge, index) => ({ data: { id: `edge-${index}`, source: key(edge.source), target: key(edge.target) } }))], layout: { name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80, padding: 30 }, style: [{ selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 150, "text-valign": "center", "text-halign": "center", color: "#f1f5f1", "font-size": 11, width: 170, height: 54, shape: "round-rectangle", "background-color": "#46584a" } }, { selector: "node.root", style: { "background-color": "#688b6e", "border-width": 3, "border-color": "#d4e6d5" } }, { selector: "edge", style: { width: 2, "line-color": "#9db4a0", "target-arrow-color": "#9db4a0", "target-arrow-shape": "triangle", "curve-style": "bezier" } }] });
+      graph = window.cytoscape({ container: canvas, elements: [...localNodes.map((node) => ({ data: { id: key(node), label: `${node.name}\n${node.file}`, target: node }, classes: key(node) === rootKey ? "root" : "" })), ...localEdges.map((edge, index) => ({ data: { id: `edge-${index}`, source: key(edge.source), target: key(edge.target) }, classes: location && edge.file === file && edge.line === location.line && edge.column === location.column ? "selected-call" : "" }))], layout: { name: "dagre", rankDir: "LR", nodeSep: 40, rankSep: 80, padding: 30 }, style: [{ selector: "node", style: { label: "data(label)", "text-wrap": "wrap", "text-max-width": 150, "text-valign": "center", "text-halign": "center", color: "#f1f5f1", "font-size": 11, width: 170, height: 54, shape: "round-rectangle", "background-color": "#46584a" } }, { selector: "node.root", style: { "background-color": "#688b6e", "border-width": 3, "border-color": "#d4e6d5" } }, { selector: "edge", style: { width: 2, "line-color": "#9db4a0", "target-arrow-color": "#9db4a0", "target-arrow-shape": "triangle", "curve-style": "bezier" } }, { selector: "edge.selected-call", style: { width: 4, "line-color": "#f5d080", "target-arrow-color": "#f5d080" } }] });
       graphNeedsLayout = panel.hidden;
       const initialZoom = graph.zoom();
       if (initialZoom < 0.9 || initialZoom > 1.4) { graph.zoom(Math.max(0.9, Math.min(1.4, initialZoom))); graph.center(graph.getElementById(rootKey)); }
       graph.on("tap", "node", (event) => { const target = event.target.data("target"); if (key(target) !== rootKey) navigate(target); });
+      graph.on("tap", "edge", (event) => {
+        const edge = localEdges[Number(event.target.id().slice(5))];
+        const owner = edge && nodes.find((node) => key(node) === key(edge.source));
+        if (owner?.hash && owner.file === edge.file) navigate(owner, { line: edge.line, column: edge.column });
+      });
     } else canvas.hidden = true;
-    for (const [label, relevant, endpoint] of [["Incoming", edges.filter((e) => key(e.target) === rootKey), "source"], ["Outgoing", edges.filter((e) => key(e.source) === rootKey), "target"]]) {
+    for (const [label, relevant, endpoint] of [["Incoming", localEdges.filter((e) => key(e.target) === rootKey), "source"], ["Outgoing", localEdges.filter((e) => key(e.source) === rootKey), "target"]]) {
       const group = element("div", "function-graph-list"); group.append(element("h4", "", label));
-      if (!relevant.length) group.append(element("p", "source-explorer-status", "No resolved calls."));
+      if (!relevant.length) group.append(element("p", "source-explorer-status", "No resolved calls found in this scan; this does not establish that none exist."));
       for (const edge of relevant) {
         const target = nodes.find((node) => key(node) === key(edge[endpoint]));
         const owner = nodes.find((node) => key(node) === key(edge.source));
         if (target && owner?.hash && owner.file === edge.file) {
           const row = element("div", "function-graph-edge");
           const siteButton = button(`${target.name} · ${target.file} · call at ${edge.file}:${edge.line}:${edge.column}`, () => navigate(owner, { line: edge.line, column: edge.column }));
+          if (location && edge.file === file && edge.line === location.line && edge.column === location.column) siteButton.setAttribute("aria-current", "location");
           const declaration = button("Go to declaration", () => navigate(target));
           declaration.setAttribute("aria-label", `Go to declaration of ${target.name} in ${target.file}`);
           siteButton.dataset.navigationFocus = `edge:${label}:${edge.file}:${edge.line}:${edge.column}`;

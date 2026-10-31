@@ -1,4 +1,4 @@
-import { overview, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
+import { overview, directoryGraph, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
 import { createStyledSelect } from "./styled-select.js";
 import { createSourceExplorer } from "./source-explorer.js";
 import { readLocation, matchingSavedState } from "./source-navigation.js";
@@ -12,7 +12,7 @@ const GROUP_PADDING_X = 28;
 function createRenderer({ container, details, fitButton, legend, stats }) {
   const sourcePanel = document.createElement("section");
   sourcePanel.className = "source-explorer"; sourcePanel.hidden = true;
-  const sourceExplorer = createSourceExplorer(sourcePanel, fetch, () => { showMode("overview"); saveNavigation(); browserHeader.querySelector('[data-mode="source"]')?.focus(); }, (replace, sourceTransition) => saveNavigation(replace, sourceTransition), (path) => listedFiles().includes(path), () => window.history.back());
+  const sourceExplorer = createSourceExplorer(sourcePanel, fetch, () => { showMode("overview"); saveNavigation(); browserHeader.querySelector('[data-mode="source"]')?.focus(); }, (replace, sourceTransition) => { syncSourceSelection(); return saveNavigation(replace, sourceTransition); }, (path) => listedFiles().includes(path), () => window.history.back());
   const browser = document.createElement("section");
   browser.className = "architecture-browser";
   const browserHeader = document.createElement("div");
@@ -82,7 +82,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     dropdowns.forEach((dropdown) => dropdown.refresh());
     navigationStatus.textContent = invalid ? "This link refers to a file, directory, or view that is not available in this project." : mode === "map" && (!validView || !validDirection || !validDepth || !validCycle) ? "Some map options in this link are unavailable; default options are shown." : "";
     renderBrowser();
-    if (selected) explorer.reveal(selected);
+    explorer.reveal(selected || directory, { expand: true, focus: false });
     if (mode === "source") {
       const { location, invalid } = readLocation(params);
       const symbol = params.get("symbol");
@@ -94,11 +94,30 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     else browserHeader.querySelector(".architecture-selected-file")?.focus();
   }
   if (typeof window !== "undefined") window.addEventListener?.("popstate", restoreNavigation);
-  const explorer = createProjectExplorer({ container: browserInventory, onSelect: ({ path, kind }) => {
+  const explorer = createProjectExplorer({ container: browserInventory, onExpansionChange: (canCollapse, hasFolders) => {
+    collapse.disabled = !hasFolders; collapse.title = canCollapse ? "Collapse all folders" : "Expand all folders"; collapse.setAttribute("aria-label", collapse.title); collapse.textContent = canCollapse ? "⊟" : "⊞";
+  }, onSelect: ({ path, kind }) => {
     if (kind === "file") selectFile(path, false, true);
     else selectOverview(path, true);
   } });
+  let syncedSource = null;
+  function syncSourceSelection() {
+    if (mode !== "source" || !sourceExplorer.currentFile) return;
+    const path = sourceExplorer.currentFile;
+    if (syncedSource === path) return;
+    syncedSource = path;
+    explorer.update({ files: listedFiles(), projectName, selectedPath: path, selectedKind: "file" });
+    explorer.reveal(path, { expand: true, focus: false });
+    const label = browserHeader.querySelector(".architecture-selected-file strong");
+    if (label) label.textContent = `File: ${path}`;
+  }
   function showMode(next) {
+    if (next !== "source") syncedSource = null;
+    if (mode === "source" && next !== "source" && sourceExplorer.currentFile) {
+      selected = sourceExplorer.currentFile;
+      directory = selected.includes("/") ? selected.slice(0, selected.lastIndexOf("/")) : ".";
+      mode = next; renderBrowser(); return;
+    }
     mode = next;
     overviewPanel.hidden = mode !== "overview";
     sourcePanel.hidden = mode !== "source" || !sourceExplorer.file;
@@ -108,16 +127,17 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (mode === "source") sourceExplorer.resize();
   }
   function selectOverview(path = ".", preserveTreeFocus = false) {
-    directory = path; selected = null; cycleMember = null; view.value = "dependencies"; cycle.value = "";
+    directory = path; selected = null; cycleMember = null;
     dropdowns[3].refresh(); dropdowns[4].refresh(); sourceExplorer.close(); search.value = ""; refreshSearch();
-    mode = "overview"; renderBrowser(); saveNavigation(); if (!preserveTreeFocus) browserHeader.querySelector(".architecture-selected-file")?.focus();
+    if (mode !== "map") mode = "overview";
+    renderBrowser(); if (!preserveTreeFocus) explorer.reveal(path, { expand: true, focus: false }); saveNavigation(); if (!preserveTreeFocus) browserHeader.querySelector(".architecture-selected-file")?.focus({ preventScroll: true });
   }
   function selectFile(path, preserveView = false, preserveTreeFocus = false) {
-    selected = path; cycleMember = null; if (!preserveView) view.value = "dependencies"; dropdowns[3].refresh();
-    directory = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "."; if (!preserveTreeFocus) explorer.reveal(path);
+    selected = path; cycleMember = null; dropdowns[3].refresh();
+    directory = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "."; if (!preserveTreeFocus) explorer.reveal(path, { focus: false });
     mode = mode === "map" ? "map" : "overview";
     sourceExplorer.close(); renderBrowser(); saveNavigation();
-    if (!preserveTreeFocus) browser.querySelector(".architecture-selected-file")?.focus();
+    if (!preserveTreeFocus) browser.querySelector(".architecture-selected-file")?.focus({ preventScroll: true });
   }
   function renderBrowser() {
     browserHeader.replaceChildren();
@@ -133,7 +153,8 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     heading.textContent = `${projectName || "Project"} · ${formatNumber(structure.scope.listedFileCount)} listed files in analysis`;
     browserHeader.append(heading);
     const panel = document.createElement("div"); panel.className = "architecture-selected-file"; panel.tabIndex = -1;
-    const label = document.createElement("strong"); label.textContent = selected ? `File: ${selected}` : directory === "." ? "Project overview" : `Directory: ${directory}`;
+    const displayedFile = mode === "source" ? sourceExplorer.currentFile || selected : selected;
+    const label = document.createElement("strong"); label.textContent = displayedFile ? `File: ${displayedFile}` : directory === "." ? "Project overview" : `Directory: ${directory}`;
     panel.append(label);
     if (selected || directory !== ".") { const backOverview = document.createElement("button"); backOverview.type = "button"; backOverview.className = "secondary-button"; backOverview.textContent = "Project overview"; backOverview.addEventListener("click", () => selectOverview()); panel.append(backOverview); }
     browserHeader.append(panel);
@@ -145,7 +166,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     }
     browserHeader.append(tabs, updating, navigationStatus, filesToggle);
     const allFiles = structure.directories.flatMap((item) => item.files).sort((a, b) => a.localeCompare(b));
-    explorer.update({ files: allFiles, projectName, selectedPath: selected || directory, selectedKind: selected ? "file" : directory === "." ? "project" : "directory" });
+    explorer.update({ files: allFiles, projectName, selectedPath: displayedFile || directory, selectedKind: displayedFile ? "file" : directory === "." ? "project" : "directory" });
     const fileButton = (path) => { const button = document.createElement("button"); button.type = "button"; button.textContent = path; button.setAttribute("aria-current", String(path === selected)); button.addEventListener("click", () => selectFile(path)); return button; };
     renderWorkspaceOverview({ overviewPanel, selected, directory, allFiles, structure, analysis, fileButton });
     showMode(mode);
@@ -162,7 +183,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     <select hidden aria-label="Matching files"></select></div>
     <details class="architecture-secondary"><summary>Graph options</summary><div><label>Direction <select aria-label="Dependency direction"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
     <label>Depth <select aria-label="Dependency depth"><option value="1">1</option><option value="2">2</option></select></label>
-    <button type="button" class="secondary-button">Back to layers</button>
+    <button type="button" class="secondary-button">Up to directory</button>
     <label>View <select aria-label="Graph view"><option value="dependencies">Dependencies</option><option value="impact">Impact</option><option value="cycles">Cycles</option></select></label>
     <label>Cycle group <select aria-label="Cycle group"><option value="">Select a cycle</option></select></label></div><p class="architecture-control-hint"></p></details>`;
   const secondary = controls.querySelector?.(".architecture-secondary");
@@ -170,7 +191,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   const inventoryHeader = document.createElement("div"); inventoryHeader.className = "architecture-inventory-header";
   const inventoryTitle = document.createElement("h3"); inventoryTitle.textContent = "Explorer";
   const collapse = document.createElement("button"); collapse.type = "button"; collapse.className = "architecture-collapse"; collapse.title = "Collapse all folders"; collapse.setAttribute("aria-label", "Collapse all folders"); collapse.textContent = "⊟";
-  collapse.addEventListener("click", () => explorer.collapseAll());
+  collapse.addEventListener("click", () => explorer.toggleAll());
   inventoryHeader.append(inventoryTitle, collapse);
   browserInventory.prepend(inventoryHeader, controls.querySelector(".architecture-search"));
   const graphNote = document.createElement("p");
@@ -268,10 +289,10 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   depth.addEventListener("change", () => { if (selected) draw(); saveNavigation(true); });
   view.addEventListener("change", () => { draw(); saveNavigation(); });
   cycle.addEventListener("change", () => { cycleMember = null; draw(); saveNavigation(); });
-  back.addEventListener("click", () => { selected = null; search.value = ""; sourceExplorer.close(); renderBrowser(); refreshSearch(); view.value = "dependencies"; dropdowns[3].refresh(); draw(); saveNavigation(); fitButton.focus({ preventScroll: true }); });
+  back.addEventListener("click", () => { const parent = selected ? directory : directory.includes("/") ? directory.slice(0, directory.lastIndexOf("/")) : "."; view.value = "dependencies"; selectOverview(parent); fitButton.focus({ preventScroll: true }); });
   returnFile.addEventListener("click", () => { view.value = "dependencies"; dropdowns[3].refresh(); draw(); saveNavigation(); fitButton.focus({ preventScroll: true }); });
   fitButton.addEventListener("click", () => { if (graph) { graph.resize(); graph.fit(graph.elements(), 36); } });
-  let rankDir = null;
+  let rankDir = null, graphContext = null;
   let zoomTarget = null;
   function ensureReadableZoom() {
     if (graph && zoomTarget && graph.zoom() < 1) { graph.zoom(1); graph.center(graph.getElementById(zoomTarget)); }
@@ -280,7 +301,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (!graph || !container.clientWidth) return;
     graph.resize();
     const layout = createGraphOptions(container, {}).layout;
-    if (layout.rankDir !== rankDir) { rankDir = layout.rankDir; graph.layout(layout).run(); ensureReadableZoom(); }
+    rankDir = layout.rankDir;
   }).observe(container);
 
   function clear(message = "No project structure yet.") {
@@ -329,9 +350,10 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (newProject) { navigationReady = true; restoreNavigation(); }
   }
   function draw() {
-    if (sourceExplorer.file && sourceExplorer.file !== selected) sourceExplorer.close();
     const focusedLayer = document.activeElement?.dataset?.layerId;
-    destroyGraph();
+    const nextContext = JSON.stringify([projectName, selected || directory, view.value, view.value === "cycles" ? cycle.value : ""]);
+    const viewport = graph && graphContext === nextContext ? { zoom: graph.zoom(), pan: graph.pan() } : null;
+    destroyGraph(); graphContext = nextContext;
     activeLayer = null;
     direction.parentElement.hidden = depth.parentElement.hidden = view.value !== "dependencies";
     direction.disabled = depth.disabled = !selected;
@@ -341,7 +363,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     const group = view.value === "cycles" && cycle.value ? analysis?.cycles.find((item) => JSON.stringify(item) === cycle.value) : null;
     const graphSelected = selected && (analysis?.data.files.has(selected) || (!analysis && (currentModel.nodes || []).some((node) => node.type === "file" && node.path === selected)));
     const impactResult = view.value === "impact" && graphSelected && analysis ? impact(analysis, selected) : null;
-    const projection = group ? projectSelection(analysis, group) : impactResult || (graphSelected && view.value === "dependencies" ? focus(currentModel, selected, direction.value, Number(depth.value)) : overview(currentModel));
+    const directoryView = !selected && view.value === "dependencies";
+    const missingFile = selected && !graphSelected && view.value === "dependencies";
+    const projection = group ? projectSelection(analysis, group) : impactResult || (graphSelected && view.value === "dependencies" ? focus(currentModel, selected, direction.value, Number(depth.value)) : missingFile ? { nodes: [{ id: `file:${selected}`, canonicalId: selected, path: selected, label: selected.split('/').pop(), type: 'file', color: '#8794a8' }], edges: [], shownFiles: 1, totalFiles: 1, shownEdges: 0, totalEdges: 0, complete: false } : directoryView ? directoryGraph(currentModel, directory, listedFiles()) : overview(currentModel));
     if (!projection.nodes.length || typeof window.cytoscape !== "function") {
       container.replaceChildren(emptyState(!projection.nodes.length ? "No project files were discovered for the dependency map." : "Cytoscape.js could not be loaded."));
       legend.replaceChildren(); stats.textContent = "";
@@ -353,7 +377,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     rankDir = options.layout.rankDir;
     graph = window.cytoscape(options);
     zoomTarget = (group ? projection.nodes.find((node) => node.type === "file") : projection.nodes.find((node) => node.canonicalId === selected))?.id || null;
-    ensureReadableZoom();
+    if (viewport) { graph.zoom(viewport.zoom); graph.pan(viewport.pan); }
+    else if (directoryView) { graph.zoom(Math.max(0.9, Math.min(1, graph.zoom()))); graph.center(); }
+    else ensureReadableZoom();
     const reset = () => {
       draw();
     };
@@ -372,20 +398,21 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       appendFiles(details, "Files in this layer", layerFiles, explore);
       graph.fit(overview ? collection : node.add(node.descendants()), 44);
     };
-    const explore = (id) => { selectFile(id); refreshSearch(); };
+    const explore = (id) => { view.value = "dependencies"; selectFile(id); refreshSearch(); };
     bindGraphInteractions(graph, (id) => { if (group) { cycleMember = id; draw(); } else { selectFile(id, true); refreshSearch(); } }, selectLayer, reset, (edge) => {
       returnFile.hidden = !selected;
       const source = graph.getElementById(edge.data("source")).data();
       const target = graph.getElementById(edge.data("target")).data();
       renderDetails(details, "Dependency", "Importer → imported", [["From", source.path || source.label], ["To", target.path || target.label], ["File dependencies", edge.data("weight")]]);
     });
+    graph.on("tap", 'node[type = "directory"]', (event) => selectOverview(event.target.data("path")));
     renderLegend(legend, projection.nodes, selectLayer);
     if (focusedLayer) [...legend.querySelectorAll("button")].find((button) => button.dataset.layerId === focusedLayer)?.focus();
     const status = projection.complete ? "" : " · partial dependency graph";
-    stats.textContent = group || impactResult || (graphSelected && view.value === "dependencies")
+    stats.textContent = group || impactResult || missingFile || (graphSelected && view.value === "dependencies")
       ? `${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
-      : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
-    back.disabled = !selected && view.value === "dependencies";
+      : directoryView ? `${formatNumber(projection.fileCount)} listed files in ${directory} · ${formatNumber(projection.nodes.length)} items · ${formatNumber(projection.edgeCount)} connections${status}` : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
+    back.disabled = !selected && directory === "." && view.value === "dependencies";
     back.hidden = back.disabled;
     context.hidden = !selected;
     contextText.textContent = selected ? `${view.value === "cycles" ? "Saved file" : "Current file"}: ${analysis?.data.files.get(selected)?.path || selected}${view.value === "cycles" ? " · Cycles across project" : ""}` : "";
@@ -402,7 +429,14 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       const node = projection.nodes.find((item) => item.canonicalId === selected);
       if (!graphSelected) renderPrompt(details, "This listed file is not present in the dependency graph.");
       else if (view.value === "impact" && !analysis) renderPrompt(details, "Impact analysis is unavailable for this report.");
-      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); const sourceButton = document.createElement("button"); sourceButton.type = "button"; sourceButton.className = "secondary-button source-explorer-open"; sourceButton.textContent = "Explore code"; sourceButton.addEventListener("click", () => { showMode("source"); sourceExplorer.open(node.path, browserHeader.querySelector('[data-mode="source"]')); }); details.append(sourceButton); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); }
+      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); const sourceButton = document.createElement("button"); sourceButton.type = "button"; sourceButton.className = "secondary-button source-explorer-open"; sourceButton.textContent = "Explore code"; sourceButton.addEventListener("click", () => { showMode("source"); if (sourceExplorer.currentFile !== node.path) sourceExplorer.open(node.path, browserHeader.querySelector('[data-mode="source"]')); else saveNavigation(); }); details.append(sourceButton); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else { if (analysis) { appendFiles(details, "Imports", analysis.outgoing.get(selected).map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Imported by", analysis.incoming.get(selected).map((id) => analysis.data.files.get(id)), explore, true); } appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); } }
+    } else if (directoryView) {
+      renderPrompt(details, `Contents of ${directory}. Arrows aggregate imports between these immediate children; imports within a folder are not shown here.`);
+      const list = document.createElement("details"); list.className = "architecture-directory-list";
+      const summary = document.createElement("summary"); summary.textContent = `Browse ${projection.nodes.length} items and ${projection.edges.length} connections`; list.append(summary);
+      for (const node of projection.nodes) { const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button"; button.textContent = `${node.type === "directory" ? "Folder" : "File"}: ${node.path}`; button.addEventListener("click", () => node.type === "directory" ? selectOverview(node.path) : selectFile(node.path)); list.append(button); }
+      for (const edge of projection.edges) { const source = projection.nodes.find((node) => node.id === edge.source), target = projection.nodes.find((node) => node.id === edge.target); const row = document.createElement("p"); row.textContent = `${source.path} → ${target.path}: ${edge.weight} file imports`; list.append(row); }
+      details.append(list);
     } else renderPrompt(details, view.value === "impact" ? analysis ? "Search for a file to explore its consumers." : "Impact analysis is unavailable for this report." : "Search for a file to explore its dependencies. Select an arrow for its direction and count.");
   }
   function destroyGraph() { if (graph) graph.destroy(); graph = null; }
@@ -478,6 +512,10 @@ function graphStyle() {
         "font-weight": 700, "text-halign": "center", "text-valign": "center",
         "text-wrap": "wrap", "text-max-width": 165
       }
+    },
+    {
+      selector: 'node[type = "directory"]',
+      style: { shape: "round-rectangle", width: NODE_WIDTH, height: NODE_HEIGHT, "background-color": "#273b2f", "border-color": "#82b995", "border-width": 2, color: "#f5f1e8", label: "data(label)", "font-size": 12, "text-halign": "center", "text-valign": "center", "text-wrap": "ellipsis", "text-max-width": NODE_WIDTH - 18 }
     },
     {
       selector: 'node[type = "file"]',

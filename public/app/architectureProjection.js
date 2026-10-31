@@ -48,6 +48,34 @@ function searchFiles(model, query) {
   return [...prepare(model).files.values()].filter((node) => node.path.toLowerCase().includes(term)).sort((a, b) => a.path.localeCompare(b.path));
 }
 
+// Project file imports onto the immediate children of a real directory.
+function directoryGraph(model, directory = '.', listedPaths = []) {
+  const data = prepare(model), prefix = directory === '.' ? '' : `${directory}/`;
+  const nodes = new Map(), membership = new Map();
+  const files = [...data.files.values()];
+  const known = new Set(files.map((file) => file.path));
+  for (const path of listedPaths) if (!known.has(path)) files.push({ path, canonicalId: path, color: '#8794a8' });
+  for (const file of files) {
+    if (!file.path.startsWith(prefix)) continue;
+    const rest = file.path.slice(prefix.length), [name, ...descendants] = rest.split('/');
+    if (!name) continue;
+    const path = `${prefix}${name}`, folder = descendants.length > 0;
+    const id = `${folder ? 'directory' : 'file'}:${path}`;
+    if (!nodes.has(id)) nodes.set(id, { id, path, canonicalId: folder ? undefined : file.canonicalId, type: folder ? 'directory' : 'file', label: name, color: folder ? '#82b995' : file.color, fileCount: 0 });
+    nodes.get(id).fileCount++;
+    membership.set(file.canonicalId, id);
+  }
+  const pairs = new Map();
+  for (const edge of data.edges) {
+    const source = membership.get(edge.source), target = membership.get(edge.target);
+    if (!source || !target || source === target) continue;
+    const key = JSON.stringify([source, target]);
+    const item = pairs.get(key) || { id: `directory-edge:${key}`, source, target, type: 'imports', weight: 0 };
+    item.weight++; pairs.set(key, item);
+  }
+  return { nodes: [...nodes.values()].sort((a, b) => a.path.localeCompare(b.path)), edges: [...pairs.values()], fileCount: membership.size, edgeCount: pairs.size, complete: data.graph.complete };
+}
+
 function focus(model, selected, direction = 'both', depth = 1, limit = 60) {
   const data = prepare(model);
   if (!data.files.has(selected)) return { nodes: [], edges: [], totalFiles: 0, totalEdges: 0, shownFiles: 0, shownEdges: 0 };
@@ -122,4 +150,4 @@ function projectSelection(analysis, ids, limit = 60) {
   return { nodes: [...data.layers.values()].filter((layer) => layers.has(layer.layerId)).concat(files), edges, totalFiles: all.size, totalEdges: allEdges.length, shownFiles: files.length, shownEdges: edges.length, complete: data.graph.complete };
 }
 
-export { overview, searchFiles, focus, analytics, impact, projectSelection };
+export { overview, directoryGraph, searchFiles, focus, analytics, impact, projectSelection };

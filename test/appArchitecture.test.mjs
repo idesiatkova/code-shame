@@ -70,6 +70,20 @@ test("projects full graph, including hidden files, with unique directed dependen
   assert.ok(overview(model).nodes.some((node) => node.label === "Unknown layer"));
 });
 
+test("directory graph aggregates canonical imports between immediate children", async () => {
+  const { directoryGraph } = await import("../public/app/architectureProjection.js");
+  const paths = ["src/a.js", "src/nested/b.js", "src/nested/c.js", "test/a.js", "root.js"];
+  const model = { nodes: [], projectGraph: { complete: false, nodes: paths.map((path) => ({ id: path, path })), edges: [{ source: paths[0], target: paths[1] }, { source: paths[0], target: paths[2] }, { source: paths[1], target: paths[2] }, { source: paths[3], target: paths[0] }] } };
+  const root = directoryGraph(model);
+  assert.deepEqual(root.nodes.map((node) => node.path), ["root.js", "src", "test"]);
+  assert.equal(root.edges.length, 1); assert.equal(root.complete, false);
+  const nested = directoryGraph(model, "src");
+  assert.deepEqual(nested.nodes.map((node) => [node.path, node.type]), [["src/a.js", "file"], ["src/nested", "directory"]]);
+  assert.equal(nested.edges[0].weight, 2);
+  assert.equal(directoryGraph(model, "src/nested").edges.length, 1);
+  assert.ok(directoryGraph(model, "src", ["src/uninspected.js"]).nodes.some((node) => node.path === "src/uninspected.js"));
+});
+
 test("renderer keeps focus and refreshes search results across snapshots", async () => {
   const cytoscape = (await import("cytoscape")).default;
   cytoscape.use((await import("cytoscape-dagre")).default);
@@ -193,10 +207,20 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.match(testGroup.children[1].textContent, /test directory or filename/);
     renderer.render(model);
     header.children[2].children.at(-1).fire("click");
+    const folder = lastGraph.nodes('[type = "directory"]').filter((node) => node.data("path") === "domain")[0];
+    assert.ok(folder); folder.emit("tap");
+    assert.equal(map.hidden, false);
+    assert.match(location.hash, /directory=domain.*view=map/);
+    assert.match(header.children[1].children[0].textContent, /Directory: domain/);
+    assert.ok(lastGraph.nodes('[type = "file"]').some((node) => node.data("path") === "domain/checkout.ts"));
+    assert.equal(tree.children[0].children[1].children.find((item) => item.dataset.path === "domain").attributes["aria-selected"], "true");
+    history.go(-1);
+    assert.equal(map.hidden, false);
+    assert.equal(header.children[1].children[0].textContent, "Project overview");
     container.clientWidth = 800; resize();
-    assert.equal(lastRankDir, "TB");
+    assert.equal(lastRankDir, undefined);
     container.clientWidth = 1200; resize();
-    assert.equal(lastRankDir, "LR");
+    assert.equal(lastRankDir, undefined);
     const [search, results, direction, depth, back, view, cycle] = controls.controls;
     assert.ok(results.children.length > 1);
     assert.equal(direction.disabled, true); assert.equal(depth.disabled, true);
@@ -213,18 +237,20 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(lastCentered.data("canonicalId"), "domain/checkout.ts");
     direction.value = "outbound"; direction.fire("change"); depth.value = "2"; depth.fire("change");
     view.value = "impact"; view.fire("change");
-    results.value = "ui/Checkout.tsx"; results.fire("change"); assert.equal(view.value, "dependencies");
+    results.value = "ui/Checkout.tsx"; results.fire("change"); assert.equal(view.value, "impact");
     history.go(-1); assert.equal(view.value, "impact"); assert.equal(direction.value, "outbound"); assert.equal(depth.value, "2");
     setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=map&graph=invalid&direction=sideways&depth=99&cycle=invalid"); listeners.popstate();
     assert.equal(view.value, "dependencies"); assert.equal(direction.value, "both"); assert.equal(depth.value, "1"); assert.equal(cycle.value, ""); assert.match(header.children[4].textContent, /default options/);
     setLocation(locations[position]); listeners.popstate();
     view.value = "dependencies"; view.fire("change");
     lastGraph.zoom(0.7); resize(); assert.equal(lastGraph.zoom(), 0.7);
-    container.clientWidth = 800; resize(); assert.equal(lastGraph.zoom(), 1);
+    direction.value = "outbound"; direction.fire("change"); assert.equal(lastGraph.zoom(), 0.7);
+    container.clientWidth = 800; resize(); assert.equal(lastGraph.zoom(), 0.7);
     assert.equal(lastCentered.data("canonicalId"), "domain/checkout.ts");
     container.clientWidth = 1200; resize();
     assert.equal(searchList.hidden, true);
     back.fire("click");
+    view.value = "impact"; view.fire("change");
     legend.children.find((button) => button.textContent.startsWith("UI / Components")).fire("click");
     const layerButton = legend.children.find((button) => button.textContent.startsWith("UI / Components"));
     assert.equal(layerButton.attributes["aria-pressed"], "true");
@@ -238,6 +264,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(resetLayerButton.attributes["aria-pressed"], "false");
     assert.equal(globalThis.document.activeElement, resetLayerButton);
     assert.equal(details.children[0].textContent, "Project structure");
+    view.value = "dependencies"; view.fire("change");
     search.value = "checkout"; search.fire("input");
     results.value = "domain/checkout.ts"; results.fire("change");
     assert.equal(direction.disabled, false); assert.equal(depth.disabled, false);
@@ -312,7 +339,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(results.value, "");
     assert.equal(view.value, "dependencies");
     assert.equal(direction.parentElement.hidden, false); assert.equal(cycle.parentElement.hidden, true);
-    assert.match(stats.textContent, /graph files/);
+    assert.match(stats.textContent, /listed files/);
     results.value = "domain/checkout.ts"; results.fire("change");
     updated.projectGraph.nodes = updated.projectGraph.nodes.filter((node) => node.id !== "domain/checkout.ts");
     renderer.render(updated);

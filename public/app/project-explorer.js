@@ -1,5 +1,5 @@
 // A tree owns focus separately from selection so collapsing folders never navigates.
-export function createProjectExplorer({ container, onSelect }) {
+export function createProjectExplorer({ container, onSelect, onExpansionChange = () => {} }) {
   const expanded = new Set(["."]);
   let root, nodes = new Map(), selectedPath = ".", selectedKind = "project", focusPath = ".";
   const tree = document.createElement("div");
@@ -52,7 +52,7 @@ export function createProjectExplorer({ container, onSelect }) {
     return svg;
   }
 
-  function render(restoreFocus = false) {
+  function render(restoreFocus = false, preventScroll = false) {
     focusPath = visibleAncestor(focusPath);
     const items = new Map();
     function branch(node, level) {
@@ -97,7 +97,10 @@ export function createProjectExplorer({ container, onSelect }) {
       return item;
     }
     tree.replaceChildren(branch(root, 1));
-    if (restoreFocus) items.get(focusPath)?.focus();
+    if (restoreFocus) items.get(focusPath)?.focus({ preventScroll });
+    const folders = [...nodes.values()].filter((node) => node.parent && node.kind !== "file");
+    onExpansionChange(folders.some((node) => expanded.has(node.path)), folders.length > 0);
+    return items;
   }
 
   function select(node) {
@@ -130,7 +133,7 @@ export function createProjectExplorer({ container, onSelect }) {
       toggle(node);
       return;
     }
-    if (node.kind !== "file") {
+    if (node.kind !== "file" && node.path === selectedPath && node.kind === selectedKind) {
       if (expanded.has(node.path)) expanded.delete(node.path);
       else expanded.add(node.path);
     }
@@ -175,19 +178,23 @@ export function createProjectExplorer({ container, onSelect }) {
       if (!hadFocus && nodes.has(path)) focusPath = path;
       render(hadFocus);
     },
-    reveal(path) {
+    reveal(path, { expand = false, focus = true, scroll = focus } = {}) {
       const node = nodes.get(path);
       if (!node) return;
+      const hadFocus = tree.contains(document.activeElement);
       for (let parent = node.parent; parent; parent = parent.parent) expanded.add(parent.path);
-      focusPath = path;
-      render(true);
-      tree.querySelector('[tabindex="0"]')?.scrollIntoView?.({ block: "nearest" });
+      if (expand && node.kind !== "file") expanded.add(node.path);
+      if (focus) focusPath = path;
+      const items = render(focus || hadFocus, true);
+      if (scroll) items.get(path)?.scrollIntoView?.({ block: "nearest" });
     },
-    collapseAll() {
+    toggleAll() {
       if (!root) return;
       const hadFocus = tree.contains(document.activeElement);
+      const canCollapse = [...nodes.values()].some((node) => node.parent && node.kind !== "file" && expanded.has(node.path));
       expanded.clear();
       expanded.add(".");
+      if (!canCollapse) for (const node of nodes.values()) if (node.kind !== "file") expanded.add(node.path);
       render(hadFocus);
     },
     clear() {
@@ -198,6 +205,7 @@ export function createProjectExplorer({ container, onSelect }) {
       focusPath = selectedPath = ".";
       selectedKind = "project";
       tree.replaceChildren();
+      onExpansionChange(false, false);
     }
   };
 }

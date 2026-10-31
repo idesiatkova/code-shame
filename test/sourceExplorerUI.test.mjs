@@ -98,12 +98,14 @@ test("function graph navigates across files, restores history, and ignores stale
     const workspace = () => panel.children.find((node) => node.className === "source-explorer-workspace");
     let [search, list] = workspace().children[0].children; search.value = "a"; search.listeners.input(); list.children[0].click();
     search = workspace().children[0].children[0]; search.focus();
-    pending[1].resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b], edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }], coverage: { files: ["a.js", "b.js"] }, unresolved: [] }) });
+    const c = { file: "c.js", id: "c", name: "c", hash: "c-hash" };
+    pending[1].resolve({ ok: true, json: async () => ({ root: a, nodes: [a, b, c], edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }, { source: b, target: c, file: "b.js", line: 1, column: 3 }], coverage: { files: ["a.js", "b.js"] }, unresolved: [] }) });
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(workspace().children[0].children[0], search); assert.equal(document.activeElement, search);
     assert.equal(zoom, 0.9); assert.equal(centered, JSON.stringify(["a.js", "a"]));
     assert.equal(options.elements[2].data.source, JSON.stringify(["a.js", "a"]));
     assert.equal(options.elements[2].data.target, JSON.stringify(["b.js", "b"]));
+    assert.equal(options.elements.length, 3); // unrelated edges and their nodes are outside this neighborhood
     const section = workspace().children[1].children.find((node) => node.className === "function-graph");
     const outgoing = section.children.find((node) => node.children[0]?.textContent === "Outgoing"); window.scrollY = 900; outgoing.children[1].children[1].click();
     pending[2].resolve(source("b.js", "b", "b-hash")); await new Promise((resolve) => setImmediate(resolve));

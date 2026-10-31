@@ -1190,7 +1190,7 @@ li {
 .architecture-graph {
   position: relative;
   min-width: 0;
-  height: 420px;
+  height: clamp(280px, 40vh, 420px);
   overflow: hidden;
 }
 
@@ -1480,6 +1480,8 @@ li {
 .project-tree-icon { flex: none; width: 15px; height: 15px; color: #a5b6aa; }
 .project-tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .architecture-workspace { min-width: 0; padding: 0 20px 20px !important; }
+.architecture-directory-list button { display: block; min-height: 0; margin: 4px 0; padding: 4px 6px; font-size: 12px; text-align: left; overflow-wrap: anywhere; }
+.architecture-directory-list p { margin: 2px 0; overflow-wrap: anywhere; }
 .architecture-workspace > div:first-child { padding-top: 16px; }
 .architecture-scope { margin-bottom: 7px; }
 .architecture-selected-file { margin-bottom: 8px; color: #d4dad6; }
