@@ -1,7 +1,8 @@
 import { createSymbolContext } from "./symbol-context.js";
+import { hasCallSite } from "./source-navigation.js";
 
 export function createSourceExplorer(panel, fetchSource = fetch, onClose = () => {}, onNavigate = () => {}, isListed = () => true) {
-  let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", graphData, graphError, graph, graphRequest = 0, graphNeedsLayout = false;
+  let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", location = null, graphData, graphError, navigationError, graph, graphRequest = 0, graphNeedsLayout = false, rendering = false, restoring = false, restoreFocusCancelled = false, pageMoved = false, pendingFocus = null;
   const history = [];
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -14,16 +15,21 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     node.type = "button"; node.addEventListener("click", action); return node;
   };
   function close(restoreFocus = false) {
-    request++; controller?.abort(); controller = null; clearGraph(); data = selected = file = anchor = null; history.length = 0;
+    request++; controller?.abort(); controller = null; clearGraph(); data = selected = file = anchor = location = null; history.length = 0;
     panel.hidden = true; panel.replaceChildren();
     if (restoreFocus) { onClose(); if (trigger?.isConnected) trigger.focus(); }
-    trigger = null; query = "";
+    trigger = null; query = ""; pendingFocus = navigationError = null; restoring = false;
   }
   function clearGraph() {
     graphRequest++; graphController?.abort(); graphController = null; graph?.destroy(); graph = null; graphData = graphError = null;
   }
   function cancelNavigation() { request++; controller?.abort(); controller = null; }
-  function select(symbol) { cancelNavigation(); clearGraph(); selected = symbol; render({ detail: true }); onNavigate(); loadGraph(); }
+  function select(symbol) { onNavigate(true); pendingFocus = navigationError = null; cancelNavigation(); clearGraph(); selected = symbol; location = null; render({ detail: true }); onNavigate(); loadGraph(); }
+  function snapshot() {
+    const code = panel.querySelector(".source-explorer-code");
+    const list = panel.querySelector(".source-explorer-list");
+    return { file, data, selected, query, location, scroll: code?.scrollTop || 0, scrollLeft: code?.scrollLeft || 0, listScroll: list?.scrollTop || 0, pageX: globalThis.window?.scrollX || 0, pageY: globalThis.window?.scrollY || 0, unresolvedOpen: !!panel.querySelector(".source-explorer-unresolved")?.open, focus: panel.contains(document.activeElement) ? pendingFocus || document.activeElement?.dataset?.navigationFocus : null };
+  }
   async function loadGraph() {
     const sequence = ++graphRequest; graphController = new AbortController();
     try {
@@ -38,10 +44,13 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       graphError = error.message || "Could not load function graph."; refreshGraph();
     }
   }
-  async function navigate(target) {
+  async function navigate(target, site = null) {
     if (!target?.file || !target.id) return;
-    if (!isListed(target.file)) { graphError = "The target file is no longer listed in this project."; render(); return; }
-    const previous = { file, data, selected, query };
+    if (!isListed(target.file)) { navigationError = "The target file is no longer listed in this project."; render({ restore: snapshot() }); return; }
+    onNavigate(true);
+    const previous = snapshot();
+    const previousGraph = graphData;
+    pendingFocus = null;
     clearGraph(); request++; controller?.abort(); controller = new AbortController();
     const sequence = request;
     try {
@@ -51,33 +60,41 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       if (sequence !== request) return;
       const symbol = result.symbols.find((item) => item.id === target.id);
       if (!symbol || (target.hash && target.hash !== result.hash) || (target.name && symbol.name !== target.name) || (target.startLine && symbol.startLine !== target.startLine)) throw new Error("The target symbol has changed or is no longer available. Reopen the source to refresh.");
+      if (site && !hasCallSite(result, symbol, { ...site, hash: target.hash })) throw new Error("The call site has changed or is no longer available. Reopen the source to refresh.");
       history.push(previous);
-      file = target.file; data = result; query = ""; selected = symbol; panel.setAttribute("aria-label", `Source explorer for ${file}`); render({ detail: true }); onNavigate(); loadGraph();
+      file = target.file; data = result; query = ""; selected = symbol; location = site ? { ...site, hash: result.hash } : null; navigationError = null; panel.setAttribute("aria-label", `Source explorer for ${file}`); render(panel.contains(document.activeElement) ? { detail: true } : undefined); onNavigate(); loadGraph();
     } catch (error) {
       if (sequence !== request || error.name === "AbortError") return;
-      graphError = error.message || "Could not load target source."; render();
+      navigationError = error.message || "Could not load target source."; graphData = previousGraph; render({ restore: previous }); if (!graphData && selected) loadGraph();
     }
   }
   function back() {
     request++; controller?.abort(); clearGraph();
-    ({ file, data, selected, query } = history.pop());
+    onNavigate(true);
+    const previous = history.pop();
+    navigationError = null;
+    ({ file, data, selected, query, location } = previous);
     panel.setAttribute("aria-label", `Source explorer for ${file}`);
-    render(selected ? { detail: true } : undefined); onNavigate(); if (selected) loadGraph();
+    render({ restore: previous }); onNavigate(); if (selected) loadGraph();
   }
   function render(focusTarget) {
+    rendering = true;
     graph?.destroy(); graph = null;
+    const canRestoreFocus = panel.contains(document.activeElement);
     const restoreDetailFocus = !focusTarget && document.activeElement?.className === "source-explorer-heading";
     const restorePanelFocus = !focusTarget && document.activeElement !== panel && panel.contains(document.activeElement);
     let inventoryTarget;
     const header = element("div", "source-explorer-header");
-    header.append(element("h3", "", file), button("Close source", () => close(true)));
+    const closeButton = button("Close source", () => close(true)); closeButton.dataset.navigationFocus = "close";
+    header.append(element("h3", "", `Source: ${file}`), closeButton);
     if (file !== anchor) header.append(element("p", "source-explorer-status", `Architecture file: ${anchor} · Source file: ${file}`));
     const actions = element("div", "source-explorer-actions");
-    if (history.length) actions.append(button("Back", back));
-    if (selected) actions.append(button("Back to symbols", () => { const id = selected.id; cancelNavigation(); clearGraph(); selected = null; render(id); onNavigate(); }));
+    if (history.length) actions.append(button("Back to previous source", back));
+    if (selected) actions.append(button("Back to symbols", () => { onNavigate(true); const id = selected.id; cancelNavigation(); clearGraph(); selected = location = null; render(id); onNavigate(); }));
     panel.replaceChildren(header, actions);
-    if (restorePanelFocus) panel.focus({ preventScroll: true });
-    if (!data) return;
+    if (restorePanelFocus || (focusTarget?.restore && canRestoreFocus)) panel.focus({ preventScroll: true });
+    if (!data) { rendering = false; return; }
+    if (navigationError) { const status = element("p", "source-explorer-status", navigationError); status.setAttribute("role", "status"); panel.append(status); }
     if (data.diagnostics?.length) {
       const status = element("p", "source-explorer-status", data.diagnostics.map((item) => typeof item === "string" ? item : item.message || String(item)).join(" · "));
       panel.append(status);
@@ -89,13 +106,15 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     {
       const search = element("input", "source-explorer-search");
       search.type = "search"; search.placeholder = "Search symbols in this file"; search.setAttribute("aria-label", "Search symbols in this file");
+      search.dataset.navigationFocus = "search";
       search.value = query;
       const list = element("div", "source-explorer-list");
+      list.addEventListener("scroll", () => { if (!rendering) onNavigate(true); });
       const update = () => {
         const matches = data.symbols.filter((symbol) => symbols.describe(symbol).searchText.toLowerCase().includes(search.value.toLowerCase()));
         list.replaceChildren(...matches.map((symbol) => {
           const item = button(`${symbols.describe(symbol).label} · ${symbol.kind} · lines ${symbol.startLine}–${symbol.endLine}`, () => select(symbol));
-          item.className = "source-explorer-item"; item.title = item.textContent; item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
+          item.className = "source-explorer-item"; item.dataset.navigationFocus = `symbol:${symbol.id}`; item.title = item.textContent; item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
           if (focusTarget === symbol.id) inventoryTarget = item;
           return item;
         }));
@@ -104,19 +123,25 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       search.addEventListener("input", () => { query = search.value; update(); onNavigate(true); }); inventory.append(search, list); update();
     }
     workspace.append(inventory); panel.append(workspace);
+    if (focusTarget?.restore) inventory.children[1].scrollTop = focusTarget.restore.listScroll || 0;
     inventoryTarget?.focus();
     if (!selected) {
       workspace.append(element("p", "source-explorer-status", "Choose a symbol to inspect its source."));
+      if (focusTarget?.restore) { pendingFocus = focusTarget.restore.focus; restoreFocus(); }
+      restorePagePosition(focusTarget?.restore);
+      rendering = false;
       return;
     }
     const detail = element("div", "source-explorer-detail");
     workspace.append(detail);
     const heading = element("h4", "source-explorer-heading", `${symbols.describe(selected).label} · ${selected.kind} · lines ${selected.startLine}–${selected.endLine}`);
     heading.tabIndex = -1; detail.append(heading);
+    heading.dataset.navigationFocus = "heading";
     if (focusTarget?.detail || restoreDetailFocus) heading.focus();
     detail.append(element("pre", "source-explorer-signature", selected.signature));
     const code = element("div", "source-explorer-code");
     code.tabIndex = 0; code.setAttribute("role", "region"); code.setAttribute("aria-label", `Source code for ${selected.name}`);
+    code.dataset.navigationFocus = "code"; code.addEventListener("scroll", () => { if (!rendering) onNavigate(true); });
     const lines = data.source.split(/\r\n|[\r\n\u2028\u2029]/);
     for (let number = selected.startLine; number <= Math.min(selected.endLine, lines.length); number++) {
       const line = element("div", "source-explorer-line"); line.id = `source-line-${number}`;
@@ -124,28 +149,50 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       code.append(line);
     }
     detail.append(code);
+    if (location) {
+      const line = [...code.children].find((item) => item.id === `source-line-${location.line}`);
+      line?.classList.add("is-selected"); line?.scrollIntoView?.({ block: "nearest" });
+    }
     const calls = element("div", "source-explorer-calls");
     calls.append(element("h4", "", "Calls in this symbol"));
     const matching = data.calls.filter((call) => call.ownerId === selected.id);
     if (!matching.length) calls.append(element("p", "source-explorer-status", "No calls found."));
     const unresolved = matching.filter((call) => call.status !== "resolved" || !call.target);
     const unresolvedDetails = element("details", "source-explorer-unresolved");
+    unresolvedDetails.open = !!focusTarget?.restore?.unresolvedOpen;
+    unresolvedDetails.addEventListener("toggle", () => { if (!rendering) onNavigate(true); });
     if (unresolved.length) unresolvedDetails.append(element("summary", "", `Unresolved calls (${unresolved.length})`));
     for (const call of matching) {
       const resolved = call.status === "resolved" && call.target;
       const name = call.name.length > 100 ? `${call.name.slice(0, 100)}…` : call.name;
-      const item = button(`${name} · line ${call.line} · ${resolved ? "resolved" : call.reason || "unresolved syntax"}`, () => {
-        if (call.status === "resolved" && call.target) { navigate(call.target); return; }
-        const line = [...code.children].find((item) => item.id === `source-line-${call.line}`);
-        for (const child of code.children) child.classList.remove("is-selected");
-        line?.classList.add("is-selected"); line?.scrollIntoView?.({ block: "nearest" });
-      });
-      item.title = `${call.name} · line ${call.line} · ${resolved ? "resolved" : call.reason || "unresolved syntax"}`;
+      const item = element("div", "source-explorer-call");
+      const siteButton = button(`${name} · call at line ${call.line}:${call.column} · ${resolved ? "resolved" : call.reason || "unresolved syntax"}`, () => navigate({ file, id: selected.id, hash: data.hash }, { line: call.line, column: call.column }));
+      siteButton.dataset.navigationFocus = `call:${call.line}:${call.column}`;
+      item.append(siteButton);
+      if (resolved) { const declaration = button("Go to declaration", () => navigate(call.target)); declaration.setAttribute("aria-label", `Go to declaration of ${call.name}`); declaration.dataset.navigationFocus = `call:${call.line}:${call.column}:declaration`; item.append(declaration); }
+      siteButton.title = `${call.name} · line ${call.line} · ${resolved ? "resolved" : call.reason || "unresolved syntax"}`;
       (resolved ? calls : unresolvedDetails).append(item);
     }
     if (unresolved.length) calls.append(unresolvedDetails);
     detail.append(calls);
     renderGraph(detail);
+    if (focusTarget?.restore) {
+      code.scrollTop = focusTarget.restore.scroll || 0;
+      code.scrollLeft = focusTarget.restore.scrollLeft || 0;
+      pendingFocus = focusTarget.restore.focus;
+      restoreFocus();
+    }
+    restorePagePosition(focusTarget?.restore);
+    rendering = false;
+  }
+  function restorePagePosition(state) {
+    if (!(restoring && pageMoved) && Number.isFinite(state?.pageX) && Number.isFinite(state?.pageY)) globalThis.window?.scrollTo?.(state.pageX, state.pageY);
+  }
+  function restoreFocus() {
+    if (!pendingFocus || !panel.contains(document.activeElement)) { pendingFocus = null; return; }
+    const find = (node) => node.dataset?.navigationFocus === pendingFocus ? node : [...node.children].map(find).find(Boolean);
+    const target = find(panel);
+    if (target) { pendingFocus = null; target.focus({ preventScroll: true }); return true; }
   }
   function renderGraph(detail) {
     const section = element("section", "function-graph");
@@ -174,7 +221,17 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       if (!relevant.length) group.append(element("p", "source-explorer-status", "No resolved calls."));
       for (const edge of relevant) {
         const target = nodes.find((node) => key(node) === key(edge[endpoint]));
-        if (target) group.append(button(`${target.name} · ${target.file} · call at ${edge.file}:${edge.line}:${edge.column}`, () => navigate(target)));
+        const owner = nodes.find((node) => key(node) === key(edge.source));
+        if (target && owner?.hash && owner.file === edge.file) {
+          const row = element("div", "function-graph-edge");
+          const siteButton = button(`${target.name} · ${target.file} · call at ${edge.file}:${edge.line}:${edge.column}`, () => navigate(owner, { line: edge.line, column: edge.column }));
+          const declaration = button("Go to declaration", () => navigate(target));
+          declaration.setAttribute("aria-label", `Go to declaration of ${target.name} in ${target.file}`);
+          siteButton.dataset.navigationFocus = `edge:${label}:${edge.file}:${edge.line}:${edge.column}`;
+          declaration.dataset.navigationFocus = `${siteButton.dataset.navigationFocus}:declaration`;
+          row.append(siteButton, declaration);
+          group.append(row);
+        }
       }
       section.append(group);
     }
@@ -183,13 +240,15 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     const detail = panel.querySelector(".source-explorer-detail");
     const section = detail?.querySelector(".function-graph");
     if (!section) return;
-    graph?.destroy(); graph = null; section.remove(); renderGraph(detail);
+    graph?.destroy(); graph = null; section.remove(); renderGraph(detail); rendering = true; const restoredFocus = restoreFocus(); rendering = false;
+    if (restoredFocus) onNavigate(true);
   }
   async function open(path, sourceTrigger = document.activeElement, restored = null) {
     close(); trigger = sourceTrigger; anchor = path; file = restored?.file || path; query = restored?.query || ""; panel.hidden = false;
+    restoring = !!restored; restoreFocusCancelled = false; pageMoved = false;
     if (!restored) onNavigate();
     panel.setAttribute("aria-label", `Source explorer for ${file}`); panel.tabIndex = -1; render();
-    panel.focus({ preventScroll: true }); panel.scrollIntoView?.({ block: "start" });
+    rendering = true; panel.focus({ preventScroll: true }); rendering = false; if (!restored) panel.scrollIntoView?.({ block: "start" });
     panel.append(element("p", "source-explorer-status", "Loading source…"));
     const sequence = ++request; controller = new AbortController();
     try {
@@ -201,11 +260,19 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       const result = await response.json();
       if (sequence !== request) return;
       data = result; selected = restored?.symbol ? data.symbols.find((item) => item.id === restored.symbol) : null;
-      render(selected && panel.contains(document.activeElement) ? { detail: true } : undefined);
+      if (restored?.sourceHash && restored.sourceHash !== data.hash) restored = { file: restored.file, symbol: restored.symbol, query: restored.query, location: restored.location, invalidLocation: restored.invalidLocation };
+      if (restoreFocusCancelled) restored = { ...restored, focus: panel.contains(document.activeElement) ? document.activeElement?.dataset?.navigationFocus : null };
+      const site = restored?.location;
+      if (hasCallSite(data, selected, site)) location = site;
+      render(restored && (restored.focus || restored.scroll || restored.scrollLeft || restored.listScroll || Number.isFinite(restored.pageY)) ? { restore: restored } : selected && panel.contains(document.activeElement) ? { detail: true } : undefined);
       if (restored?.symbol && !selected) panel.append(element("p", "source-explorer-status", "The linked symbol is no longer available in this file."));
+      if ((site && !location) || restored?.invalidLocation) panel.append(element("p", "source-explorer-status", "The linked call site is no longer available in this file."));
+      restoring = false;
+      if (restored) onNavigate(true);
       if (selected) loadGraph();
     } catch (error) {
       if (sequence !== request || error.name === "AbortError") return;
+      restoring = false;
       render(); panel.append(element("p", "source-explorer-status", error.message || "Could not load source."));
     }
   }
@@ -217,5 +284,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       graph.fit(graph.elements(), 30); graphNeedsLayout = false;
     }
   }
-  return { open, close, resize, get file() { return anchor; }, get currentFile() { return file; }, get state() { return { file, symbol: selected?.id || "", query }; } };
+  panel.addEventListener("focusin", () => { if (!rendering) { pendingFocus = null; if (restoring) restoreFocusCancelled = true; else onNavigate(true); } });
+  globalThis.window?.addEventListener?.("scroll", () => { if (!rendering && !panel.hidden) { if (restoring) pageMoved = true; else onNavigate(true); } });
+  return { open, close, resize, get file() { return anchor; }, get currentFile() { return file; }, get state() { const { scroll, scrollLeft, listScroll, pageX, pageY, unresolvedOpen, focus } = snapshot(); return { file, symbol: selected?.id || "", query, location, sourceHash: data?.hash || "", scroll, scrollLeft, listScroll, pageX, pageY, unresolvedOpen, focus }; } };
 }

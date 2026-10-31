@@ -1432,6 +1432,8 @@ li {
 .source-explorer-line.is-selected { background: #38443b; }
 .source-explorer-calls { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
 .source-explorer-calls h4, .source-explorer-calls p { width: 100%; }
+.source-explorer-call, .function-graph-edge { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+.source-explorer-call button, .function-graph-edge button { text-align: left; overflow-wrap: anywhere; }
 .source-explorer-unresolved { width: 100%; color: var(--muted); font-size: 12px; }
 .source-explorer-unresolved button { display: block; margin-top: 6px; max-width: 100%; white-space: normal; text-align: left; overflow-wrap: anywhere; }
 .function-graph { margin-top: 18px; min-width: 0; }

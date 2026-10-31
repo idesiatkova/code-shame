@@ -1,6 +1,7 @@
 import { overview, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
 import { createStyledSelect } from "./styled-select.js";
 import { createSourceExplorer } from "./source-explorer.js";
+import { readLocation, matchingSavedState } from "./source-navigation.js";
 import { createProjectExplorer } from "./project-explorer.js";
 import { renderWorkspaceOverview } from "./architecture-workspace.js";
 
@@ -50,10 +51,12 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       if (state.file !== selected) params.set("source", state.file);
       if (state.symbol) params.set("symbol", state.symbol);
       if (state.query) params.set("q", state.query);
+      if (state.location) { params.set("line", state.location.line); params.set("column", state.location.column); params.set("hash", state.location.hash); }
     }
     const hash = params.toString();
     const url = `${window.location.pathname}${window.location.search}${hash ? `#${hash}` : ""}`;
-    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== url) window.history[replace ? "replaceState" : "pushState"](null, "", url);
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (replace || currentUrl !== url) window.history[replace ? "replaceState" : "pushState"]({ source: mode === "source" ? sourceExplorer.state : null }, "", url);
   }
   function restoreNavigation() {
     if (!navigationReady || !window.location) return;
@@ -73,7 +76,12 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     navigationStatus.textContent = invalid ? "This link refers to a file, directory, or view that is not available in this project." : mode === "map" && (!validView || !validDirection || !validDepth || !validCycle) ? "Some map options in this link are unavailable; default options are shown." : "";
     renderBrowser();
     if (selected) explorer.reveal(selected);
-    if (mode === "source") sourceExplorer.open(selected, browserHeader.querySelector('[data-mode="source"]'), { file: source, symbol: params.get("symbol"), query: params.get("q") });
+    if (mode === "source") {
+      const { location, invalid } = readLocation(params);
+      const symbol = params.get("symbol");
+      const saved = invalid ? null : matchingSavedState(window.history.state?.source, source, symbol, location);
+      sourceExplorer.open(selected, browserHeader.querySelector('[data-mode="source"]'), { ...saved, file: source, symbol, query: params.get("q"), location, invalidLocation: invalid });
+    }
     else browserHeader.querySelector(".architecture-selected-file")?.focus();
   }
   if (typeof window !== "undefined") window.addEventListener?.("popstate", restoreNavigation);

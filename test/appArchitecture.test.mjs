@@ -76,8 +76,9 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   class Element {
     constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; this.classList = { toggle() {}, add() {} }; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
-    replaceChildren(...children) { this.children = children; }
-    append(...children) { this.children.push(...children); }
+    replaceChildren(...children) { this.children = children; children.forEach((child) => { child.parent = this; }); }
+    append(...children) { this.children.push(...children); children.forEach((child) => { child.parent = this; }); }
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter((child) => child !== this); }
     prepend(...children) { this.children.unshift(...children); }
     before(element) { this.beforeElement = element; }
     after(element) { this.afterElement = element; }
@@ -86,6 +87,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     getAttribute(key) { return this.attributes[key] || key; }
     querySelector(selector) {
       if (selector === ".architecture-search") return this.searchContainer;
+      if (selector.startsWith(".")) return this.children.find((child) => child.className === selector.slice(1)) || this.children.map((child) => child.querySelector?.(selector)).find(Boolean) || null;
       const mode = selector.match(/^\[data-mode="(.+)"\]$/)?.[1];
       if (!mode) return null;
       return this.children.find((child) => child.dataset?.mode === mode) || this.children.map((child) => child.querySelector?.(selector)).find(Boolean) || null;
@@ -103,7 +105,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     querySelectorAll(selector) { return selector === "input, select, button" ? this.controls : this.children.filter((child) => child.type === "button"); }
     fire(name, event) { this.listeners[name]?.(event); }
   }
-  const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option, oldResizeObserver = globalThis.ResizeObserver;
+  const oldDocument = globalThis.document, oldWindow = globalThis.window, oldOption = globalThis.Option, oldResizeObserver = globalThis.ResizeObserver, oldFetch = globalThis.fetch;
   let resize;
   globalThis.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} };
   const created = [];
@@ -113,7 +115,8 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const locations = ["/?page=architecture"], location = { pathname: "/", search: "?page=architecture", hash: "" }, listeners = {};
   let position = 0;
   const setLocation = (url) => { const parsed = new URL(url, "http://localhost"); Object.assign(location, { pathname: parsed.pathname, search: parsed.search, hash: parsed.hash }); };
-  const history = { pushState(_state, _title, url) { locations.splice(++position, Infinity, url); setLocation(url); }, replaceState(_state, _title, url) { locations[position] = url; setLocation(url); }, go(delta) { position += delta; setLocation(locations[position]); listeners.popstate(); } };
+  const states = [null];
+  const history = { get state() { return states[position]; }, pushState(state, _title, url) { locations.splice(++position, Infinity, url); states.splice(position, Infinity, state); setLocation(url); }, replaceState(state, _title, url) { locations[position] = url; states[position] = state; setLocation(url); }, go(delta) { position += delta; setLocation(locations[position]); listeners.popstate(); } };
   globalThis.window = { location, history, addEventListener(name, listener) { listeners[name] = listener; }, cytoscape: (options) => {
     const graph = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true });
     lastGraph = graph;
@@ -332,7 +335,24 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(diagnostics.hidden, false);
     assert.equal(diagnostics.children[1].children[0].textContent, "Unresolved imports <example>");
     renderer.clear();
-  } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; }
+    const hash = "a".repeat(64), symbol = { id: "f", name: "f", kind: "function", startLine: 1, endLine: 2, signature: "f()" };
+    const source = { file: "domain/checkout.ts", hash, source: "function f() {\n call(); }", symbols: [symbol], calls: [{ name: "call", ownerId: "f", line: 2, column: 2 }], diagnostics: [] };
+    globalThis.fetch = async (url) => ({ ok: true, json: async () => url.startsWith("/api/source?") ? source : { root: { ...symbol, hash }, nodes: [], edges: [], coverage: { files: [] } } });
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=source&symbol=f");
+    const renderer2 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer2.render(model); await new Promise(setImmediate);
+    const sourcePanel = created.filter((element) => element.className === "source-explorer").at(-1);
+    const detail = () => sourcePanel.querySelector(".source-explorer-detail");
+    const unresolved = detail().querySelector(".source-explorer-unresolved"); unresolved.open = true;
+    unresolved.children[1].children[0].fire("click"); await new Promise(setImmediate);
+    assert.match(location.hash, /line=2&column=2&hash=/); assert.match(location.hash, new RegExp(hash));
+    assert.equal(history.state.source.location.line, 2);
+    history.go(-1); await new Promise(setImmediate); assert.equal(history.state.source.location, null);
+    history.go(1); await new Promise(setImmediate); assert.equal(history.state.source.location.line, 2);
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=source&symbol=f&line=2"); listeners.popstate(); await new Promise(setImmediate);
+    assert.ok(sourcePanel.children.some((child) => /linked call site is no longer available/.test(child.textContent || "")));
+    renderer2.clear();
+  } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; globalThis.fetch = oldFetch; }
 });
 
 test("analytics uses the full graph for unique consumers and cycle groups", async () => {
