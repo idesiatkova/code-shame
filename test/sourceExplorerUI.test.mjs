@@ -34,6 +34,8 @@ test("source explorer preserves keyboard context and ignores stale responses", a
     assert.equal(panel.attributes["aria-label"], "Source explorer for second.js");
     const workspace = () => panel.children.find((node) => node.className === "source-explorer-workspace");
     let [search, list] = workspace().children[0].children;
+    assert.equal(list.children[0].children[0].textContent, "f"); assert.equal(list.children[0].children[1].textContent, "function · lines 1–6");
+    assert.equal(list.children[0].attributes["aria-label"], "f · function · lines 1–6");
     search.value = "f"; search.listeners.input(); list.children[0].click();
     const detail = workspace().children[1];
     assert.equal(document.activeElement, detail.children[0]);

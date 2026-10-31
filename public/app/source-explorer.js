@@ -113,8 +113,10 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       const update = () => {
         const matches = data.symbols.filter((symbol) => symbols.describe(symbol).searchText.toLowerCase().includes(search.value.toLowerCase()));
         list.replaceChildren(...matches.map((symbol) => {
-          const item = button(`${symbols.describe(symbol).label} · ${symbol.kind} · lines ${symbol.startLine}–${symbol.endLine}`, () => select(symbol));
-          item.className = "source-explorer-item"; item.dataset.navigationFocus = `symbol:${symbol.id}`; item.title = item.textContent; item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
+          const label = symbols.describe(symbol).label, metadata = `${symbol.kind} · lines ${symbol.startLine}–${symbol.endLine}`;
+          const item = button("", () => select(symbol));
+          item.append(element("span", "source-explorer-item-name", label), element("span", "source-explorer-item-meta", metadata));
+          item.className = "source-explorer-item"; item.dataset.navigationFocus = `symbol:${symbol.id}`; item.title = `${label} · ${metadata}`; item.setAttribute("aria-label", item.title); item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
           if (focusTarget === symbol.id) inventoryTarget = item;
           return item;
         }));
