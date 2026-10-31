@@ -91,7 +91,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
         const matches = data.symbols.filter((symbol) => `${symbol.name} ${symbol.kind} ${symbol.signature}`.toLowerCase().includes(search.value.toLowerCase()));
         list.replaceChildren(...matches.map((symbol) => {
           const item = button(`${symbol.name} · ${symbol.kind} · lines ${symbol.startLine}–${symbol.endLine}`, () => select(symbol));
-          item.className = "source-explorer-item"; item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
+          item.className = "source-explorer-item"; item.title = item.textContent; item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
           if (focusTarget === symbol.id) inventoryTarget = item;
           return item;
         }));

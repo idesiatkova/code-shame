@@ -1,6 +1,8 @@
 import { overview, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
 import { createStyledSelect } from "./styled-select.js";
 import { createSourceExplorer } from "./source-explorer.js";
+import { createProjectExplorer } from "./project-explorer.js";
+import { renderWorkspaceOverview } from "./architecture-workspace.js";
 
 const NODE_WIDTH = 142;
 const NODE_HEIGHT = 48;
@@ -14,7 +16,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   browser.className = "architecture-browser";
   const browserHeader = document.createElement("div");
   const updating = document.createElement("p"); updating.className = "architecture-scope"; updating.textContent = "Updating project structure…"; updating.hidden = true;
-  const browserInventory = document.createElement("div");
+  const browserInventory = document.createElement("div"); browserInventory.className = "architecture-inventory";
   const workspace = document.createElement("div"); workspace.className = "architecture-workspace";
   const overviewPanel = document.createElement("div");
   browser.append(browserInventory, workspace);
@@ -26,7 +28,11 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   let projectName = "";
   let structure = { directories: [], entryPoints: [], scope: { listedFileCount: 0 } };
   let directory = ".", mode = "overview";
-  const expanded = new Set();
+  let filesVisible = true;
+  const explorer = createProjectExplorer({ container: browserInventory, onSelect: ({ path, kind }) => {
+    if (kind === "file") selectFile(path, false, true);
+    else selectOverview(path, true);
+  } });
   function showMode(next) {
     mode = next;
     overviewPanel.hidden = mode !== "overview";
@@ -36,26 +42,28 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (mode === "map" && currentModel) draw();
     if (mode === "source") sourceExplorer.resize();
   }
-  function ancestors(path) {
-    const parts = path.split("/"); parts.pop();
-    for (let i = 1; i <= parts.length; i++) expanded.add(parts.slice(0, i).join("/"));
-  }
-  function selectOverview(path = ".") {
+  function selectOverview(path = ".", preserveTreeFocus = false) {
     directory = path; selected = null; cycleMember = null; view.value = "dependencies"; cycle.value = "";
     dropdowns[3].refresh(); dropdowns[4].refresh(); sourceExplorer.close(); search.value = ""; refreshSearch();
-    mode = "overview"; renderBrowser(); browserHeader.querySelector(".architecture-selected-file")?.focus();
+    mode = "overview"; renderBrowser(); if (!preserveTreeFocus) browserHeader.querySelector(".architecture-selected-file")?.focus();
   }
-  function selectFile(path, preserveView = false) {
+  function selectFile(path, preserveView = false, preserveTreeFocus = false) {
     selected = path; cycleMember = null; if (!preserveView) view.value = "dependencies"; dropdowns[3].refresh();
-    directory = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "."; ancestors(path);
+    directory = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "."; if (!preserveTreeFocus) explorer.reveal(path);
     mode = mode === "map" ? "map" : "overview";
     sourceExplorer.close(); renderBrowser();
-    browser.querySelector(".architecture-selected-file")?.focus();
+    if (!preserveTreeFocus) browser.querySelector(".architecture-selected-file")?.focus();
   }
-  function renderBrowser(preserveHeader = false) {
-    browserInventory.replaceChildren();
-    if (!preserveHeader) {
+  function renderBrowser() {
     browserHeader.replaceChildren();
+    const filesToggle = document.createElement("button");
+    filesToggle.type = "button"; filesToggle.className = "architecture-files-toggle";
+    filesToggle.textContent = "Files"; filesToggle.setAttribute("aria-expanded", String(filesVisible));
+    filesToggle.addEventListener("click", () => {
+      filesVisible = !filesVisible;
+      browser.classList.toggle("files-hidden", !filesVisible);
+      filesToggle.setAttribute("aria-expanded", String(filesVisible));
+    });
     const heading = document.createElement("p"); heading.className = "architecture-scope";
     heading.textContent = `${projectName || "Project"} · ${formatNumber(structure.scope.listedFileCount)} listed files in analysis`;
     browserHeader.append(heading);
@@ -65,61 +73,17 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (selected || directory !== ".") { const backOverview = document.createElement("button"); backOverview.type = "button"; backOverview.className = "secondary-button"; backOverview.textContent = "Project overview"; backOverview.addEventListener("click", () => selectOverview()); panel.append(backOverview); }
     browserHeader.append(panel);
     const tabs = document.createElement("div"); tabs.className = "architecture-workspace-tabs"; tabs.setAttribute("role", "group"); tabs.setAttribute("aria-label", "Workspace view");
-    for (const [name, value] of [[selected ? "File" : "Overview", "overview"], ["Source", "source"], ["Dependency map", "map"]]) {
+    for (const [name, value] of [[selected ? "File" : "Overview", "overview"], ["Source", "source"], ["Dependencies", "map"]]) {
       if (value === "source" && !selected) continue;
       const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button"; button.textContent = name; button.dataset.mode = value;
       button.addEventListener("click", () => { if (value === "source" && !sourceExplorer.file) { showMode(value); sourceExplorer.open(selected, button); } else showMode(value); }); tabs.append(button);
     }
-    browserHeader.append(tabs, updating);
-    }
-    const title = document.createElement("h3"); title.textContent = "Project files"; browserInventory.append(title);
-    const collapse = document.createElement("button"); collapse.type = "button"; collapse.className = "secondary-button"; collapse.textContent = "Collapse folders"; collapse.addEventListener("click", () => { expanded.clear(); renderBrowser(true); browserInventory.querySelector(".secondary-button")?.focus(); }); browserInventory.append(collapse);
-    const dirList = document.createElement("div"); dirList.className = "architecture-directory-list"; browserInventory.append(dirList);
-    const fileButton = (path) => { const button = document.createElement("button"); button.type = "button"; button.textContent = path; button.setAttribute("aria-current", String(path === selected)); button.addEventListener("click", () => selectFile(path)); return button; };
+    browserHeader.append(tabs, updating, filesToggle);
     const allFiles = structure.directories.flatMap((item) => item.files).sort((a, b) => a.localeCompare(b));
-    const dirs = new Set(["."]);
-    for (const path of allFiles) { const parts = path.split("/"); parts.pop(); for (let i = 1; i <= parts.length; i++) dirs.add(parts.slice(0, i).join("/")); }
-    const root = document.createElement("button"); root.type = "button"; root.className = "architecture-directory"; root.textContent = projectName || "Project"; root.setAttribute("aria-current", String(!selected && directory === ".")); root.addEventListener("click", () => selectOverview()); dirList.append(root);
-    function branch(parent, host) {
-      const list = document.createElement("ul"); host.append(list);
-      const children = [...dirs].filter((path) => path !== "." && (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ".") === parent).sort((a, b) => a.localeCompare(b));
-      for (const path of children) {
-        const item = document.createElement("li"), row = document.createElement("div"); row.className = "architecture-tree-row";
-        const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "architecture-folder-toggle"; toggle.textContent = expanded.has(path) ? "▾" : "▸"; toggle.setAttribute("aria-label", `${expanded.has(path) ? "Collapse" : "Expand"} ${path}`); toggle.setAttribute("aria-expanded", String(expanded.has(path)));
-        toggle.addEventListener("click", () => { expanded.has(path) ? expanded.delete(path) : expanded.add(path); renderBrowser(true); [...browserInventory.querySelectorAll(".architecture-folder-toggle")].find((button) => button.getAttribute("aria-label")?.endsWith(` ${path}`))?.focus(); });
-        const button = document.createElement("button"); button.type = "button"; button.className = "architecture-directory"; button.textContent = path.split("/").pop(); button.setAttribute("aria-current", String(!selected && path === directory)); button.addEventListener("click", () => selectOverview(path)); row.append(toggle, button); item.append(row); if (expanded.has(path)) branch(path, item); list.append(item);
-      }
-      for (const path of allFiles.filter((file) => (file.includes("/") ? file.slice(0, file.lastIndexOf("/")) : ".") === parent)) { const item = document.createElement("li"); const button = fileButton(path); button.textContent = path.split("/").pop(); item.append(button); list.append(item); }
-    }
-    branch(".", dirList);
-    if (preserveHeader) return;
-    overviewPanel.replaceChildren();
-    if (selected) {
-      const note = document.createElement("p"), data = analysis?.data;
-      note.textContent = data?.files.has(selected) ? `Direct relationships${data.graph.complete ? "" : " · partial dependency graph"}` : "This listed file is not present in the dependency graph."; overviewPanel.append(note);
-      if (data?.files.has(selected)) for (const [title, paths] of [["Imported by", analysis.incoming.get(selected)], ["Imports", analysis.outgoing.get(selected)]]) {
-        const group = document.createElement("div"); group.className = "architecture-file-relations"; const heading = document.createElement("h3"); heading.textContent = `${title} (${paths.length})`; group.append(heading);
-        if (!paths.length) { const empty = document.createElement("p"); empty.textContent = "None reported."; group.append(empty); }
-        const more = document.createElement("details"); const summary = document.createElement("summary"); summary.textContent = `Show ${Math.max(0, paths.length - 20)} more`; more.append(summary);
-        paths.forEach((path, index) => (index < 20 ? group : more).append(fileButton(path))); if (paths.length > 20) group.append(more); overviewPanel.append(group);
-      }
-      showMode(mode); return;
-    }
-    if (directory !== ".") { const files = allFiles.filter((path) => path.startsWith(`${directory}/`)); const note = document.createElement("p"); note.textContent = `${formatNumber(files.length)} listed files in ${directory}/`; overviewPanel.append(note); for (const path of files) overviewPanel.append(fileButton(path)); showMode(mode); return; }
-    const entries = document.createElement("div"); entries.className = "architecture-entries";
-    const entryTitle = document.createElement("h3"); entryTitle.textContent = "Entry points"; entries.append(entryTitle);
-    if (!structure.entryPoints.length) { const empty = document.createElement("p"); empty.textContent = "No entry points reported."; entries.append(empty); }
-    const entryList = document.createElement("div"); entryList.className = "architecture-entry-list"; entries.append(entryList);
-    const testEntries = structure.entryPoints.filter((entry) => /(^|\/)(?:test|tests|__tests__)(\/|$)|\.(?:test|spec)\.[^/]+$/i.test(entry.path));
-    const testGroup = document.createElement("details");
-    if (testEntries.length) { const summary = document.createElement("summary"); summary.textContent = `Test entry points (${testEntries.length})`; testGroup.append(summary); const note = document.createElement("p"); note.textContent = "Grouped by test directory or filename."; testGroup.append(note); }
-    for (const entry of structure.entryPoints) {
-      const row = document.createElement("div"); row.className = "architecture-entry";
-      row.append(fileButton(entry.path));
-      const evidence = document.createElement("small"); evidence.textContent = entry.evidence; row.append(evidence); (testEntries.includes(entry) ? testGroup : entryList).append(row);
-    }
-    if (testEntries.length) entryList.append(testGroup);
-    overviewPanel.append(entries); showMode(mode);
+    explorer.update({ files: allFiles, projectName, selectedPath: selected || directory, selectedKind: selected ? "file" : directory === "." ? "project" : "directory" });
+    const fileButton = (path) => { const button = document.createElement("button"); button.type = "button"; button.textContent = path; button.setAttribute("aria-current", String(path === selected)); button.addEventListener("click", () => selectFile(path)); return button; };
+    renderWorkspaceOverview({ overviewPanel, selected, directory, allFiles, structure, analysis, fileButton });
+    showMode(mode);
   }
   let graph = null;
   let currentModel = null;
@@ -136,13 +100,18 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     <button type="button" class="secondary-button">Back to layers</button>
     <label>View <select aria-label="Graph view"><option value="dependencies">Dependencies</option><option value="impact">Impact</option><option value="cycles">Cycles</option></select></label>
     <label>Cycle group <select aria-label="Cycle group"><option value="">Select a cycle</option></select></label></div><p class="architecture-control-hint"></p></details>`;
-  browser.before(controls);
   const secondary = controls.querySelector?.(".architecture-secondary");
+  const [search, results, direction, depth, back, view, cycle] = controls.querySelectorAll("input, select, button");
+  const inventoryHeader = document.createElement("div"); inventoryHeader.className = "architecture-inventory-header";
+  const inventoryTitle = document.createElement("h3"); inventoryTitle.textContent = "Explorer";
+  const collapse = document.createElement("button"); collapse.type = "button"; collapse.className = "architecture-collapse"; collapse.title = "Collapse all folders"; collapse.setAttribute("aria-label", "Collapse all folders"); collapse.textContent = "⊟";
+  collapse.addEventListener("click", () => explorer.collapseAll());
+  inventoryHeader.append(inventoryTitle, collapse);
+  browserInventory.prepend(inventoryHeader, controls.querySelector(".architecture-search"));
   const graphNote = document.createElement("p");
   graphNote.className = "architecture-graph-note";
   graphNote.textContent = "Arrows show static imports, not HTTP calls or callbacks. Select a layer to highlight it and its context.";
   legend.before(graphNote);
-  const [search, results, direction, depth, back, view, cycle] = controls.querySelectorAll("input, select, button");
   legend.before(secondary);
   const searchList = document.createElement("div");
   searchList.id = "architecture-file-results";
@@ -250,12 +219,13 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     sourceExplorer.close();
     updating.hidden = true;
     destroyGraph(); currentModel = null; selected = null; activeLayer = null; analysis = null;
-    search.value = ""; direction.value = "both"; depth.value = "1"; view.value = "dependencies"; cycle.value = "";
+    structure = { directories: [], entryPoints: [], scope: { listedFileCount: 0 } };
+    search.value = ""; search.disabled = true; showResults(false); searchList.replaceChildren(); direction.value = "both"; depth.value = "1"; view.value = "dependencies"; cycle.value = "";
     cycle.replaceChildren(new Option("Select a cycle", ""));
     results.replaceChildren(new Option("Search for a file", ""));
     dropdowns.forEach((dropdown) => dropdown.refresh());
     diagnostics.hidden = true; diagnosticsList.replaceChildren();
-    controls.hidden = true; graphNote.hidden = true; back.hidden = true; context.hidden = true; browserHeader.replaceChildren(); browserInventory.replaceChildren(); overviewPanel.replaceChildren(); overviewPanel.hidden = true; map.hidden = true;
+    controls.hidden = true; graphNote.hidden = true; back.hidden = true; context.hidden = true; browserHeader.replaceChildren(); explorer.clear(); overviewPanel.replaceChildren(emptyState(message)); overviewPanel.hidden = false; map.hidden = true;
     container.replaceChildren(emptyState(message));
     legend.replaceChildren(); stats.textContent = "";
     renderPrompt(details, "Search for a file to explore its dependencies.");
@@ -263,6 +233,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   function render(model, projectId) {
     if (model?.state === "running" && currentModel && projectName === (projectId || "Project")) { updating.hidden = false; return; }
     if (model?.state !== "ready") { clear(unavailableMessage(model)); return; }
+    search.disabled = false;
     updating.hidden = true;
     const newProject = !currentModel || projectName !== (projectId || "Project");
     if (newProject) sourceExplorer.close();
@@ -272,7 +243,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     const grouped = new Map();
     for (const node of fallbackFiles) { const parent = node.path.includes("/") ? node.path.slice(0, node.path.lastIndexOf("/")) : "."; if (!grouped.has(parent)) grouped.set(parent, []); grouped.get(parent).push(node.path); }
     structure = model.overview || { directories: [...grouped].map(([path, files]) => ({ path, files: files.sort() })).sort((a, b) => a.path.localeCompare(b.path)), entryPoints: fallbackFiles.filter((node) => node.entryPoint).map((node) => ({ path: node.path, evidence: "Reported as an entry point" })), scope: { listedFileCount: model.totalFileCount ?? fallbackFiles.length } };
-    if (newProject) { directory = "."; selected = null; mode = "overview"; expanded.clear(); }
+    if (newProject) { directory = "."; selected = null; mode = "overview"; explorer.clear(); }
     const reasons = model.projectGraph?.complete === false ? model.projectGraph.diagnostics || [] : [];
     diagnostics.hidden = reasons.length === 0;
     diagnosticsList.replaceChildren(...reasons.map((reason) => { const item = document.createElement("li"); item.textContent = reason; return item; }));

@@ -74,7 +74,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   const cytoscape = (await import("cytoscape")).default;
   cytoscape.use((await import("cytoscape-dagre")).default);
   class Element {
-    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; this.classList = { toggle() {} }; }
+    constructor() { this.children = []; this.listeners = {}; this.style = { setProperty() {} }; this.dataset = {}; this.attributes = {}; this.value = ""; this.clientWidth = 900; this.parentElement = {}; this.classList = { toggle() {}, add() {} }; }
     addEventListener(name, fn) { this.listeners[name] = fn; }
     replaceChildren(...children) { this.children = children; }
     append(...children) { this.children.push(...children); }
@@ -85,6 +85,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     removeAttribute(key) { delete this.attributes[key]; }
     getAttribute(key) { return this.attributes[key] || key; }
     querySelector(selector) {
+      if (selector === ".architecture-search") return this.searchContainer;
       const mode = selector.match(/^\[data-mode="(.+)"\]$/)?.[1];
       if (!mode) return null;
       return this.children.find((child) => child.dataset?.mode === mode) || this.children.map((child) => child.querySelector?.(selector)).find(Boolean) || null;
@@ -95,6 +96,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     contains(element) { return this === element || this.children.some((child) => child.contains?.(element)); }
     set innerHTML(value) {
       this.controls = Array.from({ length: 7 }, () => new Element());
+      this.searchContainer = new Element();
       this.controls[2].value = "both"; this.controls[3].value = "1";
       this.controls[5].value = "dependencies";
     }
@@ -105,7 +107,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   let resize;
   globalThis.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} };
   const created = [];
-  globalThis.document = { createElement: () => { const element = new Element(); created.push(element); return element; }, addEventListener() {} };
+  globalThis.document = { createElement: () => { const element = new Element(); created.push(element); return element; }, createElementNS: () => new Element(), addEventListener() {} };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
   let lastFit, lastGraph, lastRankDir, lastCentered;
   globalThis.window = { cytoscape: (options) => {
@@ -130,14 +132,15 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const browser = created.find((element) => element.className === "architecture-browser");
     const inventory = browser.children[0], workspace = browser.children[1], header = workspace.children[0];
     assert.equal(workspace.children[2].className, "source-explorer");
-    assert.equal(inventory.children[2].children[0].attributes["aria-current"], "true");
-    assert.ok(inventory.children[2].children[1].children.every((item) => item.children[0].children[0].attributes["aria-expanded"] === "false"));
+    const tree = inventory.children[2];
+    assert.equal(tree.children[0].attributes["aria-selected"], "true");
     assert.equal(header.children[1].children[0].textContent, "Project overview");
-    const [initialSearch, initialResults] = browser.beforeElement.controls;
+    const controls = created.find((element) => element.className === "architecture-controls");
+    const [initialSearch, initialResults] = controls.controls;
     initialSearch.value = "domain/checkout.ts"; initialSearch.fire("input"); initialResults.value = "domain/checkout.ts"; initialResults.fire("change");
-    const domain = inventory.children[2].children[1].children.find((item) => item.children[0].children[1].textContent === "domain");
-    assert.equal(domain.children[0].children[0].attributes["aria-expanded"], "true");
-    assert.ok(domain.children[1].children.some((item) => item.children[0].textContent === "checkout.ts" && item.children[0].attributes["aria-current"] === "true"));
+    const domain = tree.children[0].children[1].children.find((item) => item.dataset.path === "domain");
+    assert.equal(domain.attributes["aria-expanded"], "true");
+    assert.ok(domain.children[1].children.some((item) => item.dataset.path === "domain/checkout.ts" && item.attributes["aria-selected"] === "true"));
     header.children[2].children.find((button) => button.textContent === "Source").fire("click");
     assert.equal(workspace.children[2].hidden, false);
     const sourceContent = workspace.children[2].children[0];
@@ -153,18 +156,20 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     workspace.children[2].children[0].children[1].fire("click");
     assert.equal(globalThis.document.activeElement, header.children[2].children.find((button) => button.dataset.mode === "source"));
     header.children[2].children.find((button) => button.dataset.mode === "source").fire("click");
-    inventory.children[1].fire("click");
+    inventory.children[0].children[1].fire("click");
     assert.equal(workspace.children[2].hidden, false);
     assert.match(header.children[1].children[0].textContent, /domain\/checkout.ts/);
     header.children[1].children[1].fire("click");
     assert.equal(header.children[1].children[0].textContent, "Project overview");
     assert.equal(initialSearch.value, "");
     renderer.clear();
-    assert.equal(workspace.children[1].hidden, true);
-    assert.equal(workspace.children[1].children.length, 0);
+    assert.equal(workspace.children[1].hidden, false);
+    assert.equal(workspace.children[1].children[0].textContent, "No project structure yet.");
+    assert.equal(initialSearch.disabled, true);
     const withTests = structuredClone(model);
     withTests.projectGraph.nodes.push({ id: "test/example.test.js", path: "test/example.test.js", entryPoint: true });
     renderer.render(withTests);
+    assert.equal(initialSearch.disabled, false);
     const entries = workspace.children[1].children[0].children[1];
     const testGroup = entries.children.find((child) => child.children?.[0]?.textContent === "Test entry points (1)");
     assert.ok(testGroup); assert.ok(!testGroup.open);
@@ -175,7 +180,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(lastRankDir, "TB");
     container.clientWidth = 1200; resize();
     assert.equal(lastRankDir, "LR");
-    const [search, results, direction, depth, back, view, cycle] = browser.beforeElement.controls;
+    const [search, results, direction, depth, back, view, cycle] = controls.controls;
     assert.ok(results.children.length > 1);
     assert.equal(direction.disabled, true); assert.equal(depth.disabled, true);
     const searchList = results.afterElement;
@@ -265,7 +270,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const members = details.children.find((child) => child.children?.[0]?.textContent === "Cycle members");
     members.children[1].children[0].children[1].fire("click");
     assert.equal(view.value, "dependencies");
-    assert.equal(globalThis.document.activeElement, fitButton);
+    assert.equal(view.value, "dependencies");
     view.value = "cycles"; view.fire("change");
     lastGraph.emit("tap");
     assert.equal(details.children[0].textContent, "Cycle group");

@@ -1112,12 +1112,14 @@ li {
 }
 
 .architecture-panel {
-  border-color: rgba(90, 167, 255, 0.5);
+  padding: 0;
+  border: 0;
+  background: transparent;
   overflow: clip;
 }
 
 .architecture-header {
-  align-items: flex-start;
+  display: none;
 }
 
 .section-title-architecture {
@@ -1338,31 +1340,17 @@ li {
 }
 
 .architecture-controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: start; margin: 12px 0; }
-.architecture-browser { min-width: 0; display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 14px; align-items: start; }
-.architecture-browser > div { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: #151916; }
-.architecture-workspace-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.architecture-workspace-tabs button, .architecture-browser > div:first-child > button { min-height: 30px; padding: 5px 9px; font-size: 12px; font-weight: 600; }
-.architecture-workspace-tabs [aria-current="true"] { background: #38443b; color: var(--ink); }
-.architecture-file-relations { margin-top: 12px; }
 .architecture-file-relations button { display: block; max-width: 100%; padding: 4px 7px; border: 0; background: transparent; color: #8bbcff; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.architecture-directory-list { display: block; margin-top: 8px; max-height: 420px; overflow: auto; }
-.architecture-directory-list ul { list-style: none; margin: 0; padding-left: 14px; }
-.architecture-tree-row { display: flex; align-items: start; }
-.architecture-tree-row .architecture-directory { flex: 1; }
-.architecture-directory-list .architecture-folder-toggle { flex: none; padding: 5px; color: var(--muted); }
 .architecture-workspace > div[hidden], .architecture-workspace > section[hidden] { display: none; }
 .architecture-scope { margin: 0 0 12px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.architecture-browser-grid { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 1.5fr) minmax(0, 1.2fr); gap: 14px; }
-.architecture-browser-grid > div { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 7px; background: #151916; }
 .architecture-browser h3 { margin: 0 0 8px; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
-.architecture-browser-files { display: grid; gap: 3px; max-height: 240px; overflow: auto; }
-.architecture-directory-list button, .architecture-browser-files button, .architecture-entry button { min-width: 0; padding: 5px 7px; border: 0; border-radius: 4px; background: transparent; color: #8bbcff; font-size: 12px; line-height: 1.4; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.architecture-directory-list button:hover, .architecture-directory-list button[aria-current="true"], .architecture-browser-files button:hover, .architecture-browser-files button[aria-current="true"], .architecture-entry button:hover, .architecture-entry button[aria-current="true"] { background: #38443b; }
+.architecture-entry button, .architecture-directory-files button { min-width: 0; padding: 5px 7px; border: 0; border-radius: 4px; background: transparent; color: #8bbcff; font-size: 12px; line-height: 1.4; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.architecture-entry button:hover, .architecture-directory-files button:hover { background: #38443b; }
 .architecture-browser button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .architecture-entry { display: grid; margin-bottom: 8px; }
 .architecture-entry-list { max-height: 240px; overflow: auto; }
 .architecture-entry-list summary { color: var(--ink); font-size: 12px; cursor: pointer; }
-.architecture-entry small, .architecture-browser-grid p, .architecture-browser-files { color: var(--muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.architecture-entry small { color: var(--muted); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .architecture-entry small { padding: 0 7px; }
 .architecture-selected-file { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; font-size: 12px; overflow-wrap: anywhere; }
 .architecture-selected-file strong { min-width: 0; flex: 1 1 200px; }
@@ -1374,11 +1362,7 @@ li {
   .topbar { gap: 8px; }
   .toolbar { flex-direction: row; flex-wrap: wrap; gap: 4px 12px; }
   .toolbar-actions { flex-direction: row; align-items: center; gap: 8px; padding: 0; border: 0; }
-  .architecture-browser { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .architecture-browser-grid > div { padding: 9px; }
   .architecture-entries { grid-column: 1 / -1; grid-row: 1; }
-  .architecture-directory-list { max-height: min(280px, 35vh); }
-  .architecture-browser-files, .architecture-entry-list { max-height: 150px; }
 }
 .architecture-controls[hidden] { display: none; }
 .architecture-map { min-width: 0; }
@@ -1424,7 +1408,7 @@ li {
 .architecture-explore:hover { border-color: var(--muted); }
 .architecture-explore:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .source-explorer-open { min-height: 30px; padding: 6px 9px; font-size: 12px; font-weight: 600; }
-.source-explorer { margin-top: 16px; padding: 16px; border: 1px solid var(--border); border-radius: 7px; background: #151916; }
+.source-explorer { margin-top: 16px; min-width: 0; }
 .source-explorer[hidden] { display: none; }
 .source-explorer-header, .source-explorer-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 .source-explorer-header h3 { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
@@ -1436,12 +1420,12 @@ li {
 .source-explorer-workspace { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .source-explorer-inventory, .source-explorer-detail { min-width: 0; }
 .source-explorer-search { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 5px; color: var(--ink); background: var(--control); font-size: 12px; }
-.source-explorer-list { display: grid; gap: 5px; max-height: 420px; overflow: auto; margin-top: 8px; padding: 2px; }
-.source-explorer-item { width: 100%; border: 1px solid var(--border); background: var(--control); color: var(--ink); text-align: left; overflow-wrap: anywhere; line-height: 1.5; }
-.source-explorer-item:hover, .source-explorer-item[aria-pressed="true"] { background: #38443b; }
+.source-explorer-list { max-height: 420px; overflow: auto; margin-top: 8px; }
+.source-explorer .source-explorer-item { display: block; width: 100%; min-height: 26px; padding: 4px 7px; border: 0; border-radius: 2px; background: transparent; color: var(--ink); font-weight: 400; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.5; }
+.source-explorer .source-explorer-item:hover, .source-explorer .source-explorer-item[aria-pressed="true"] { background: #38443b; }
 .source-explorer-detail h4 { margin: 0 0 8px; font-size: 13px; overflow-wrap: anywhere; }
 .source-explorer-signature { margin: 0 0 12px; color: var(--muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
-.source-explorer-code { max-height: 420px; overflow: auto; padding: 8px 0; border: 1px solid var(--border); border-radius: 5px; background: #101411; font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.source-explorer-code { max-height: 420px; overflow: auto; padding: 8px 0; border: 1px solid var(--border); border-radius: 5px; background: #101411; scrollbar-color: #59625d #101411; font: 12px/1.65 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .source-explorer-line { display: flex; min-width: max-content; }
 .source-explorer-line-number { flex: 0 0 48px; color: var(--muted); text-align: right; padding-right: 12px; user-select: none; }
 .source-explorer-line-text { white-space: pre; padding-right: 12px; }
@@ -1455,7 +1439,7 @@ li {
 .function-graph-controls, .function-graph-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
 .function-graph-list h4, .function-graph-list p { width: 100%; }
 .function-graph-list button { text-align: left; overflow-wrap: anywhere; }
-@media (max-width: 700px) { .source-explorer-workspace { grid-template-columns: minmax(0, 1fr); } .source-explorer-list { max-height: 190px; } .source-explorer { padding: 12px; } }
+@media (max-width: 700px) { .source-explorer-workspace { grid-template-columns: minmax(0, 1fr); } .source-explorer-list { max-height: 190px; } }
 .architecture-controls label, .architecture-secondary label { display: grid; gap: 4px; color: #aaa59a; font-size: 12px; }
 .architecture-controls label[hidden], .architecture-secondary label[hidden] { display: none; }
 .architecture-controls input, .architecture-secondary select { max-width: 280px; padding: 8px; color: #f5f1e8; background: #202522; border: 1px solid #59625d; border-radius: 6px; }
@@ -1468,3 +1452,55 @@ li {
 .architecture-select-options { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; min-width: 100%; max-width: 360px; max-height: 240px; overflow: auto; padding: 4px; border: 1px solid #59625d; border-radius: 6px; background: #202522; box-shadow: 0 8px 24px #0008; }
 .architecture-select-option { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 4px; background: transparent; color: #f5f1e8; text-align: left; white-space: nowrap; cursor: pointer; }
 .architecture-select-option:hover, .architecture-select-option:focus-visible, .architecture-select-option[aria-pressed="true"] { background: #38443b; }
+
+/* Project explorer and workspace */
+.page-menu-caption { color: var(--muted); font-size: 12px; font-weight: 500; }
+.page-menu-toggle { color: var(--ink); }
+.architecture-browser { display: grid; min-width: 0; grid-template-columns: 260px minmax(0, 1fr); gap: 0; align-items: stretch; border: 1px solid #383d3a; border-radius: 5px; overflow: hidden; background: #191c1a; }
+.architecture-browser > div { padding: 0; border: 0; border-radius: 0; background: transparent; }
+.architecture-browser > .architecture-inventory { min-width: 0; border-right: 1px solid #383d3a; background: #202321; }
+.architecture-inventory-header { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
+.architecture-inventory-header h3 { margin: 0; color: #b7bdb9; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.architecture-collapse { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: #b7bdb9; font-size: 17px; font-weight: 400; }
+.architecture-collapse:hover { background: #343a36; color: white; }
+.architecture-inventory .architecture-search { width: auto; margin: 0 10px 10px; }
+.architecture-search label { display: block; color: #b7bdb9; font-size: 11px; }
+.architecture-search input { display: block; margin-top: 4px; padding: 6px 8px; border: 1px solid #484f4b; border-radius: 3px; background: #161917; color: var(--ink); font-size: 12px; }
+.project-tree { max-height: min(65vh, 700px); overflow: auto; padding: 0 0 10px; color: #d0d5d1; font-size: 12px; }
+.project-tree-item { outline: none; }
+.project-tree-row { display: flex; align-items: center; gap: 5px; height: 26px; min-width: max-content; padding: 0 10px 0 calc(8px + var(--tree-level) * 16px); cursor: pointer; }
+.project-tree-item > .project-tree-row:hover { background: #303633; }
+.project-tree-item[aria-selected="true"] > .project-tree-row { background: #38433e; color: #fff; }
+.project-tree-item:focus-visible > .project-tree-row { outline: 1px solid #8bbcff; outline-offset: -1px; }
+.project-tree-chevron { display: grid; flex: 0 0 20px; height: 26px; place-items: center; color: #d0d5d1; font-size: 13px; }
+.project-tree-icon { flex: none; width: 15px; height: 15px; color: #a5b6aa; }
+.project-tree-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.architecture-workspace { min-width: 0; padding: 0 20px 20px !important; }
+.architecture-workspace > div:first-child { padding-top: 16px; }
+.architecture-scope { margin-bottom: 7px; }
+.architecture-selected-file { margin-bottom: 8px; color: #d4dad6; }
+.architecture-selected-file button { border: 0; padding: 0; min-height: 0; background: transparent; color: #9bb9d6; font-weight: 500; }
+.architecture-workspace-tabs { display: flex; flex-wrap: wrap; gap: 20px; margin: 0 -20px 18px; padding: 0 20px; border-bottom: 1px solid #383d3a; }
+.architecture-workspace-tabs button { min-height: 38px; padding: 8px 1px; border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: transparent; color: #aab0ac; font-weight: 500; }
+.architecture-workspace-tabs button[aria-current="true"] { border-bottom-color: #82b995; background: transparent; color: #f5f1e8; }
+.architecture-workspace-tabs button:hover { color: #fff; }
+.architecture-workspace > div:nth-child(2) { color: #c7cdc9; font-size: 13px; line-height: 1.5; }
+.architecture-file-relations, .architecture-entries { margin-top: 18px; }
+.architecture-directory-files { display: grid; justify-items: start; gap: 2px; margin-top: 10px; }
+.architecture-files-toggle { display: none; }
+.architecture-entry-list { max-height: none; }
+@media (max-width: 600px) {
+  .architecture-browser { grid-template-columns: minmax(0, 1fr); }
+  .architecture-browser > .architecture-inventory { border-right: 0; border-bottom: 1px solid #383d3a; }
+  .project-tree { max-height: min(125px, 18vh); }
+  .architecture-browser.files-hidden > .architecture-inventory { display: none; }
+  .architecture-files-toggle { display: inline-block; margin-bottom: 8px; padding: 4px 8px; border: 1px solid #484f4b; background: transparent; color: var(--ink); font-size: 12px; font-weight: 500; }
+  .architecture-workspace { padding: 0 14px 16px !important; }
+  .architecture-workspace-tabs { margin-left: -14px; margin-right: -14px; padding: 0 14px; }
+}
+@media (max-width: 600px) and (pointer: coarse) {
+  .project-tree { max-height: 160px; }
+  .project-tree-row { height: 38px; }
+  .project-tree-chevron { height: 38px; }
+  .source-explorer .source-explorer-item { min-height: 38px; }
+}
