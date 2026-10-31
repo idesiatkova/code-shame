@@ -97,7 +97,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     set innerHTML(value) {
       this.controls = Array.from({ length: 7 }, () => new Element());
       this.searchContainer = new Element();
-      this.controls[2].value = "both"; this.controls[3].value = "1";
+      this.controls[2].value = "both"; this.controls[3].value = "1"; this.controls[3].children = [{ value: "1" }, { value: "2" }];
       this.controls[5].value = "dependencies";
     }
     querySelectorAll(selector) { return selector === "input, select, button" ? this.controls : this.children.filter((child) => child.type === "button"); }
@@ -110,7 +110,11 @@ test("renderer keeps focus and refreshes search results across snapshots", async
   globalThis.document = { createElement: () => { const element = new Element(); created.push(element); return element; }, createElementNS: () => new Element(), addEventListener() {} };
   globalThis.Option = class { constructor(text, value) { this.text = text; this.value = value; } };
   let lastFit, lastGraph, lastRankDir, lastCentered;
-  globalThis.window = { cytoscape: (options) => {
+  const locations = ["/?page=architecture"], location = { pathname: "/", search: "?page=architecture", hash: "" }, listeners = {};
+  let position = 0;
+  const setLocation = (url) => { const parsed = new URL(url, "http://localhost"); Object.assign(location, { pathname: parsed.pathname, search: parsed.search, hash: parsed.hash }); };
+  const history = { pushState(_state, _title, url) { locations.splice(++position, Infinity, url); setLocation(url); }, replaceState(_state, _title, url) { locations[position] = url; setLocation(url); }, go(delta) { position += delta; setLocation(locations[position]); listeners.popstate(); } };
+  globalThis.window = { location, history, addEventListener(name, listener) { listeners[name] = listener; }, cytoscape: (options) => {
     const graph = cytoscape({ ...options, container: undefined, headless: true, styleEnabled: true });
     lastGraph = graph;
     const fit = graph.fit.bind(graph);
@@ -141,15 +145,25 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const domain = tree.children[0].children[1].children.find((item) => item.dataset.path === "domain");
     assert.equal(domain.attributes["aria-expanded"], "true");
     assert.ok(domain.children[1].children.some((item) => item.dataset.path === "domain/checkout.ts" && item.attributes["aria-selected"] === "true"));
+    assert.match(location.hash, /file=domain%2Fcheckout.ts/);
+    history.go(-1); assert.equal(header.children[1].children[0].textContent, "Project overview");
+    history.go(1); assert.match(header.children[1].children[0].textContent, /domain\/checkout.ts/);
+    setLocation("/?page=architecture#file=missing.js&view=source"); listeners.popstate();
+    assert.equal(header.children[1].children[0].textContent, "Project overview"); assert.match(header.children[4].textContent, /not available/);
+    setLocation(locations[position]); listeners.popstate();
     header.children[2].children.find((button) => button.textContent === "Source").fire("click");
     assert.equal(workspace.children[2].hidden, false);
+    history.go(-1); assert.equal(workspace.children[2].hidden, true);
+    history.go(1); assert.equal(workspace.children[2].hidden, false);
     const sourceContent = workspace.children[2].children[0];
     renderer.render({ state: "running" });
     assert.equal(header.children[3].hidden, false);
     assert.match(header.children[3].textContent, /Updating project structure/);
     assert.equal(workspace.children[2].hidden, false);
     assert.equal(workspace.children[2].children[0], sourceContent);
+    const historyLength = locations.length;
     renderer.render(structuredClone(model));
+    assert.equal(locations.length, historyLength);
     assert.equal(header.children[3].hidden, true);
     assert.equal(workspace.children[2].hidden, false);
     assert.equal(workspace.children[2].children[0], sourceContent);
@@ -194,6 +208,14 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.match(stats.textContent, /files shown/);
     assert.equal(lastGraph.zoom(), 1);
     assert.equal(lastCentered.data("canonicalId"), "domain/checkout.ts");
+    direction.value = "outbound"; direction.fire("change"); depth.value = "2"; depth.fire("change");
+    view.value = "impact"; view.fire("change");
+    results.value = "ui/Checkout.tsx"; results.fire("change"); assert.equal(view.value, "dependencies");
+    history.go(-1); assert.equal(view.value, "impact"); assert.equal(direction.value, "outbound"); assert.equal(depth.value, "2");
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=map&graph=invalid&direction=sideways&depth=99&cycle=invalid"); listeners.popstate();
+    assert.equal(view.value, "dependencies"); assert.equal(direction.value, "both"); assert.equal(depth.value, "1"); assert.equal(cycle.value, ""); assert.match(header.children[4].textContent, /default options/);
+    setLocation(locations[position]); listeners.popstate();
+    view.value = "dependencies"; view.fire("change");
     lastGraph.zoom(0.7); resize(); assert.equal(lastGraph.zoom(), 0.7);
     container.clientWidth = 800; resize(); assert.equal(lastGraph.zoom(), 1);
     assert.equal(lastCentered.data("canonicalId"), "domain/checkout.ts");

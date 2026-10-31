@@ -11,7 +11,7 @@ const GROUP_PADDING_X = 28;
 function createRenderer({ container, details, fitButton, legend, stats }) {
   const sourcePanel = document.createElement("section");
   sourcePanel.className = "source-explorer"; sourcePanel.hidden = true;
-  const sourceExplorer = createSourceExplorer(sourcePanel, fetch, () => { showMode("overview"); browserHeader.querySelector('[data-mode="source"]')?.focus(); });
+  const sourceExplorer = createSourceExplorer(sourcePanel, fetch, () => { showMode("overview"); saveNavigation(); browserHeader.querySelector('[data-mode="source"]')?.focus(); }, (replace) => saveNavigation(replace), (path) => listedFiles().includes(path));
   const browser = document.createElement("section");
   browser.className = "architecture-browser";
   const browserHeader = document.createElement("div");
@@ -29,6 +29,54 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   let structure = { directories: [], entryPoints: [], scope: { listedFileCount: 0 } };
   let directory = ".", mode = "overview";
   let filesVisible = true;
+  const navigationStatus = document.createElement("p"); navigationStatus.setAttribute("role", "status");
+  let navigationReady = false;
+  const listedFiles = () => structure.directories.flatMap((item) => item.files);
+  function saveNavigation(replace = false) {
+    if (!navigationReady || !window.history?.pushState || !window.location) return;
+    navigationStatus.textContent = "";
+    const params = new URLSearchParams();
+    if (selected) params.set("file", selected);
+    else if (directory !== ".") params.set("directory", directory);
+    if (mode !== "overview") params.set("view", mode);
+    if (mode === "map") {
+      if (view.value !== "dependencies") params.set("graph", view.value);
+      if (direction.value !== "both") params.set("direction", direction.value);
+      if (depth.value !== "1") params.set("depth", depth.value);
+      if (cycle.value) params.set("cycle", cycle.value);
+    }
+    if (mode === "source" && sourceExplorer.file) {
+      const state = sourceExplorer.state;
+      if (state.file !== selected) params.set("source", state.file);
+      if (state.symbol) params.set("symbol", state.symbol);
+      if (state.query) params.set("q", state.query);
+    }
+    const hash = params.toString();
+    const url = `${window.location.pathname}${window.location.search}${hash ? `#${hash}` : ""}`;
+    if (`${window.location.pathname}${window.location.search}${window.location.hash}` !== url) window.history[replace ? "replaceState" : "pushState"](null, "", url);
+  }
+  function restoreNavigation() {
+    if (!navigationReady || !window.location) return;
+    const params = new URLSearchParams(window.location.hash.slice(1));
+    const path = params.get("file"), dir = params.get("directory"), source = params.get("source") || path;
+    const nextMode = params.get("view") || "overview";
+    const directories = new Set([".", ...listedFiles().flatMap((file) => { const parts = file.split("/"); parts.pop(); return parts.map((_, i) => parts.slice(0, i + 1).join("/")); })]);
+    const invalid = (path && !listedFiles().includes(path)) || (dir && !directories.has(dir)) || !["overview", "source", "map"].includes(nextMode) || (nextMode === "source" && (!path || !listedFiles().includes(source))) || (params.has("symbol") && nextMode !== "source");
+    sourceExplorer.close();
+    selected = invalid ? null : path; directory = invalid ? "." : path ? (path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ".") : dir || ".";
+    mode = invalid ? "overview" : nextMode;
+    const graphView = params.get("graph") || "dependencies", graphDirection = params.get("direction") || "both", graphDepth = params.get("depth") || "1", graphCycle = params.get("cycle") || "";
+    const validView = ["dependencies", "impact", "cycles"].includes(graphView), validDirection = ["both", "inbound", "outbound"].includes(graphDirection);
+    const validDepth = [...depth.options].some((option) => option.value === graphDepth), validCycle = !graphCycle || (analysis?.cycles || []).some((group) => JSON.stringify(group) === graphCycle);
+    view.value = validView ? graphView : "dependencies"; direction.value = validDirection ? graphDirection : "both"; depth.value = validDepth ? graphDepth : "1"; cycle.value = validCycle ? graphCycle : ""; cycleMember = null;
+    dropdowns.forEach((dropdown) => dropdown.refresh());
+    navigationStatus.textContent = invalid ? "This link refers to a file, directory, or view that is not available in this project." : mode === "map" && (!validView || !validDirection || !validDepth || !validCycle) ? "Some map options in this link are unavailable; default options are shown." : "";
+    renderBrowser();
+    if (selected) explorer.reveal(selected);
+    if (mode === "source") sourceExplorer.open(selected, browserHeader.querySelector('[data-mode="source"]'), { file: source, symbol: params.get("symbol"), query: params.get("q") });
+    else browserHeader.querySelector(".architecture-selected-file")?.focus();
+  }
+  if (typeof window !== "undefined") window.addEventListener?.("popstate", restoreNavigation);
   const explorer = createProjectExplorer({ container: browserInventory, onSelect: ({ path, kind }) => {
     if (kind === "file") selectFile(path, false, true);
     else selectOverview(path, true);
@@ -45,13 +93,13 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   function selectOverview(path = ".", preserveTreeFocus = false) {
     directory = path; selected = null; cycleMember = null; view.value = "dependencies"; cycle.value = "";
     dropdowns[3].refresh(); dropdowns[4].refresh(); sourceExplorer.close(); search.value = ""; refreshSearch();
-    mode = "overview"; renderBrowser(); if (!preserveTreeFocus) browserHeader.querySelector(".architecture-selected-file")?.focus();
+    mode = "overview"; renderBrowser(); saveNavigation(); if (!preserveTreeFocus) browserHeader.querySelector(".architecture-selected-file")?.focus();
   }
   function selectFile(path, preserveView = false, preserveTreeFocus = false) {
     selected = path; cycleMember = null; if (!preserveView) view.value = "dependencies"; dropdowns[3].refresh();
     directory = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "."; if (!preserveTreeFocus) explorer.reveal(path);
     mode = mode === "map" ? "map" : "overview";
-    sourceExplorer.close(); renderBrowser();
+    sourceExplorer.close(); renderBrowser(); saveNavigation();
     if (!preserveTreeFocus) browser.querySelector(".architecture-selected-file")?.focus();
   }
   function renderBrowser() {
@@ -76,9 +124,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     for (const [name, value] of [[selected ? "File" : "Overview", "overview"], ["Source", "source"], ["Dependencies", "map"]]) {
       if (value === "source" && !selected) continue;
       const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button"; button.textContent = name; button.dataset.mode = value;
-      button.addEventListener("click", () => { if (value === "source" && !sourceExplorer.file) { showMode(value); sourceExplorer.open(selected, button); } else showMode(value); }); tabs.append(button);
+      button.addEventListener("click", () => { if (value === "source" && !sourceExplorer.file) { showMode(value); sourceExplorer.open(selected, button); } else { showMode(value); saveNavigation(); } }); tabs.append(button);
     }
-    browserHeader.append(tabs, updating, filesToggle);
+    browserHeader.append(tabs, updating, navigationStatus, filesToggle);
     const allFiles = structure.directories.flatMap((item) => item.files).sort((a, b) => a.localeCompare(b));
     explorer.update({ files: allFiles, projectName, selectedPath: selected || directory, selectedKind: selected ? "file" : directory === "." ? "project" : "directory" });
     const fileButton = (path) => { const button = document.createElement("button"); button.type = "button"; button.textContent = path; button.setAttribute("aria-current", String(path === selected)); button.addEventListener("click", () => selectFile(path)); return button; };
@@ -110,7 +158,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   browserInventory.prepend(inventoryHeader, controls.querySelector(".architecture-search"));
   const graphNote = document.createElement("p");
   graphNote.className = "architecture-graph-note";
-  graphNote.textContent = "Arrows show static imports, not HTTP calls or callbacks. Select a layer to highlight it and its context.";
+  graphNote.textContent = "Arrows show static imports, not HTTP calls or callbacks. Pan and zoom to explore at a readable size; the File tab lists direct relationships.";
   legend.before(graphNote);
   legend.before(secondary);
   const searchList = document.createElement("div");
@@ -141,7 +189,10 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   const mapActions = document.createElement("div");
   mapActions.className = "architecture-map-actions";
   fitButton.before(mapActions);
-  mapActions.append(back, fitButton);
+  fitButton.textContent = "Fit entire map";
+  const readableMap = document.createElement("button"); readableMap.type = "button"; readableMap.className = "secondary-button"; readableMap.textContent = "Readable map";
+  readableMap.addEventListener("click", () => { if (!graph) return; graph.resize(); graph.fit(graph.elements(), 36); if (graph.zoom() < 1) graph.zoom(1); graph.center(zoomTarget ? graph.getElementById(zoomTarget) : graph.elements()); });
+  mapActions.append(back, fitButton, readableMap);
   for (const [label, factor] of [["Zoom in", 1.25], ["Zoom out", 0.8]]) {
     const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button"; button.textContent = label;
     button.addEventListener("click", () => { if (graph) graph.zoom({ level: graph.zoom() * factor, renderedPosition: { x: container.clientWidth / 2, y: container.clientHeight / 2 } }); });
@@ -196,12 +247,12 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   });
   search.addEventListener("blur", () => showResults(false));
   results.addEventListener("change", () => { if (results.value) selectFile(results.value); });
-  direction.addEventListener("change", () => { if (selected) draw(); });
-  depth.addEventListener("change", () => { if (selected) draw(); });
-  view.addEventListener("change", draw);
-  cycle.addEventListener("change", () => { cycleMember = null; draw(); });
-  back.addEventListener("click", () => { selected = null; search.value = ""; sourceExplorer.close(); renderBrowser(); refreshSearch(); view.value = "dependencies"; dropdowns[3].refresh(); draw(); fitButton.focus({ preventScroll: true }); });
-  returnFile.addEventListener("click", () => { view.value = "dependencies"; dropdowns[3].refresh(); draw(); fitButton.focus({ preventScroll: true }); });
+  direction.addEventListener("change", () => { if (selected) draw(); saveNavigation(true); });
+  depth.addEventListener("change", () => { if (selected) draw(); saveNavigation(true); });
+  view.addEventListener("change", () => { draw(); saveNavigation(); });
+  cycle.addEventListener("change", () => { cycleMember = null; draw(); saveNavigation(); });
+  back.addEventListener("click", () => { selected = null; search.value = ""; sourceExplorer.close(); renderBrowser(); refreshSearch(); view.value = "dependencies"; dropdowns[3].refresh(); draw(); saveNavigation(); fitButton.focus({ preventScroll: true }); });
+  returnFile.addEventListener("click", () => { view.value = "dependencies"; dropdowns[3].refresh(); draw(); saveNavigation(); fitButton.focus({ preventScroll: true }); });
   fitButton.addEventListener("click", () => { if (graph) { graph.resize(); graph.fit(graph.elements(), 36); } });
   let rankDir = null;
   let zoomTarget = null;
@@ -252,11 +303,13 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     cycle.replaceChildren(new Option(analysis ? `${analysis.cycles.length} cycle groups` : "Unavailable", ""), ...(analysis?.cycles || []).map((group) => new Option(`${group[0]} · ${group.length} files`, JSON.stringify(group))));
     cycle.value = [...cycle.options].some((option) => option.value === previousCycle) ? previousCycle : "";
     dropdowns[4].refresh();
-    if (selected && !structure.directories.some((item) => item.files.includes(selected))) { selected = null; sourceExplorer.close(); mode = "overview"; }
+    if (selected && !listedFiles().includes(selected)) { selected = null; sourceExplorer.close(); mode = "overview"; }
+    else if (sourceExplorer.currentFile && !listedFiles().includes(sourceExplorer.currentFile)) { sourceExplorer.close(); mode = "overview"; navigationStatus.textContent = "The source file is no longer listed in this project."; }
     renderBrowser();
     refreshSearch();
     controls.hidden = false; graphNote.hidden = false;
     showMode(mode);
+    if (newProject) { navigationReady = true; restoreNavigation(); }
   }
   function draw() {
     if (sourceExplorer.file && sourceExplorer.file !== selected) sourceExplorer.close();

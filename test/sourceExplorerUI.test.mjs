@@ -53,6 +53,14 @@ test("source explorer preserves keyboard context and ignores stale responses", a
     const third = explorer.open("third.js", trigger); outside.focus(); explorer.close();
     pending[3].resolve(response("third.js")); await third;
     assert.equal(document.activeElement, outside); assert.equal(panel.hidden, true); assert.equal(panel.children.length, 0);
+    const restored = explorer.open("first.js", trigger, { file: "second.js", symbol: "f", query: "f" });
+    assert.match(pending[4].url, /second.js/); outside.focus(); pending[4].resolve(response("second.js")); await restored;
+    assert.equal(document.activeElement, outside);
+    assert.deepEqual(explorer.state, { file: "second.js", symbol: "f", query: "f" });
+    assert.match(panel.children[0].children[2].textContent, /Architecture file: first.js.*Source file: second.js/);
+    const stale = explorer.open("first.js", trigger, { file: "second.js", symbol: "missing" });
+    pending[6].resolve(response("second.js")); await stale;
+    assert.equal(explorer.state.symbol, ""); assert.match(panel.children.at(-1).textContent, /linked symbol is no longer available/);
   } finally { globalThis.document = old; }
 });
 

@@ -1,4 +1,6 @@
-export function createSourceExplorer(panel, fetchSource = fetch, onClose = () => {}) {
+import { createSymbolContext } from "./symbol-context.js";
+
+export function createSourceExplorer(panel, fetchSource = fetch, onClose = () => {}, onNavigate = () => {}, isListed = () => true) {
   let request = 0, controller, graphController, data, selected, file, anchor, trigger, query = "", graphData, graphError, graph, graphRequest = 0, graphNeedsLayout = false;
   const history = [];
   const element = (tag, className, text) => {
@@ -21,7 +23,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     graphRequest++; graphController?.abort(); graphController = null; graph?.destroy(); graph = null; graphData = graphError = null;
   }
   function cancelNavigation() { request++; controller?.abort(); controller = null; }
-  function select(symbol) { cancelNavigation(); clearGraph(); selected = symbol; render({ detail: true }); loadGraph(); }
+  function select(symbol) { cancelNavigation(); clearGraph(); selected = symbol; render({ detail: true }); onNavigate(); loadGraph(); }
   async function loadGraph() {
     const sequence = ++graphRequest; graphController = new AbortController();
     try {
@@ -38,6 +40,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
   }
   async function navigate(target) {
     if (!target?.file || !target.id) return;
+    if (!isListed(target.file)) { graphError = "The target file is no longer listed in this project."; render(); return; }
     const previous = { file, data, selected, query };
     clearGraph(); request++; controller?.abort(); controller = new AbortController();
     const sequence = request;
@@ -49,7 +52,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       const symbol = result.symbols.find((item) => item.id === target.id);
       if (!symbol || (target.hash && target.hash !== result.hash) || (target.name && symbol.name !== target.name) || (target.startLine && symbol.startLine !== target.startLine)) throw new Error("The target symbol has changed or is no longer available. Reopen the source to refresh.");
       history.push(previous);
-      file = target.file; data = result; query = ""; selected = symbol; panel.setAttribute("aria-label", `Source explorer for ${file}`); render({ detail: true }); loadGraph();
+      file = target.file; data = result; query = ""; selected = symbol; panel.setAttribute("aria-label", `Source explorer for ${file}`); render({ detail: true }); onNavigate(); loadGraph();
     } catch (error) {
       if (sequence !== request || error.name === "AbortError") return;
       graphError = error.message || "Could not load target source."; render();
@@ -59,7 +62,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     request++; controller?.abort(); clearGraph();
     ({ file, data, selected, query } = history.pop());
     panel.setAttribute("aria-label", `Source explorer for ${file}`);
-    render(selected ? { detail: true } : undefined); if (selected) loadGraph();
+    render(selected ? { detail: true } : undefined); onNavigate(); if (selected) loadGraph();
   }
   function render(focusTarget) {
     graph?.destroy(); graph = null;
@@ -71,7 +74,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     if (file !== anchor) header.append(element("p", "source-explorer-status", `Architecture file: ${anchor} · Source file: ${file}`));
     const actions = element("div", "source-explorer-actions");
     if (history.length) actions.append(button("Back", back));
-    if (selected) actions.append(button("Back to symbols", () => { const id = selected.id; cancelNavigation(); clearGraph(); selected = null; render(id); }));
+    if (selected) actions.append(button("Back to symbols", () => { const id = selected.id; cancelNavigation(); clearGraph(); selected = null; render(id); onNavigate(); }));
     panel.replaceChildren(header, actions);
     if (restorePanelFocus) panel.focus({ preventScroll: true });
     if (!data) return;
@@ -80,24 +83,25 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       panel.append(status);
     }
     panel.append(element("p", "source-explorer-status", "Source is read from the current file on disk and may differ from the report."));
+    const symbols = createSymbolContext(data.symbols);
     const workspace = element("div", "source-explorer-workspace");
     const inventory = element("div", "source-explorer-inventory");
     {
       const search = element("input", "source-explorer-search");
-      search.type = "search"; search.placeholder = "Search symbols"; search.setAttribute("aria-label", "Search symbols");
+      search.type = "search"; search.placeholder = "Search symbols in this file"; search.setAttribute("aria-label", "Search symbols in this file");
       search.value = query;
       const list = element("div", "source-explorer-list");
       const update = () => {
-        const matches = data.symbols.filter((symbol) => `${symbol.name} ${symbol.kind} ${symbol.signature}`.toLowerCase().includes(search.value.toLowerCase()));
+        const matches = data.symbols.filter((symbol) => symbols.describe(symbol).searchText.toLowerCase().includes(search.value.toLowerCase()));
         list.replaceChildren(...matches.map((symbol) => {
-          const item = button(`${symbol.name} · ${symbol.kind} · lines ${symbol.startLine}–${symbol.endLine}`, () => select(symbol));
+          const item = button(`${symbols.describe(symbol).label} · ${symbol.kind} · lines ${symbol.startLine}–${symbol.endLine}`, () => select(symbol));
           item.className = "source-explorer-item"; item.title = item.textContent; item.setAttribute("aria-pressed", String(selected?.id === symbol.id));
           if (focusTarget === symbol.id) inventoryTarget = item;
           return item;
         }));
         if (!matches.length) list.append(element("p", "source-explorer-status", data.symbols.length ? "No matching symbols." : data.diagnostics?.length ? "Symbol inventory unavailable." : "No functions, methods, or classes found."));
       };
-      search.addEventListener("input", () => { query = search.value; update(); }); inventory.append(search, list); update();
+      search.addEventListener("input", () => { query = search.value; update(); onNavigate(true); }); inventory.append(search, list); update();
     }
     workspace.append(inventory); panel.append(workspace);
     inventoryTarget?.focus();
@@ -107,7 +111,7 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     }
     const detail = element("div", "source-explorer-detail");
     workspace.append(detail);
-    const heading = element("h4", "source-explorer-heading", `${selected.name} · ${selected.kind} · lines ${selected.startLine}–${selected.endLine}`);
+    const heading = element("h4", "source-explorer-heading", `${symbols.describe(selected).label} · ${selected.kind} · lines ${selected.startLine}–${selected.endLine}`);
     heading.tabIndex = -1; detail.append(heading);
     if (focusTarget?.detail || restoreDetailFocus) heading.focus();
     detail.append(element("pre", "source-explorer-signature", selected.signature));
@@ -181,21 +185,25 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
     if (!section) return;
     graph?.destroy(); graph = null; section.remove(); renderGraph(detail);
   }
-  async function open(path, sourceTrigger = document.activeElement) {
-    close(); trigger = sourceTrigger; file = anchor = path; panel.hidden = false;
-    panel.setAttribute("aria-label", `Source explorer for ${path}`); panel.tabIndex = -1; render();
+  async function open(path, sourceTrigger = document.activeElement, restored = null) {
+    close(); trigger = sourceTrigger; anchor = path; file = restored?.file || path; query = restored?.query || ""; panel.hidden = false;
+    if (!restored) onNavigate();
+    panel.setAttribute("aria-label", `Source explorer for ${file}`); panel.tabIndex = -1; render();
     panel.focus({ preventScroll: true }); panel.scrollIntoView?.({ block: "start" });
     panel.append(element("p", "source-explorer-status", "Loading source…"));
     const sequence = ++request; controller = new AbortController();
     try {
-      const response = await fetchSource(`/api/source?file=${encodeURIComponent(path)}`, { signal: controller.signal });
+      const response = await fetchSource(`/api/source?file=${encodeURIComponent(file)}`, { signal: controller.signal });
       if (!response.ok) {
         const failure = await response.json().catch(() => ({}));
         throw new Error(failure.code === "UNSUPPORTED_FILE" || response.status === 415 ? "Source exploration is not supported for this file." : failure.error || `Could not load source (${response.status}).`);
       }
       const result = await response.json();
       if (sequence !== request) return;
-      data = result; render();
+      data = result; selected = restored?.symbol ? data.symbols.find((item) => item.id === restored.symbol) : null;
+      render(selected && panel.contains(document.activeElement) ? { detail: true } : undefined);
+      if (restored?.symbol && !selected) panel.append(element("p", "source-explorer-status", "The linked symbol is no longer available in this file."));
+      if (selected) loadGraph();
     } catch (error) {
       if (sequence !== request || error.name === "AbortError") return;
       render(); panel.append(element("p", "source-explorer-status", error.message || "Could not load source."));
@@ -209,5 +217,5 @@ export function createSourceExplorer(panel, fetchSource = fetch, onClose = () =>
       graph.fit(graph.elements(), 30); graphNeedsLayout = false;
     }
   }
-  return { open, close, resize, get file() { return anchor; }, get currentFile() { return file; } };
+  return { open, close, resize, get file() { return anchor; }, get currentFile() { return file; }, get state() { return { file, symbol: selected?.id || "", query }; } };
 }
