@@ -151,12 +151,12 @@ function demoPreviousMetricValue(series, fallback) {
 
 function createDemoModel() {
   const layers = [
-    demoLayer("styles", "Styles / Design System", "#5fb57d", 2),
-    demoLayer("state", "State / Zustand", "#b47cff", 2),
-    demoLayer("ui", "UI / Components", "#5aa7ff", 3),
-    demoLayer("api", "API / Data", "#e0a84f", 2),
-    demoLayer("domain", "Domain / Features", "#df6d63", 2),
-    demoLayer("tests", "Tests", "#58c6c8", 2)
+    demoLayer("styles", "Styles / Design System", 2),
+    demoLayer("state", "State / Zustand", 2),
+    demoLayer("ui", "UI / Components", 3),
+    demoLayer("api", "API / Data", 2),
+    demoLayer("domain", "Domain / Features", 2),
+    demoLayer("tests", "Tests", 2)
   ];
   const files = [
     demoFile("styles", "tokens.css"), demoFile("styles", "theme.css"),
@@ -191,8 +191,8 @@ function createDemoModel() {
   };
 }
 
-function demoLayer(id, label, color, fileCount) {
-  return { id: `layer:${id}`, type: "layer", layerId: id, label, color, fileCount, hiddenFileCount: 0, source: "demo" };
+function demoLayer(id, label, fileCount) {
+  return { id: `layer:${id}`, type: "layer", layerId: id, label, fileCount, hiddenFileCount: 0, source: "demo" };
 }
 
 function demoFile(layerId, label, entryPoint = false) {
@@ -202,7 +202,6 @@ function demoFile(layerId, label, entryPoint = false) {
     type: "file",
     parent: `layer:${layerId}`,
     layerId,
-    color: demoColor(layerId),
     label,
     directory: layerId,
     path: filePath,
@@ -226,9 +225,4 @@ function demoEdge(source, target) {
   };
 }
 
-function demoColor(layerId) {
-  return {
-    styles: "#5fb57d", state: "#b47cff", ui: "#5aa7ff", api: "#e0a84f", domain: "#df6d63", tests: "#58c6c8"
-  }[layerId] || "#8794a8";
-}
 export { isDemoMode, reportForDisplay, demoMetricRenderState, createDemoModel };

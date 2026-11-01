@@ -5,9 +5,9 @@ import { readLocation, matchingSavedState } from "./source-navigation.js";
 import { createProjectExplorer } from "./project-explorer.js";
 import { renderWorkspaceOverview } from "./architecture-workspace.js";
 
-const NODE_WIDTH = 142;
-const NODE_HEIGHT = 48;
-const GROUP_PADDING_X = 28;
+import { createGraphOptions, toCytoscapeElements } from "./graph/architecture-graph.js";
+import { readDesignTokens } from "./design-tokens.js";
+import { colorizeProjection } from "./graph/layer-colors.js";
 const DIRECTION_LABELS = { both: "Imports + imported by", inbound: "Imported by", outbound: "Imports" };
 
 function createRenderer({ container, details, fitButton, legend, stats }) {
@@ -428,7 +428,9 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     const directoryView = !selected && view.value === "dependencies";
     const missingFile = selected && !graphSelected && view.value === "dependencies";
     const fullDirectory = directoryView ? directoryGraph(currentModel, directory, listedFiles()) : null;
-    let projection = view.value === "project" ? overview(currentModel) : group ? projectSelection(analysis, group) : impactResult || (graphSelected && view.value === "dependencies" ? focus(currentModel, selected, direction.value, Number(depth.value)) : missingFile ? { nodes: [{ id: `file:${selected}`, canonicalId: selected, path: selected, label: selected.split('/').pop(), type: 'file', color: '#8794a8' }], edges: [], shownFiles: 1, totalFiles: 1, shownEdges: 0, totalEdges: 0, complete: false } : directoryView ? directoryPage(fullDirectory, directoryPageIndex) : { nodes: [], edges: [] });
+    let projection = view.value === "project" ? overview(currentModel) : group ? projectSelection(analysis, group) : impactResult || (graphSelected && view.value === "dependencies" ? focus(currentModel, selected, direction.value, Number(depth.value)) : missingFile ? { nodes: [{ id: `file:${selected}`, canonicalId: selected, path: selected, label: selected.split('/').pop(), type: 'file' }], edges: [], shownFiles: 1, totalFiles: 1, shownEdges: 0, totalEdges: 0, complete: false } : directoryView ? directoryPage(fullDirectory, directoryPageIndex) : { nodes: [], edges: [] });
+    const tokens = readDesignTokens();
+    projection = colorizeProjection(currentModel, projection, tokens);
     const pageChanged = directoryView && directoryPageIndex !== projection.page;
     if (directoryView) directoryPageIndex = projection.page;
     const nextContext = JSON.stringify([projectKey, selected, directory, mode, view.value, direction.value, depth.value, cycle.value, selected ? 0 : directoryPageIndex]);
@@ -453,7 +455,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       return;
     }
     container.replaceChildren();
-    const options = createGraphOptions(container, projection);
+    const options = createGraphOptions(container, projection, tokens);
     if (fileView) Object.assign(options.layout, { rankDir: container.clientWidth >= 500 ? "LR" : "TB", nodeSep: 12, rankSep: 45, edgeSep: 12, padding: 12 });
     if (directoryView && projection.pages > 1) options.layout = { name: "grid", cols: container.clientWidth >= 500 ? 3 : 2, padding: 12, fit: true, avoidOverlap: true };
     graphLayout = options.layout;
@@ -556,172 +558,6 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   }
   function destroyGraph() { if (graph) graph.destroy(); graph = null; }
   return { clear, render };
-}
-
-function createGraphOptions(container, model) {
-  return {
-    autoungrabify: true,
-    boxSelectionEnabled: false,
-    container,
-    elements: toCytoscapeElements(model),
-    layout: { name: "dagre", rankDir: container?.clientWidth && container.clientWidth < 900 ? "TB" : "LR", nodeSep: 45, rankSep: 100, edgeSep: 24, nodeDimensionsIncludeLabels: true, useDagreEdgeControlPoints: true, automaticDagreEdgeStyle: true, fit: true, padding: 36 },
-    maxZoom: 2.4,
-    minZoom: 0.05,
-    style: graphStyle(),
-    userPanningEnabled: true
-  };
-}
-
-function toCytoscapeElements(model, positions = new Map()) {
-  const nodes = (model.nodes || []).map((node) => ({
-    data: node,
-    classes: node.entryPoint ? "entry-point" : "",
-    position: positions.get(node.id)
-  }));
-  const edges = (model.edges || []).map((edge) => ({
-    data: edge,
-    classes: edge.crossLayer ? "cross-layer" : ""
-  }));
-  return [...nodes, ...edges];
-}
-
-
-function graphStyle() {
-  return [
-    {
-      selector: "node",
-      style: {
-        "font-family": "Inter, ui-sans-serif, system-ui, sans-serif",
-        "text-events": "yes"
-      }
-    },
-    {
-      selector: 'node[type = "layer"]',
-      style: {
-        shape: "round-rectangle",
-        "background-color": "data(color)",
-        "background-opacity": 0.08,
-        "border-color": "data(color)",
-        "border-opacity": 0.58,
-        "border-width": 1,
-        color: "data(color)",
-        label: "data(label)",
-        padding: `${GROUP_PADDING_X}px`,
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        "font-size": 13,
-        "font-weight": 700,
-        "text-halign": "center",
-        "text-valign": "top",
-        "text-margin-y": -18
-      }
-    },
-    {
-      selector: 'node[type = "overview-layer"]',
-      style: {
-        shape: "round-rectangle", width: 185, height: 62,
-        "background-color": "data(color)", "background-opacity": 0.16,
-        "border-color": "data(color)", "border-width": 1,
-        color: "#f5f1e8", label: "data(displayLabel)", "font-size": 12,
-        "font-weight": 700, "text-halign": "center", "text-valign": "center",
-        "text-wrap": "wrap", "text-max-width": 165
-      }
-    },
-    {
-      selector: 'node[type = "directory"]',
-      style: { shape: "round-rectangle", width: NODE_WIDTH, height: NODE_HEIGHT, "background-color": "#273b2f", "border-color": "#82b995", "border-width": 2, color: "#f5f1e8", label: "data(label)", "font-size": 12, "text-halign": "center", "text-valign": "center", "text-wrap": "ellipsis", "text-max-width": NODE_WIDTH - 18 }
-    },
-    {
-      selector: 'node[type = "file"]',
-      style: {
-        shape: "round-rectangle",
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        "background-color": "#202522",
-        "border-color": "data(color)",
-        "border-opacity": 0.62,
-        "border-width": 1,
-        color: "#f5f1e8",
-        label: "data(label)",
-        "font-size": 10,
-        "font-weight": 600,
-        "text-max-width": NODE_WIDTH - 18,
-        "text-halign": "center",
-        "text-valign": "center",
-        "text-wrap": "wrap",
-        "text-overflow-wrap": "anywhere"
-      }
-    },
-    {
-      selector: "node.entry-point",
-      style: {
-        "border-width": 3,
-        "background-color": "#273029"
-      }
-    },
-    {
-      selector: 'node[type = "summary"]',
-      style: {
-        shape: "round-rectangle",
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        "background-opacity": 0,
-        "border-color": "data(color)",
-        "border-style": "dashed",
-        "border-width": 1,
-        color: "#aaa59a",
-        label: "data(label)",
-        "font-size": 10
-      }
-    },
-    {
-      selector: "edge",
-      style: {
-        width: "mapData(weight, 1, 5, 1, 4)",
-        label: "",
-        "font-size": 10,
-        color: "#f5f1e8",
-        "text-background-color": "#202522",
-        "text-background-opacity": 1,
-        "curve-style": "bezier",
-        "line-color": "#a7b2aa",
-        "line-opacity": 0.85,
-        "target-arrow-color": "#a7b2aa",
-        "target-arrow-shape": "triangle",
-        "arrow-scale": 1.2
-      }
-    },
-    { selector: "edge[weight > 1]", style: { label: "data(weight)" } },
-    {
-      selector: "edge.cross-layer",
-      style: {
-        "line-color": "#b47cff",
-        "line-opacity": 0.95,
-        "target-arrow-color": "#b47cff"
-      }
-    },
-    {
-      selector: ".is-muted",
-      style: { opacity: 0.12 }
-    },
-    {
-      selector: ".is-active",
-      style: {
-        opacity: 1,
-        "line-opacity": 0.96,
-        "z-index": 999
-      }
-    },
-    {
-      selector: "node.is-selected",
-      style: {
-        "border-width": 3,
-        "overlay-color": "data(color)",
-        "overlay-opacity": 0.12,
-        "overlay-padding": 7
-      }
-    }
-  ];
 }
 
 function bindGraphInteractions(graph, selectFile, selectLayer, reset, selectEdge) {

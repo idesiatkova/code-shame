@@ -1,8 +1,8 @@
-.architecture-select-control { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 10px; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--control-surface); color: inherit; font: inherit; cursor: pointer; overflow: hidden; white-space: nowrap; text-align: left; }
+.architecture-select-control { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: var(--space-2xl); padding: var(--space-sm) var(--space-base); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--control-surface); color: inherit; font: inherit; cursor: pointer; overflow: hidden; white-space: nowrap; text-align: left; }
 .architecture-select-control span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .architecture-select-control::after { content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
 .architecture-select-control[aria-expanded="true"]::after { transform: rotate(225deg) translate(-2px, -1px); }
-.architecture-select-control:focus-visible { outline: 2px solid #b8d2b9; outline-offset: 2px; }
+.architecture-select-control:focus-visible { outline: 2px solid var(--focus-select); outline-offset: 2px; }
 .architecture-select-control:disabled { opacity: .5; cursor: default; }
 .architecture-select-options[hidden] { display: none; }
 .architecture-select-option { box-sizing: border-box; }

@@ -1,0 +1,38 @@
+.source-explorer-open { min-height: 30px; padding: var(--space-compact) var(--space-9); font-size: var(--text-small); font-weight: var(--weight-600); }
+.source-explorer { margin-top: var(--space-lg); min-width: 0; container-type: inline-size; }
+.source-explorer[hidden] { display: none; }
+.source-explorer-header, .source-explorer-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-sm); }
+.source-explorer-header h3 { margin: 0; font-size: var(--text-medium); overflow-wrap: anywhere; }
+.source-explorer button { min-height: 30px; padding: var(--space-compact) var(--space-9); font-size: var(--text-small); font-weight: var(--weight-600); }
+.source-explorer button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.source-explorer-actions:empty { display: none; }
+.source-explorer-actions { justify-content: flex-start; margin-top: var(--space-sm); }
+.source-explorer-status { color: var(--muted); font-size: var(--text-small); line-height: 1.5; margin: var(--space-sm) 0; }
+.source-explorer > .source-explorer-status:last-of-type { margin-bottom: var(--space-lg); }
+.source-explorer-workspace { display: grid; grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); gap: var(--space-lg); align-items: start; }
+.source-explorer-inventory, .source-explorer-detail { min-width: 0; }
+.source-explorer-search { width: 100%; padding: var(--space-sm); border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--ink); background: var(--control); font-size: var(--text-small); }
+.source-explorer-list { max-height: 420px; overflow: auto; margin-top: var(--space-sm); }
+.source-explorer .source-explorer-item { display: block; width: 100%; min-height: 26px; padding: var(--space-xs) var(--space-7); border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink); font-weight: var(--weight-normal); text-align: left; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+.source-explorer-item-name, .source-explorer-item-meta { display: block; }
+.source-explorer-item-meta { color: var(--muted); font-size: var(--text-xs); }
+.source-explorer .source-explorer-item:hover, .source-explorer .source-explorer-item[aria-pressed="true"] { background: var(--selection); }
+.source-explorer-detail h4 { margin: 0 0 var(--space-sm); font-size: var(--text-normal); overflow-wrap: anywhere; }
+.source-explorer-signature { margin: 0 0 var(--space-md); color: var(--muted); font-size: var(--text-small); white-space: pre-wrap; overflow-wrap: anywhere; }
+.source-explorer-code { max-height: 420px; overflow: auto; padding: var(--space-sm) 0; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--code-surface); scrollbar-color: var(--control-border) var(--code-surface); font: var(--text-small)/1.65 var(--font-mono); }
+.source-explorer-line { display: flex; min-width: max-content; }
+.source-explorer-line-number { flex: 0 0 48px; color: var(--muted); text-align: right; padding-right: var(--space-md); user-select: none; }
+.source-explorer-line-text { white-space: pre; padding-right: var(--space-md); }
+.source-explorer-line.is-selected { background: var(--selection); }
+.source-explorer-calls { margin-top: var(--space-lg); display: flex; flex-wrap: wrap; gap: var(--space-sm); }
+.source-explorer-calls h4, .source-explorer-calls p { width: 100%; }
+.source-explorer-call, .function-graph-edge { display: flex; flex-wrap: wrap; gap: var(--space-compact); max-width: 100%; }
+.source-explorer-call button, .function-graph-edge button { text-align: left; overflow-wrap: anywhere; }
+.source-explorer-unresolved { width: 100%; color: var(--muted); font-size: var(--text-small); }
+.source-explorer-unresolved button { display: block; margin-top: var(--space-compact); max-width: 100%; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.function-graph { margin-top: var(--space-lg); min-width: 0; }
+.function-graph-canvas { height: 300px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--code-surface); }
+.function-graph-controls, .function-graph-list { display: flex; flex-wrap: wrap; gap: var(--space-compact); margin: var(--space-base) 0; }
+.function-graph-list h4, .function-graph-list p { width: 100%; }
+.function-graph-list button { text-align: left; overflow-wrap: anywhere; }
+@container (max-width: 700px) { .source-explorer-workspace { grid-template-columns: minmax(0, 1fr); } .source-explorer-list { max-height: 190px; } }

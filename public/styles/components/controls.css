@@ -1,0 +1,200 @@
+.page-control {
+  position: relative;
+}
+
+.page-menu-toggle {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 40px;
+  gap: var(--space-compact);
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: var(--weight-bold);
+  padding: var(--space-sm) var(--space-2xs);
+}
+
+.page-menu-toggle:hover,
+.page-menu-toggle:focus-visible,
+.page-control.is-menu-open .page-menu-toggle {
+  background: transparent;
+  color: var(--ink);
+}
+
+.page-menu-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.page-menu-toggle .page-menu-chevron {
+  width: 17px;
+  height: 17px;
+  margin-left: auto;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.page-control.is-menu-open .page-menu-chevron {
+  transform: rotate(180deg);
+}
+
+.page-menu {
+  right: auto;
+  left: 0;
+  width: 230px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding-left: var(--space-2xl);
+  border-left: 1px solid var(--border);
+}
+
+.page-view[hidden] {
+  display: none;
+}
+
+.refresh-control {
+  --auto-refresh-progress: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 42px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-button);
+  background: var(--control);
+  color: var(--ink);
+  transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.refresh-main,
+.refresh-menu-toggle {
+  height: 38px;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.refresh-main {
+  min-width: 124px;
+  justify-content: flex-start;
+  padding: var(--space-sm) var(--space-medium);
+}
+
+.refresh-menu-toggle {
+  display: grid;
+  width: 42px;
+  place-items: center;
+  border-left: 1px solid var(--border);
+  padding: 0;
+}
+
+.refresh-menu-toggle svg {
+  width: 17px;
+  height: 17px;
+  transition: transform 160ms ease;
+}
+
+.refresh-control.is-menu-open .refresh-menu-toggle svg {
+  transform: rotate(180deg);
+}
+
+.auto-refresh-progress {
+  position: absolute;
+  right: 43px;
+  bottom: 1px;
+  left: 1px;
+  z-index: 2;
+  height: 3px;
+  border-radius: 0;
+  background: var(--good);
+  transform: scaleX(var(--auto-refresh-progress));
+  transform-origin: left center;
+  transition: transform 200ms linear;
+}
+
+.refresh-control:not(.auto-refresh-on) .auto-refresh-progress {
+  display: none;
+}
+
+.refresh-control.auto-refresh-on {
+  border-color: var(--refresh-active-border);
+  background: var(--refresh-active-surface);
+  color: var(--refresh-active-ink);
+}
+
+.refresh-control.auto-refresh-on .refresh-menu-toggle {
+  border-left-color: var(--refresh-active-divider);
+}
+
+.refresh-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  width: 286px;
+  gap: var(--space-2xs);
+  padding: var(--space-medium) var(--space-base) var(--space-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--control);
+  box-shadow: var(--shadow-menu);
+}
+
+.refresh-menu[hidden] {
+  display: none;
+}
+
+.refresh-menu-heading {
+  padding: 0 var(--space-base) var(--space-sm);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-heavy);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.refresh-menu-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 42px;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  padding: var(--space-sm) var(--space-base);
+  text-align: left;
+}
+
+.refresh-menu-option:hover,
+.refresh-menu-option:focus-visible {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.refresh-menu-option.is-selected {
+  color: var(--ink);
+}
+
+.refresh-menu-option svg {
+  display: none;
+  width: 17px;
+  height: 17px;
+  color: var(--refresh-active-ink);
+}
+
+.refresh-menu-option.is-selected svg {
+  display: block;
+}
+
+.muted {
+  color: var(--muted);
+  font-size: var(--text-normal);
+  margin-top: var(--space-compact);
+}
+

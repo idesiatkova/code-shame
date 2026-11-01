@@ -14,7 +14,7 @@ function prepare(model) {
   const files = new Map();
   for (const node of graph.nodes || []) {
     const layerId = layers.has(node.layerId) ? node.layerId : UNKNOWN;
-    if (!layers.has(layerId)) layers.set(layerId, { id: 'layer:__unknown__', layerId, type: 'layer', label: 'Unknown layer', color: '#8794a8', fileCount: 0 });
+    if (!layers.has(layerId)) layers.set(layerId, { id: 'layer:__unknown__', layerId, type: 'layer', label: 'Unknown layer', fileCount: 0 });
     const layer = layers.get(layerId);
     if (layerId === UNKNOWN) layer.fileCount++;
     files.set(node.id, { ...oldFiles.get(node.path), ...node, id: `file:${node.id}`, canonicalId: node.id, type: 'file', parent: layer.id, layerId, color: layer.color, label: node.path.split('/').pop() });
@@ -54,14 +54,14 @@ function directoryGraph(model, directory = '.', listedPaths = []) {
   const nodes = new Map(), membership = new Map();
   const files = [...data.files.values()];
   const known = new Set(files.map((file) => file.path));
-  for (const path of listedPaths) if (!known.has(path)) files.push({ path, canonicalId: path, color: '#8794a8' });
+  for (const path of listedPaths) if (!known.has(path)) files.push({ path, canonicalId: path });
   for (const file of files) {
     if (!file.path.startsWith(prefix)) continue;
     const rest = file.path.slice(prefix.length), [name, ...descendants] = rest.split('/');
     if (!name) continue;
     const path = `${prefix}${name}`, folder = descendants.length > 0;
     const id = `${folder ? 'directory' : 'file'}:${path}`;
-    if (!nodes.has(id)) nodes.set(id, { id, path, canonicalId: folder ? undefined : file.canonicalId, type: folder ? 'directory' : 'file', label: name, color: folder ? '#82b995' : file.color, fileCount: 0 });
+    if (!nodes.has(id)) nodes.set(id, { id, path, canonicalId: folder ? undefined : file.canonicalId, layerId: folder ? undefined : file.layerId, type: folder ? 'directory' : 'file', label: name, color: folder ? undefined : file.color, fileCount: 0 });
     nodes.get(id).fileCount++;
     membership.set(file.canonicalId, id);
   }

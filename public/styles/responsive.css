@@ -1,0 +1,91 @@
+.copy-buffer {
+  position: fixed;
+  left: -9999px;
+  top: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1100px) {
+  .architecture-body {
+    grid-template-columns: 1fr;
+  }
+
+  .architecture-details {
+    min-height: 0;
+  }
+
+  .analysis-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .overview-grid,
+  .target-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .metric-maintainability {
+    grid-column: auto;
+  }
+
+  .health-panel {
+    order: -1;
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .app-shell {
+    padding: var(--space-lg);
+  }
+
+  .topbar,
+  .toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .toolbar-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding-top: var(--space-md);
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .overview-grid,
+  .analysis-grid,
+  .target-grid,
+  .health-row {
+    grid-template-columns: 1fr;
+  }
+
+  .architecture-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .architecture-graph {
+    height: 420px;
+  }
+
+  .refresh-control {
+    align-self: stretch;
+    grid-template-columns: 1fr 42px;
+  }
+
+  .page-menu {
+    width: 100%;
+  }
+
+  .health-row span:last-child {
+    max-width: none;
+    text-align: left;
+  }
+}
+

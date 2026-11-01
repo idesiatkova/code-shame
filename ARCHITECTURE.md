@@ -19,13 +19,28 @@ modules directly in tests without changing the backend module format.
 | Scan controls | `public/app/scan-controller.js` | Owns HTTP requests, polling, auto-refresh timers, busy state, and disposal. |
 | Report presentation | `public/app/report.js`, `public/app/overview.js`, `public/app/findings.js`, `public/app/format.js` | Renders report sections, metric charts, and copyable text. |
 | Browser state | `public/app/metric-history.js` | Stores up to 24 metric samples per project in localStorage. |
-| Graph presentation | `public/app/architecture.js` | Converts the graph model into Cytoscape elements and binds focus/details behavior. |
+| Graph presentation | `public/app/architecture.js`, `public/app/graph/` | Binds focus/details behavior; graph adapters create Cytoscape elements and styles. |
+| Design tokens | `public/styles/tokens.css`, `public/app/design-tokens.js` | Defines visual primitives once; graph adapters read the current computed root tokens. |
 | UI support | `public/app/navigation.js`, `public/app/icons.js`, `public/app/copy.js`, `public/app/html.js` | Provides navigation, vendor icon integration, clipboard handling, and HTML escaping. |
 | Demo | `public/app/demo.js` | Provides sample reports and graph fixtures without writing them to metric history. |
 
 Application modules use explicit imports and exports. Cytoscape, Dagre and Lucide are
 vendor UMD scripts; their globals are used only by their presentation adapters.
 The graph model does not depend on Cytoscape or browser APIs.
+
+### Styles and components
+
+`public/styles/main.css` is the ordered stylesheet entry point. It loads tokens,
+base rules, application layout, shared `components/`, and feature styles in
+`features/`. `styled-select.css` remains the separate shared select stylesheet.
+Keep import order explicit: responsive rules and later feature overrides depend on it.
+
+Change colors, type, spacing, radii, and shadows in `tokens.css`. Component rules
+reference those tokens; viewport breakpoints and graph geometry stay with their
+layout. Canvas graphs read computed tokens when created, so they share the same
+palette and typography as HTML. User-configured boundary colors remain model data.
+The token tests check stylesheet imports, missing custom properties, and token
+changes reaching both Cytoscape adapters.
 
 ## Public and server code
 

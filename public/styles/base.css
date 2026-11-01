@@ -1,0 +1,83 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  border-radius: var(--radius-button);
+  background: var(--good);
+  color: var(--button-ink);
+  cursor: pointer;
+  font-weight: var(--weight-heavy);
+  padding: var(--space-sm) var(--space-lg);
+}
+
+.icon-button,
+.finding-group-static summary {
+  display: flex;
+  align-items: center;
+}
+
+.icon-button {
+  justify-content: center;
+  gap: var(--space-7);
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button.is-spinning svg {
+  animation: spin 900ms linear infinite;
+}
+
+.secondary-button {
+  border: 1px solid var(--border);
+  background: var(--control);
+  color: var(--ink);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: var(--text-title);
+  line-height: 1.15;
+}
+
+h2 {
+  font-size: var(--text-large);
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: var(--text-normal);
+  line-height: 1.25;
+}
+

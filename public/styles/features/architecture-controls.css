@@ -1,0 +1,13 @@
+.architecture-controls label, .architecture-secondary label { display: grid; gap: var(--space-xs); color: var(--muted); font-size: var(--text-small); }
+.architecture-controls label[hidden], .architecture-secondary label[hidden] { display: none; }
+.architecture-controls input, .architecture-secondary select { max-width: 280px; padding: var(--space-sm); color: var(--ink); background: var(--control-surface); border: 1px solid var(--control-border); border-radius: var(--radius-button); }
+.architecture-select { position: relative; min-width: 120px; max-width: 280px; color: var(--ink); }
+.architecture-select summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2xl); padding: var(--space-sm) var(--space-base); border: 1px solid var(--control-border); border-radius: var(--radius-button); background: var(--control-surface); cursor: pointer; list-style: none; overflow: hidden; white-space: nowrap; }
+.architecture-select summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.architecture-select summary::-webkit-details-marker { display: none; }
+.architecture-select summary::after { content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+.architecture-select[open] summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.architecture-select-options { position: absolute; z-index: 10; top: calc(100% + var(--space-xs)); left: 0; min-width: 100%; max-width: 360px; max-height: 240px; overflow: auto; padding: var(--space-xs); border: 1px solid var(--control-border); border-radius: var(--radius-button); background: var(--control-surface); box-shadow: var(--shadow-popover); }
+.architecture-select-option { display: block; width: 100%; padding: var(--space-sm) var(--space-base); border: 0; border-radius: var(--radius-small); background: transparent; color: var(--ink); text-align: left; white-space: nowrap; cursor: pointer; }
+.architecture-select-option:hover, .architecture-select-option:focus-visible, .architecture-select-option[aria-pressed="true"] { background: var(--selection); }
+
