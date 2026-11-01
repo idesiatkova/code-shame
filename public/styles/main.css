@@ -1127,13 +1127,12 @@ li {
 }
 
 .architecture-stats {
-  min-height: 18px;
+  min-height: 36px;
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .architecture-legend {
@@ -1490,7 +1489,7 @@ li {
 .architecture-directory-pages { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .architecture-directory-pages button { min-height: 30px; padding: 4px 8px; font-size: 12px; }
 .architecture-directory-list p { margin: 2px 0; overflow-wrap: anywhere; }
-.architecture-workspace > div:first-child { padding-top: 16px; }
+.architecture-workspace > div:first-child { padding-top: 12px; }
 .architecture-scope { margin-bottom: 7px; }
 .architecture-selected-file { margin-bottom: 8px; color: #d4dad6; }
 .architecture-selected-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

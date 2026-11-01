@@ -1,4 +1,4 @@
-import { overview, directoryGraph, directoryPage, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
+import { directoryGraph, directoryPage, focus, analytics, impact, projectSelection } from "./architectureProjection.js";
 import { createStyledSelect } from "./styled-select.js";
 import { createSourceExplorer } from "./source-explorer.js";
 import { readLocation, matchingSavedState } from "./source-navigation.js";
@@ -202,8 +202,8 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   controls.className = "architecture-controls";
   controls.innerHTML = `<div class="architecture-search"><label>Find file <input type="search" placeholder="Search file paths" autocomplete="off" role="combobox" aria-label="Find file" aria-autocomplete="list" aria-expanded="false" aria-controls="architecture-file-results"></label>
     <select hidden aria-label="Matching files"></select></div>
-    <details class="architecture-secondary"><summary>Graph options</summary><div><label>Direction <select aria-label="Dependency direction"><option value="both">Both</option><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select></label>
-    <label>Depth <select aria-label="Dependency depth"><option value="1">1</option><option value="2">2</option></select></label>
+    <details class="architecture-secondary"><summary>Graph options</summary><div><label>Direction <select aria-label="Dependency direction"><option value="both">Both</option><option value="inbound">Imported by</option><option value="outbound">Imports</option></select></label>
+    <label>Depth <select aria-label="Dependency depth"><option value="1">1 step</option><option value="2">2 steps</option></select></label>
     <button type="button" class="secondary-button">Up to directory</button>
     <label>View <select aria-label="Graph view"><option value="dependencies">Dependencies</option><option value="impact">Impact</option><option value="cycles">Cycles</option></select></label>
     <label>Cycle group <select aria-label="Cycle group"><option value="">Select a cycle</option></select></label></div><p class="architecture-control-hint"></p></details>`;
@@ -399,18 +399,18 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   function draw() {
     const focusedLayer = document.activeElement?.dataset?.layerId;
     activeLayer = null;
-    direction.parentElement.hidden = depth.parentElement.hidden = view.value !== "dependencies";
-    direction.disabled = depth.disabled = !selected;
-    dropdowns[1].refresh(); dropdowns[2].refresh();
-    if (hint) hint.textContent = view.value === "cycles" ? "Cycles cover the whole project." : view.value === "impact" ? selected ? "Impact shows consumers of the selected file." : "Impact requires a selected file." : !selected ? "Select a file to use Direction and Depth." : "Direction and Depth apply to the selected file.";
-    cycle.parentElement.hidden = view.value !== "cycles";
-    const group = view.value === "cycles" && cycle.value ? analysis?.cycles.find((item) => JSON.stringify(item) === cycle.value) : null;
     const graphSelected = selected && (analysis?.data.files.has(selected) || (!analysis && (currentModel.nodes || []).some((node) => node.type === "file" && node.path === selected)));
+    direction.parentElement.hidden = depth.parentElement.hidden = view.value !== "dependencies" || !graphSelected;
+    direction.disabled = depth.disabled = !graphSelected;
+    dropdowns[1].refresh(); dropdowns[2].refresh();
+    if (hint) hint.textContent = view.value === "cycles" ? "Cycles cover the whole project." : view.value === "impact" ? "Impact shows consumers of the selected file." : graphSelected ? "Direction and Depth apply to the selected file." : "Select a file to explore its imports.";
+    cycle.parentElement.hidden = view.value !== "cycles" || !analysis?.cycles.length;
+    const group = view.value === "cycles" && cycle.value ? analysis?.cycles.find((item) => JSON.stringify(item) === cycle.value) : null;
     const impactResult = view.value === "impact" && graphSelected && analysis ? impact(analysis, selected) : null;
     const directoryView = !selected && view.value === "dependencies";
     const missingFile = selected && !graphSelected && view.value === "dependencies";
     const fullDirectory = directoryView ? directoryGraph(currentModel, directory, listedFiles()) : null;
-    let projection = group ? projectSelection(analysis, group) : impactResult || (graphSelected && view.value === "dependencies" ? focus(currentModel, selected, direction.value, Number(depth.value)) : missingFile ? { nodes: [{ id: `file:${selected}`, canonicalId: selected, path: selected, label: selected.split('/').pop(), type: 'file', color: '#8794a8' }], edges: [], shownFiles: 1, totalFiles: 1, shownEdges: 0, totalEdges: 0, complete: false } : directoryView ? directoryPage(fullDirectory, directoryPageIndex) : overview(currentModel));
+    let projection = group ? projectSelection(analysis, group) : impactResult || (graphSelected && view.value === "dependencies" ? focus(currentModel, selected, direction.value, Number(depth.value)) : missingFile ? { nodes: [{ id: `file:${selected}`, canonicalId: selected, path: selected, label: selected.split('/').pop(), type: 'file', color: '#8794a8' }], edges: [], shownFiles: 1, totalFiles: 1, shownEdges: 0, totalEdges: 0, complete: false } : directoryView ? directoryPage(fullDirectory, directoryPageIndex) : { nodes: [], edges: [] });
     const pageChanged = directoryView && directoryPageIndex !== projection.page;
     if (directoryView) directoryPageIndex = projection.page;
     const nextContext = JSON.stringify([projectKey, selected, directory, mode, view.value, direction.value, depth.value, cycle.value, selected ? 0 : directoryPageIndex]);
@@ -423,10 +423,15 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (pageChanged && !restoringNavigation) saveNavigation(true);
     const fileView = graphSelected && view.value === "dependencies";
     if (fileView) projection = { ...projection, nodes: projection.nodes.filter((node) => node.type === "file").map(({ parent, ...node }) => node) };
+    const unavailable = view.value === "impact" && !impactResult ? !selected ? "Select a file to see its impact." : !analysis ? "Impact is unavailable without a project dependency graph." : "Impact is unavailable for this file in the dependency graph." : view.value === "cycles" && !group ? !analysis ? "Cycles are unavailable without a project dependency graph." : `${analysis.cycles.length ? "Select a cycle group to see its dependencies." : `No cycles were found in the ${analysis.data.graph.complete ? "project" : "partial"} dependency graph.`}${analysis.data.graph.complete ? "" : " The dependency graph is partial; additional cycles may be missing."}` : "";
+    const cameraButtons = [...mapActions.children].filter((item) => item !== back && item !== context);
+    cameraButtons.forEach((button) => { button.disabled = !projection.nodes.length || typeof window.cytoscape !== "function"; button.style.visibility = button.disabled ? "hidden" : ""; });
+    back.hidden = !selected && directory === "."; back.disabled = false;
     if (!projection.nodes.length || typeof window.cytoscape !== "function") {
-      container.replaceChildren(emptyState(!projection.nodes.length ? "No project files were discovered for the dependency map." : "Cytoscape.js could not be loaded."));
-      legend.replaceChildren(); stats.textContent = "";
-      renderPrompt(details, "The dependency map is unavailable. You can still explore listed files above.");
+      const message = unavailable || (!projection.nodes.length ? "No project files were discovered for the dependency map." : "Cytoscape.js could not be loaded.");
+      container.replaceChildren(emptyState(message));
+      legend.replaceChildren(); stats.textContent = ""; stats.title = ""; context.hidden = true;
+      renderPrompt(details, message);
       return;
     }
     container.replaceChildren();
@@ -476,8 +481,6 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       ? `${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
       : directoryView ? `${formatNumber(projection.fileCount)} listed files in ${directory} · ${projection.nodes.length} / ${fullDirectory.nodes.length} items · ${projection.edges.length} connections shown${projection.pages > 1 ? ` · page ${projection.page + 1} / ${projection.pages}` : ""}${status}` : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
     stats.title = stats.textContent;
-    back.disabled = !selected && directory === "." && view.value === "dependencies";
-    back.hidden = false;
     context.hidden = false;
     contextText.textContent = selected ? `${view.value === "cycles" ? "Saved file" : "Current file"}: ${analysis?.data.files.get(selected)?.path || selected}${view.value === "cycles" ? " · Cycles across project" : ""}` : directory === "." ? "Project" : `Directory: ${directory}`;
     contextText.title = contextText.textContent;
