@@ -214,7 +214,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     withTests.projectGraph.nodes.push({ id: "test/example.test.js", path: "test/example.test.js", entryPoint: true });
     renderer.render(withTests);
     assert.equal(initialSearch.disabled, false);
-    const entries = workspace.children[1].children[0].children[1];
+    const entries = workspace.children[1].children.find((child) => child.className === "architecture-entries").children[1];
     const testGroup = entries.children.find((child) => child.children?.[0]?.textContent === "Test entry points (1)");
     assert.ok(testGroup); assert.ok(!testGroup.open);
     assert.match(testGroup.children[1].textContent, /test directory or filename/);
@@ -298,10 +298,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(search.value, "checkout");
     assert.equal(direction.value, "inbound"); assert.equal(depth.value, "2");
     assert.ok(results.children.some((option) => option.value === "new/checkout.ts"));
-    graphModes.children[1].fire("click");
+    graphModes.children[2].fire("click");
     assert.equal(view.value, "impact");
     assert.equal(lastFit.length, lastGraph.elements().length);
-    assert.equal(graphModes.children[1].attributes["aria-pressed"], "true");
+    assert.equal(graphModes.children[2].attributes["aria-pressed"], "true");
     assert.ok(details.children[2].children.some((item) => item.textContent === "Direct consumers"));
     assert.ok(details.children[2].children.some((item) => item.textContent === "Other reachable consumers"));
     assert.ok(details.children.find((child) => child.children?.[0]?.textContent === "Direct consumers").open);
@@ -327,7 +327,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(cycle.parentElement.hidden, false);
     assert.ok(cycle.children.length > 1);
     cycle.value = cycle.children[1].value; cycle.fire("change");
-    assert.equal(graphModes.children[2].attributes["aria-pressed"], "true");
+    assert.equal(graphModes.children[3].attributes["aria-pressed"], "true");
     assert.equal(lastFit.length, lastGraph.elements().length);
     const selectedCycle = cycle.value;
     assert.equal(details.children[0].textContent, "Cycle group");
@@ -347,7 +347,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(details.children[0].textContent, "Cycle group");
     renderer.render(updated);
     assert.equal(cycle.value, "");
-    assert.match(container.children[0].textContent, /No cycles were found/);
+    assert.match(container.children[0].textContent, /No import cycles detected/);
     assert.equal(cycle.parentElement.hidden, true); assert.equal(fitButton.disabled, true);
     back.focus(); back.fire("click");
     assert.equal(globalThis.document.activeElement, fitButton);
@@ -368,11 +368,11 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     view.value = "dependencies"; view.fire("change");
     assert.equal(direction.parentElement.hidden, true); assert.equal(depth.parentElement.hidden, true);
     view.value = "cycles"; view.fire("change");
-    assert.match(container.children[0].textContent, /partial dependency graph.*additional cycles may be missing/);
+    assert.match(container.children[0].textContent, /partial graph.*Missing imports may hide cycles/);
     partial.projectGraph.diagnostics = [];
     partial.projectGraph.edges.push({ source: "domain/checkout.ts", target: "ui/Checkout.tsx" });
     renderer.render(partial);
-    assert.match(container.children[0].textContent, /Select a cycle group.*partial.*additional cycles may be missing/);
+    assert.match(container.children[0].textContent, /Select a cycle group.*partial.*missing imports may hide cycles/);
     renderer.clear(); setLocation("/?page=architecture");
     const legacy = structuredClone(model); delete legacy.projectGraph;
     renderer.render(legacy);
@@ -616,6 +616,46 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     const renderer15 = architecture.createRenderer({ container: new Element(), details: new Element(), legend: new Element(), stats: new Element(), fitButton: new Element() });
     renderer15.render(shrunk); assert.equal(lastGraph.zoom(), 0.68); assert.deepEqual(lastGraph.pan(), { x: 44, y: 55 });
     renderer15.clear();
+
+    history.replaceState({}, "", "/?page=architecture");
+    const mapDetails = new Element();
+    const renderer16 = architecture.createRenderer({ container: new Element(), details: mapDetails, legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer16.render(model);
+    const overviewPanel = created.filter((element) => element.className === "architecture-workspace").at(-1).children[1];
+    overviewPanel.children.find((child) => child.textContent === "Open project map").fire("click");
+    assert.match(location.hash, /view=map.*graph=project/);
+    lastGraph.zoom(0.61); lastGraph.pan({ x: 12, y: 24 });
+    const layer = lastGraph.nodes('[type = "overview-layer"]').find((node) => node.data("layerId") === "domain");
+    assert.ok(layer);
+    const layerList = mapDetails.children.find((child) => child.className === "architecture-layer-list");
+    layerList.children.find((button) => button.textContent.startsWith(`${layer.data("label")} ·`)).fire("click");
+    assert.match(location.hash, /layer=/);
+    lastGraph.zoom(0.92); lastGraph.pan({ x: 45, y: 67 });
+    const layerFiles = mapDetails.children.find((child) => child.children?.[0]?.textContent === "Files in this layer");
+    assert.ok(layerFiles); layerFiles.children[1].children[0].children[1].fire("click");
+    assert.match(location.hash, /file=.*view=map/);
+    history.go(-1);
+    assert.match(location.hash, /graph=project.*layer=/);
+    assert.equal(lastGraph.zoom(), 0.92); assert.deepEqual(lastGraph.pan(), { x: 45, y: 67 });
+    assert.ok(mapDetails.children.find((child) => child.children?.[0]?.textContent === "Files in this layer"));
+    history.go(-1);
+    assert.doesNotMatch(location.hash, /layer=/);
+    assert.equal(lastGraph.zoom(), 0.61); assert.deepEqual(lastGraph.pan(), { x: 12, y: 24 });
+    history.go(1);
+    mapDetails.scrollTop = 200;
+    mapDetails.children.find((child) => child.textContent === "All layers").fire("click");
+    assert.equal(mapDetails.scrollTop, 0);
+    renderer16.clear();
+
+    const cycleGroup = JSON.stringify(["domain/checkout.ts", "ui/Checkout.tsx"]);
+    history.replaceState({}, "", `/?page=architecture#view=map&graph=cycles&cycle=${encodeURIComponent(cycleGroup)}`);
+    const cycleDetails = new Element();
+    const renderer17 = architecture.createRenderer({ container: new Element(), details: cycleDetails, legend: new Element(), stats: new Element(), fitButton: new Element() });
+    renderer17.render(cyclic);
+    assert.equal(cycleDetails.children[0].textContent, "Cycle group");
+    assert.equal(lastGraph.nodes('[type = "file"]').length, 2);
+    assert.ok(cycleDetails.children.find((child) => child.children?.[0]?.textContent === "Cycle members"));
+    renderer17.clear();
   } finally { globalThis.document = oldDocument; globalThis.window = oldWindow; globalThis.Option = oldOption; globalThis.ResizeObserver = oldResizeObserver; globalThis.fetch = oldFetch; }
 });
 

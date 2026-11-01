@@ -1,7 +1,13 @@
-function renderWorkspaceOverview({ overviewPanel, selected, directory, allFiles, structure, analysis, fileButton }) {
+function renderWorkspaceOverview({ overviewPanel, selected, directory, allFiles, structure, analysis, fileButton, openProjectMap }) {
   overviewPanel.replaceChildren();
   if (selected) return renderFileRelations(overviewPanel, selected, analysis, fileButton);
   if (directory !== ".") return renderDirectory(overviewPanel, directory, allFiles, fileButton);
+  const intro = document.createElement("p");
+  intro.textContent = "Explore the project map, choose an entry point, or expand folders in Explorer.";
+  const mapButton = document.createElement("button");
+  mapButton.type = "button"; mapButton.className = "secondary-button"; mapButton.textContent = "Open project map";
+  mapButton.addEventListener("click", openProjectMap);
+  overviewPanel.append(intro, mapButton);
   renderEntryPoints(overviewPanel, structure.entryPoints, fileButton);
 }
 
