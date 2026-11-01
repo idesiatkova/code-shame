@@ -1,4 +1,4 @@
-.architecture-select-control { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 10px; border: 1px solid #59625d; border-radius: 6px; background: #202522; color: inherit; font: inherit; cursor: pointer; overflow: hidden; white-space: nowrap; text-align: left; }
+.architecture-select-control { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 10px; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--control-surface); color: inherit; font: inherit; cursor: pointer; overflow: hidden; white-space: nowrap; text-align: left; }
 .architecture-select-control span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .architecture-select-control::after { content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
 .architecture-select-control[aria-expanded="true"]::after { transform: rotate(225deg) translate(-2px, -1px); }
@@ -6,5 +6,5 @@
 .architecture-select-control:disabled { opacity: .5; cursor: default; }
 .architecture-select-options[hidden] { display: none; }
 .architecture-select-option { box-sizing: border-box; }
-.architecture-select-option:hover:not([aria-disabled="true"]), .architecture-select-option.is-active, .architecture-select-option[aria-selected="true"] { background: #38443b; }
+.architecture-select-option:hover:not([aria-disabled="true"]), .architecture-select-option.is-active, .architecture-select-option[aria-selected="true"] { background: var(--selection); }
 .architecture-select-option[aria-disabled="true"] { opacity: .6; cursor: default; }

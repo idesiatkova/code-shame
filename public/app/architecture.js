@@ -478,7 +478,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       if (overview) renderOverviewLayerDetails(details, node);
       else { renderLayerDetails(details, node.data(), node.descendants()); appendNote(details, "This highlights the visible part of the layer in the current file view."); }
       if (overview) {
-        const allLayers = document.createElement("button"); allLayers.type = "button"; allLayers.className = "secondary-button"; allLayers.textContent = "All layers";
+        const allLayers = document.createElement("button"); allLayers.type = "button"; allLayers.className = "architecture-back"; allLayers.textContent = "All layers";
         allLayers.addEventListener("click", () => { reset(); details.scrollTop = 0; details.querySelector(".architecture-layer-list")?.querySelector("button")?.focus({ preventScroll: true }); });
         details.append(allLayers);
       }
@@ -833,15 +833,13 @@ function appendFiles(element, label, files, explore, open = false) {
   list.className = "architecture-file-list";
   files.forEach((file) => {
     const item = document.createElement("li");
-    const path = document.createElement("span");
-    path.textContent = file.path;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "architecture-explore";
-    button.textContent = "Explore";
+    button.className = "architecture-file-link";
+    button.textContent = file.path;
     button.setAttribute("aria-label", `Explore ${file.path}`);
     button.addEventListener("click", () => explore(file.canonicalId));
-    item.append(path, button); list.append(item);
+    item.append(button); list.append(item);
   });
   disclosure.append(summary, list); element.append(disclosure);
 }

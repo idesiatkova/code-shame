@@ -286,7 +286,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(details.scrollTop, 100);
     depth.value = "2"; depth.fire("change");
     const importer = details.children.find((child) => child.children?.[0]?.textContent === "All direct importers");
-    importer.children[1].children[0].children[1].fire("click");
+    importer.children[1].children[0].children[0].fire("click");
     assert.equal(details.scrollTop, 0);
     assert.match(details.children[1].textContent, /ui\/Checkout.tsx/);
     details.scrollTop = 100;
@@ -370,7 +370,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(view.value, "cycles");
     assert.equal(details.children[1].textContent, member.data("path"));
     const members = details.children.find((child) => child.children?.[0]?.textContent === "Cycle members");
-    members.children[1].children[0].children[1].fire("click");
+    members.children[1].children[0].children[0].fire("click");
     assert.equal(view.value, "dependencies");
     assert.equal(view.value, "dependencies");
     view.value = "cycles"; view.fire("change");
@@ -683,7 +683,13 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.match(location.hash, /layer=/);
     lastGraph.zoom(0.92); lastGraph.pan({ x: 45, y: 67 });
     const layerFiles = mapDetails.children.find((child) => child.children?.[0]?.textContent === "Files in this layer");
-    assert.ok(layerFiles); layerFiles.children[1].children[0].children[1].fire("click");
+    assert.ok(layerFiles);
+    const fileRow = layerFiles.children[1].children[0];
+    assert.equal(fileRow.children.length, 1);
+    const fileLink = fileRow.children[0];
+    assert.equal(fileLink.className, "architecture-file-link");
+    assert.equal(fileLink.getAttribute("aria-label"), `Explore ${fileLink.textContent}`);
+    fileLink.fire("click");
     assert.match(location.hash, /file=.*view=map/);
     history.go(-1);
     assert.match(location.hash, /graph=project.*layer=/);
