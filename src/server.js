@@ -12,54 +12,72 @@ const MIME_TYPES = new Map([
   [".html", "text/html; charset=utf-8"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
-  [".svg", "image/svg+xml"]
+  [".svg", "image/svg+xml"],
 ]);
 const VENDOR_SCRIPT_PATHS = new Map([
   ["/vendor/cytoscape.js", resolveCytoscapeScriptPath()],
   ["/vendor/cytoscape-dagre.js", require.resolve("cytoscape-dagre")],
-  ["/vendor/lucide.js", resolveLucideScriptPath()]
+  ["/vendor/lucide.js", resolveLucideScriptPath()],
 ]);
 
 function createServer({ scanService, ...options } = {}) {
   const scans = scanService || createScanService(options);
-  const server = http.createServer(async (request, response) => {
-    try {
-      const url = new URL(request.url, "http://localhost");
-      const route = `${request.method} ${url.pathname}`;
-      if (route === "GET /api/health") return sendJson(response, 200, { ok: true });
-      if (route === "GET /api/report") return sendJson(response, 200, scans.getSnapshot());
-      if (route === "GET /api/source" || route === "GET /api/function-graph") {
-        const snapshot = scans.getSnapshot();
-        const resolver = createResolver(options.projectRoot || process.cwd(), snapshot);
-        const file = url.searchParams.get("file");
-        const result = route === "GET /api/source" ? await resolver.source(file) : await resolver.functionGraph(file, url.searchParams.get("symbol"));
-        if (scans.getSnapshot().report !== snapshot.report) return sendJson(response, 409, { error: "Scan changed while reading source", code: "STALE_SCAN" });
-        return sendJson(response, 200, result);
-      }
-      if (route === "POST /api/scan") {
-        scans.start();
-        return sendJson(response, 202, scans.getSnapshot());
-      }
-      if (url.pathname.startsWith("/api/")) {
-        return sendJson(response, 404, { error: "Unknown API endpoint" });
-      }
-      if (request.method !== "GET" && request.method !== "HEAD") {
-        response.writeHead(405, { allow: "GET, HEAD" });
-        return response.end();
-      }
-      await serveStatic(response, url.pathname);
-    } catch (error) {
-      sendJson(response, error.status || 500, { error: error.message || String(error), ...(error.code ? { code: error.code } : {}) });
-    }
-  });
+  const server = http.createServer((request, response) =>
+    handleRequest(request, response, scans, options),
+  );
   server.once("close", () => scans.close());
   return server;
+}
+
+async function handleSourceRequest(response, url, route, scans, options) {
+  const snapshot = scans.getSnapshot();
+  const resolver = createResolver(options.projectRoot || process.cwd(), snapshot);
+  const file = url.searchParams.get("file");
+  const result =
+    route === "GET /api/source"
+      ? await resolver.source(file)
+      : await resolver.functionGraph(file, url.searchParams.get("symbol"));
+  if (scans.getSnapshot().report !== snapshot.report)
+    return sendJson(response, 409, {
+      error: "Scan changed while reading source",
+      code: "STALE_SCAN",
+    });
+  return sendJson(response, 200, result);
+}
+
+async function handleRequest(request, response, scans, options) {
+  try {
+    const url = new URL(request.url, "http://localhost");
+    const route = `${request.method} ${url.pathname}`;
+    if (route === "GET /api/health") return sendJson(response, 200, { ok: true });
+    if (route === "GET /api/report") return sendJson(response, 200, scans.getSnapshot());
+    if (route === "GET /api/source" || route === "GET /api/function-graph") {
+      return await handleSourceRequest(response, url, route, scans, options);
+    }
+    if (route === "POST /api/scan") {
+      scans.start();
+      return sendJson(response, 202, scans.getSnapshot());
+    }
+    if (url.pathname.startsWith("/api/")) {
+      return sendJson(response, 404, { error: "Unknown API endpoint" });
+    }
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      response.writeHead(405, { allow: "GET, HEAD" });
+      return response.end();
+    }
+    await serveStatic(response, url.pathname);
+  } catch (error) {
+    sendJson(response, error.status || 500, {
+      error: error.message || String(error),
+      ...(error.code ? { code: error.code } : {}),
+    });
+  }
 }
 
 function sendJson(response, statusCode, payload) {
   response.writeHead(statusCode, {
     "cache-control": "no-store",
-    "content-type": "application/json; charset=utf-8"
+    "content-type": "application/json; charset=utf-8",
   });
   response.end(`${JSON.stringify(payload)}\n`);
 }
@@ -89,15 +107,20 @@ async function serveStatic(response, pathname) {
   }
 
   if (filePath === resolvePublicPath("/index.html")) {
-    const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
-    content = content.toString("utf8")
+    const escapeHtml = (value) =>
+      String(value).replace(
+        /[&<>"']/g,
+        (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char],
+      );
+    content = content
+      .toString("utf8")
       .replace("{{CODE_SHAME_VERSION}}", escapeHtml(codeShameVersion))
       .replace("{{FALLOW_VERSION}}", escapeHtml(fallowVersion));
   }
 
   response.writeHead(200, {
     "cache-control": "no-store",
-    "content-type": MIME_TYPES.get(path.extname(filePath)) || "application/octet-stream"
+    "content-type": MIME_TYPES.get(path.extname(filePath)) || "application/octet-stream",
   });
   response.end(content);
 }
@@ -110,6 +133,5 @@ async function readStatic(filePath) {
     throw error;
   }
 }
-
 
 module.exports = { createServer };

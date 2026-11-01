@@ -17,17 +17,27 @@ class FallowClient {
     this.launcherPath = require.resolve("fallow/bin/fallow");
   }
 
-  analyze() { return this.runJson(JSON_OUTPUT_ARGS); }
-  listProject() { return this.runJson(["list", ...JSON_OUTPUT_ARGS]); }
-  resolvedConfig() { return this.runJson(["config", ...JSON_OUTPUT_ARGS]); }
-  inspectFile(filePath) { return this.runJson(["inspect", "--file", filePath, ...JSON_OUTPUT_ARGS]); }
+  analyze() {
+    return this.runJson(JSON_OUTPUT_ARGS);
+  }
+  listProject() {
+    return this.runJson(["list", ...JSON_OUTPUT_ARGS]);
+  }
+  resolvedConfig() {
+    return this.runJson(["config", ...JSON_OUTPUT_ARGS]);
+  }
+  inspectFile(filePath) {
+    return this.runJson(["inspect", "--file", filePath, ...JSON_OUTPUT_ARGS]);
+  }
 
   async exportGraph() {
     if (this.signal?.aborted) throw this.signal.reason;
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "code-shame-graph-"));
     const output = path.join(directory, "graph.dot");
     try {
-      await this.runJson(["viz", "--viz-format", "dot", "--no-open", "--out", output, "--quiet"], { output });
+      await this.runJson(["viz", "--viz-format", "dot", "--no-open", "--out", output, "--quiet"], {
+        output,
+      });
       const file = await fs.open(output, "r");
       try {
         const stats = await file.stat();
@@ -52,7 +62,7 @@ class FallowClient {
         cwd: this.cwd,
         env: process.env,
         detached: process.platform !== "win32",
-        stdio: ["ignore", "pipe", "pipe"]
+        stdio: ["ignore", "pipe", "pipe"],
       });
       const stdout = [];
       const stderr = [];
@@ -76,7 +86,10 @@ class FallowClient {
         terminateProcessTree(child);
       };
       const abort = () => stop(this.signal.reason || new Error("Fallow command was cancelled."));
-      const timer = setTimeout(() => stop(new Error(`Fallow command timed out after ${this.timeoutMs} ms.`)), this.timeoutMs);
+      const timer = setTimeout(
+        () => stop(new Error(`Fallow command timed out after ${this.timeoutMs} ms.`)),
+        this.timeoutMs,
+      );
       this.signal?.addEventListener("abort", abort, { once: true });
       if (this.signal?.aborted) abort();
 
@@ -89,7 +102,9 @@ class FallowClient {
             if (stats.size > MAX_GRAPH_BYTES) stop(new Error("Fallow DOT exceeds the size limit."));
           } catch (error) {
             if (error.code !== "ENOENT") stop(error);
-          } finally { checkingSize = false; }
+          } finally {
+            checkingSize = false;
+          }
         }, 100);
       }
       const collect = (chunks, chunk) => {

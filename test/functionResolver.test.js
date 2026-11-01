@@ -17,18 +17,34 @@ test("resolves lexical bindings and relative exports without guessing dynamic ca
     "types.ts": `import type { shared } from './a.js';\nfunction f() { shared(); }\n`,
     "mutable.js": `export function changing() {}\nchanging = () => 2;\n`,
     "ambiguous.js": `export * from './a.js';\nexport * from './missing.js';\n`,
-    "uncertain.js": `import { changing } from './mutable.js';\nimport { shared } from './ambiguous.js';\nfunction f() { changing(); shared(); }\n`
+    "uncertain.js": `import { changing } from './mutable.js';\nimport { shared } from './ambiguous.js';\nfunction f() { changing(); shared(); }\n`,
   };
-  for (const [file, content] of Object.entries(files)) await fs.writeFile(path.join(root, file), content);
-  const report = { architecture: { projectGraph: { complete: true, nodes: Object.keys(files).map((file) => ({ path: file })), edges: [{ source: "b.js", target: "barrel.js" }, { source: "barrel.js", target: "a.js" }] } } };
+  for (const [file, content] of Object.entries(files))
+    await fs.writeFile(path.join(root, file), content);
+  const report = {
+    architecture: {
+      projectGraph: {
+        complete: true,
+        nodes: Object.keys(files).map((file) => ({ path: file })),
+        edges: [
+          { source: "b.js", target: "barrel.js" },
+          { source: "barrel.js", target: "a.js" },
+        ],
+      },
+    },
+  };
   const resolver = createResolver(root, { report });
   const result = await resolver.source("b.js");
-  for (const name of ["inner", "arrow", "local", "def", "ns.shared"]) assert.equal(result.calls.find((call) => call.name === name).status, "resolved", name);
-  for (const name of ["arg", "obj.method", "mutable"]) assert.equal(result.calls.find((call) => call.name === name).status, "unresolved", name);
+  for (const name of ["inner", "arrow", "local", "def", "ns.shared"])
+    assert.equal(result.calls.find((call) => call.name === name).status, "resolved", name);
+  for (const name of ["arg", "obj.method", "mutable"])
+    assert.equal(result.calls.find((call) => call.name === name).status, "unresolved", name);
   const shadow = result.symbols.find((symbol) => symbol.name === "shadow");
   assert.equal(result.calls.find((call) => call.ownerId === shadow.id).status, "unresolved");
   assert.equal((await resolver.source("types.ts")).calls[0].status, "unresolved");
-  assert.ok((await resolver.source("uncertain.js")).calls.every((call) => call.status === "unresolved"));
+  assert.ok(
+    (await resolver.source("uncertain.js")).calls.every((call) => call.status === "unresolved"),
+  );
   const caller = result.symbols.find((symbol) => symbol.name === "caller");
   const graph = await resolver.functionGraph("b.js", caller.id);
   assert.equal(graph.edges.length, 5);
@@ -39,12 +55,21 @@ test("resolves lexical bindings and relative exports without guessing dynamic ca
   assert.ok(incoming.edges.some((edge) => edge.file === "b.js"));
   assert.ok(incoming.edges.some((edge) => edge.file === "a.js"));
 
-  const server = createServer({ projectRoot: root, scanService: { getSnapshot: () => ({ report }), close() {} } });
-  t.after(() => { server.close(); server.closeAllConnections(); });
+  const server = createServer({
+    projectRoot: root,
+    scanService: { getSnapshot: () => ({ report }), close() {} },
+  });
+  t.after(() => {
+    server.close();
+    server.closeAllConnections();
+  });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const url = `http://127.0.0.1:${server.address().port}/api/function-graph`;
-  assert.equal((await fetch(`${url}?file=b.js&symbol=${encodeURIComponent(caller.id)}`)).status, 200);
+  assert.equal(
+    (await fetch(`${url}?file=b.js&symbol=${encodeURIComponent(caller.id)}`)).status,
+    200,
+  );
   assert.equal((await fetch(`${url}?file=b.js&symbol=missing`)).status, 404);
   assert.equal((await fetch(`${url}?file=../b.js&symbol=x`)).status, 400);
 });
@@ -54,9 +79,14 @@ test("bounds large function neighborhoods", async (t) => {
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   const source = `${Array.from({ length: 100 }, (_, i) => `function f${i}() {}`).join("\n")}\nfunction root() { ${Array.from({ length: 100 }, (_, i) => `f${i}();`).join(" ")} }`;
   await fs.writeFile(path.join(root, "a.js"), source);
-  const resolver = createResolver(root, { report: { architecture: { projectGraph: { nodes: [{ path: "a.js" }], edges: [] } } } });
+  const resolver = createResolver(root, {
+    report: { architecture: { projectGraph: { nodes: [{ path: "a.js" }], edges: [] } } },
+  });
   const result = await resolver.source("a.js");
-  const graph = await resolver.functionGraph("a.js", result.symbols.find((item) => item.name === "root").id);
+  const graph = await resolver.functionGraph(
+    "a.js",
+    result.symbols.find((item) => item.name === "root").id,
+  );
   assert.equal(graph.nodes.length, 80);
   assert.equal(graph.edges.length, 79);
   assert.equal(graph.coverage.truncated, true);
@@ -79,22 +109,61 @@ test("resolves static CommonJS and lexical class calls conservatively", async (t
     "guards.js": `const obj = require('./object-default'); obj(); require('./direct').default(); require('./changed').f = other; require('./changed').f(); class C { run() {} execute() { this.run(); } } const c = new C(); c.run = other; class Base { run() {} execute() { this.run(); } } const Alias = Base; class Child extends Alias { run() {} }`,
     "escape.js": `const ns = require('./lib'); const alias = ns; alias.f = other; require('./lib').f(); Object.assign(require('./changed'), { f: other }); require('./changed').f(); require('./mutated-barrel').f(); const C = class { run() {} execute() { this.run(); } }; C.prototype.run = other;`,
     "calls.js": `const { f: alias, renamed } = require('./barrel'); const ns = require('./lib'); const direct = require('./direct'); const member = require('./lib').f; function caller() { alias(); renamed(); ns.f(); direct(); member(); require('./direct')(); require('./lib').method(); } function shadow(require) { require('./lib').f(); } const changed = require('./changed'); changed.f = other; changed.f(); const { f } = require('./bad'); f(); const { f: detached } = require('./detached'); detached(); const { f: cycle } = require('./cycle1'); cycle();`,
-    "class.js": `class Client { constructor() { this.value = 1; } run() {} #hidden() {} field = () => this.run(); execute() { this.run(); this.#hidden(); (() => this.run())(); function nested() { this.run(); } } static run() {} static execute() { this.run(); } } class Mutable { run() {} execute() { this.run(); } change() { this.run = other; } } class Base { run() {} execute() { this.run(); } } class Child extends Base { run() {} }`
+    "class.js": `class Client { constructor() { this.value = 1; } run() {} #hidden() {} field = () => this.run(); execute() { this.run(); this.#hidden(); (() => this.run())(); function nested() { this.run(); } } static run() {} static execute() { this.run(); } } class Mutable { run() {} execute() { this.run(); } change() { this.run = other; } } class Base { run() {} execute() { this.run(); } } class Child extends Base { run() {} }`,
   };
-  for (const [file, content] of Object.entries(files)) await fs.writeFile(path.join(root, file), content);
-  const resolver = createResolver(root, { report: { architecture: { projectGraph: { nodes: Object.keys(files).map((path) => ({ path })), edges: [] } } } });
+  for (const [file, content] of Object.entries(files))
+    await fs.writeFile(path.join(root, file), content);
+  const resolver = createResolver(root, {
+    report: {
+      architecture: {
+        projectGraph: { nodes: Object.keys(files).map((path) => ({ path })), edges: [] },
+      },
+    },
+  });
   const calls = (await resolver.source("calls.js")).calls;
-  for (const name of ["alias", "renamed", "ns.f", "direct", "member", "require('./direct')", "require('./lib').method"]) assert.equal(calls.find((call) => call.name === name).status, "resolved", name);
-  for (const name of ["changed.f", "f"]) assert.equal(calls.find((call) => call.name === name).status, "unresolved", name);
+  for (const name of [
+    "alias",
+    "renamed",
+    "ns.f",
+    "direct",
+    "member",
+    "require('./direct')",
+    "require('./lib').method",
+  ])
+    assert.equal(calls.find((call) => call.name === name).status, "resolved", name);
+  for (const name of ["changed.f", "f"])
+    assert.equal(calls.find((call) => call.name === name).status, "unresolved", name);
   assert.equal(calls.find((call) => call.name === "cycle").status, "unresolved");
   assert.equal(calls.find((call) => call.name === "detached").target.name, "second");
   assert.equal(calls.find((call) => call.name === "require('./lib').f").status, "unresolved");
   const cls = await resolver.source("class.js");
   const thisCalls = cls.calls.filter((call) => call.name === "this.run");
-  assert.deepEqual(thisCalls.map((call) => call.status), ["resolved", "resolved", "resolved", "unresolved", "resolved", "unresolved", "unresolved"]);
+  assert.deepEqual(
+    thisCalls.map((call) => call.status),
+    ["resolved", "resolved", "resolved", "unresolved", "resolved", "unresolved", "unresolved"],
+  );
   assert.equal(cls.calls.find((call) => call.name === "this.#hidden").status, "resolved");
   const guards = (await resolver.source("guards.js")).calls;
-  assert.ok(guards.filter((call) => ["obj", "require('./direct').default", "require('./changed').f", "this.run"].includes(call.name)).every((call) => call.status === "unresolved"));
+  assert.ok(
+    guards
+      .filter((call) =>
+        ["obj", "require('./direct').default", "require('./changed').f", "this.run"].includes(
+          call.name,
+        ),
+      )
+      .every((call) => call.status === "unresolved"),
+  );
   const escapes = (await resolver.source("escape.js")).calls;
-  assert.ok(escapes.filter((call) => ["require('./lib').f", "require('./changed').f", "require('./mutated-barrel').f", "this.run"].includes(call.name)).every((call) => call.status === "unresolved"));
+  assert.ok(
+    escapes
+      .filter((call) =>
+        [
+          "require('./lib').f",
+          "require('./changed').f",
+          "require('./mutated-barrel').f",
+          "this.run",
+        ].includes(call.name),
+      )
+      .every((call) => call.status === "unresolved"),
+  );
 });

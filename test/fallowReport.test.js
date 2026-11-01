@@ -17,10 +17,10 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
             export_name: "sharedValue",
             locations: [
               { path: "a.js", line: 3 },
-              { path: "b.js", line: 7 }
-            ]
-          }
-        ]
+              { path: "b.js", line: 7 },
+            ],
+          },
+        ],
       },
       dupes: {
         clone_groups: [],
@@ -28,8 +28,8 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
           clone_groups: 0,
           clone_instances: 0,
           duplicated_lines: 0,
-          duplication_percentage: 0
-        }
+          duplication_percentage: 0,
+        },
       },
       health: {
         findings: [],
@@ -38,14 +38,14 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
           files_scored: 2,
           functions_analyzed: 20,
           functions_above_threshold: 0,
-          average_maintainability: 91.5
+          average_maintainability: 91.5,
         },
         vital_signs: {
           avg_cyclomatic: 1.7,
           p90_cyclomatic: 4,
           p95_fan_in: 3,
           coupling_high_pct: 50,
-          total_loc: 500
+          total_loc: 500,
         },
         file_scores: [
           {
@@ -55,7 +55,7 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
             total_cognitive: 4,
             fan_in: 2,
             fan_out: 3,
-            lines: 44
+            lines: 44,
           },
           {
             path: "b.js",
@@ -64,8 +64,8 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
             total_cognitive: 2,
             fan_in: 4,
             fan_out: 1,
-            lines: 20
-          }
+            lines: 20,
+          },
         ],
         targets: [
           {
@@ -75,17 +75,17 @@ test("normalizes combined Fallow report into compact dashboard state", () => {
             category: "split_high_impact",
             effort: "medium",
             confidence: "medium",
-            recommendation: "Split high-impact file"
-          }
-        ]
-      }
+            recommendation: "Split high-impact file",
+          },
+        ],
+      },
     },
     {
       command: "npx fallow --format json --quiet",
       durationMs: 30,
       exitCode: 0,
-      generatedAt: "2026-06-21T00:00:00.000Z"
-    }
+      generatedAt: "2026-06-21T00:00:00.000Z",
+    },
   );
 
   assert.equal(report.status, "attention");
@@ -118,7 +118,7 @@ test("marks reports without attention issues as clear", () => {
     version: "3.7.1",
     check: { total_issues: 0, summary: {} },
     dupes: { clone_groups: [], stats: { clone_groups: 0 } },
-    health: { findings: [], summary: {}, vital_signs: {}, file_scores: [], targets: [] }
+    health: { findings: [], summary: {}, vital_signs: {}, file_scores: [], targets: [] },
   });
 
   assert.equal(report.status, "clear");
@@ -133,7 +133,7 @@ test("limits maintainability list while keeping all high-coupling candidates", (
     total_cognitive: 1,
     fan_in: index + 1,
     fan_out: 0,
-    lines: 20
+    lines: 20,
   }));
   const report = normalizeFallowReport({
     check: { total_issues: 0, summary: {} },
@@ -143,15 +143,15 @@ test("limits maintainability list while keeping all high-coupling candidates", (
       summary: { files_scored: 10 },
       vital_signs: { p95_fan_in: 7, coupling_high_pct: 30 },
       file_scores: fileScores,
-      targets: []
-    }
+      targets: [],
+    },
   });
 
   assert.equal(report.health.fileScores.length, 8);
   assert.equal(report.health.coupling.candidateCount, 3);
   assert.deepEqual(
     report.health.coupling.candidates.map((candidate) => candidate.path),
-    ["file-10.js", "file-9.js", "file-8.js"]
+    ["file-10.js", "file-9.js", "file-8.js"],
   );
 });
 
@@ -165,16 +165,16 @@ test("ignores zero coupling percentile thresholds", () => {
       vital_signs: { p95_fan_in: 10, p95_fan_out: 0 },
       file_scores: [
         { path: "high-in.js", fan_in: 11, fan_out: 0, lines: 20 },
-        { path: "ordinary-out.js", fan_in: 0, fan_out: 1, lines: 20 }
+        { path: "ordinary-out.js", fan_in: 0, fan_out: 1, lines: 20 },
       ],
-      targets: []
-    }
+      targets: [],
+    },
   });
 
   assert.equal(report.health.coupling.fanOutThreshold, null);
   assert.deepEqual(
     report.health.coupling.candidates.map((candidate) => candidate.path),
-    ["high-in.js"]
+    ["high-in.js"],
   );
 });
 
@@ -183,41 +183,42 @@ test("combines dead code, duplication, and complexity into hard findings", () =>
     check: {
       total_issues: 4,
       summary: { duplicate_exports: 4 },
-      duplicate_exports: [{ export_name: "sharedValue", locations: [] }]
+      duplicate_exports: [{ export_name: "sharedValue", locations: [] }],
     },
     dupes: {
       clone_groups: [{ id: "clone-1", instances: [] }],
-      stats: { clone_groups: 1 }
+      stats: { clone_groups: 1 },
     },
     health: {
       findings: [{ path: "app.js", severity: "moderate" }],
       summary: {},
       vital_signs: {},
       file_scores: [],
-      targets: []
-    }
+      targets: [],
+    },
   });
 
   assert.equal(report.hardFindings.count, 6);
   assert.deepEqual(
     report.hardFindings.sections.map((section) => section.id),
-    ["duplicate_exports", "duplicated_code", "complexity_findings"]
+    ["duplicate_exports", "duplicated_code", "complexity_findings"],
   );
   assert.equal(report.status, "attention");
 });
 
 test("colors maintainability by score range", () => {
-  const reportFor = (averageMaintainability) => normalizeFallowReport({
-    check: { total_issues: 0, summary: {} },
-    dupes: { clone_groups: [], stats: { clone_groups: 0 } },
-    health: {
-      findings: [],
-      summary: { average_maintainability: averageMaintainability },
-      vital_signs: {},
-      file_scores: [],
-      targets: []
-    }
-  });
+  const reportFor = (averageMaintainability) =>
+    normalizeFallowReport({
+      check: { total_issues: 0, summary: {} },
+      dupes: { clone_groups: [], stats: { clone_groups: 0 } },
+      health: {
+        findings: [],
+        summary: { average_maintainability: averageMaintainability },
+        vital_signs: {},
+        file_scores: [],
+        targets: [],
+      },
+    });
 
   assert.equal(reportFor(80).overview[3].tone, "good");
   assert.equal(reportFor(60).overview[3].tone, "warn");

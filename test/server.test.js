@@ -7,17 +7,29 @@ const path = require("node:path");
 test("creates an isolated HTTP server without listening on import", async (t) => {
   let starts = 0;
   let closed = false;
-  const server = createServer({ scanService: {
-    getSnapshot: () => ({ projectId: "a", running: starts > 0 }),
-    start: () => { starts++; },
-    close: () => { closed = true; }
-  } });
+  const server = createServer({
+    scanService: {
+      getSnapshot: () => ({ projectId: "a", running: starts > 0 }),
+      start: () => {
+        starts++;
+      },
+      close: () => {
+        closed = true;
+      },
+    },
+  });
   assert.equal(server.listening, false);
-  t.after(() => { server.close(); server.closeAllConnections(); });
+  t.after(() => {
+    server.close();
+    server.closeAllConnections();
+  });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const url = `http://127.0.0.1:${server.address().port}`;
-  assert.deepEqual(await (await fetch(`${url}/api/report`)).json(), { projectId: "a", running: false });
+  assert.deepEqual(await (await fetch(`${url}/api/report`)).json(), {
+    projectId: "a",
+    running: false,
+  });
   const scan = await fetch(`${url}/api/scan`, { method: "POST" });
   assert.equal(scan.status, 202);
   assert.equal(starts, 1);
@@ -47,8 +59,14 @@ test("creates an isolated HTTP server without listening on import", async (t) =>
 
 test("source API is restricted to the active snapshot", async (t) => {
   const report = { architecture: { projectGraph: { nodes: [{ path: "src/server.js" }] } } };
-  const server = createServer({ projectRoot: path.resolve(__dirname, ".."), scanService: { getSnapshot: () => ({ report }), close() {} } });
-  t.after(() => { server.close(); server.closeAllConnections(); });
+  const server = createServer({
+    projectRoot: path.resolve(__dirname, ".."),
+    scanService: { getSnapshot: () => ({ report }), close() {} },
+  });
+  t.after(() => {
+    server.close();
+    server.closeAllConnections();
+  });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const url = `http://127.0.0.1:${server.address().port}/api/source?file=`;
