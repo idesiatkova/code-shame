@@ -1510,6 +1510,9 @@ li {
 .architecture-directory-list button { display: block; min-height: 0; margin: 4px 0; padding: 4px 6px; font-size: 12px; text-align: left; overflow-wrap: anywhere; }
 .architecture-directory-pages { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .architecture-directory-pages button { min-height: 30px; padding: 4px 8px; font-size: 12px; }
+.architecture-boundary-connections h3 { margin: 12px 0 4px; font-size: 13px; }
+.architecture-boundary-connections p { margin: 6px 0; overflow-wrap: anywhere; }
+.architecture-boundary-connections button { min-height: 30px; padding: 4px 8px; font-size: 12px; }
 .architecture-directory-list p { margin: 2px 0; overflow-wrap: anywhere; }
 .architecture-workspace > div:first-child { padding-top: 12px; }
 .architecture-scope { margin-bottom: 7px; line-height: 14px; }

@@ -90,6 +90,24 @@ test("directory graph aggregates canonical imports between immediate children", 
   assert.equal(last.page, last.pages - 1);
   assert.ok(last.nodes.length <= 6);
   assert.ok(last.edges.every((edge) => last.nodes.some((node) => node.id === edge.source) && last.nodes.some((node) => node.id === edge.target)));
+  const pages = { nodes: Array.from({ length: 8 }, (_, i) => ({ id: String(i), path: `${i}.js` })), edges: [{ id: "internal", source: "0", target: "1", weight: 1 }, { id: "out", source: "0", target: "6", weight: 2 }, { id: "in", source: "7", target: "1", weight: 1 }, { id: "other", source: "6", target: "7", weight: 1 }] };
+  const first = directoryPage(pages, 0);
+  assert.deepEqual(first.edges.map((edge) => edge.id), ["internal"]);
+  assert.deepEqual(first.boundary.map((edge) => [edge.sourceNode.path, edge.targetNode.path, edge.destination.page, edge.weight]), [["0.js", "6.js", 1, 2], ["7.js", "1.js", 1, 1]]);
+  assert.deepEqual(first.other.map((edge) => edge.id), ["other"]);
+});
+
+test("focus counts follow direction and depth while direct lists remain project-wide", async () => {
+  const { focus, analytics } = await import("../public/app/architectureProjection.js");
+  const paths = ["a", "b", "c", "d"];
+  const model = { nodes: [], projectGraph: { complete: true, nodes: paths.map((path) => ({ id: path, path })), edges: [{ source: "a", target: "b" }, { source: "b", target: "c" }, { source: "d", target: "a" }] } };
+  const analysis = analytics(model);
+  assert.deepEqual(analysis.outgoing.get("a"), ["b"]);
+  assert.deepEqual(analysis.incoming.get("a"), ["d"]);
+  for (const [direction, depth, files, edges] of [["outbound", 1, 2, 1], ["outbound", 2, 3, 2], ["inbound", 1, 2, 1], ["both", 1, 3, 2], ["both", 2, 4, 3]]) {
+    const result = focus(model, "a", direction, depth);
+    assert.deepEqual([result.totalFiles, result.shownFiles, result.totalEdges, result.shownEdges], [files, files, edges, edges]);
+  }
 });
 
 test("renderer keeps focus and refreshes search results across snapshots", async () => {
@@ -108,6 +126,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     removeAttribute(key) { delete this.attributes[key]; }
     getAttribute(key) { return this.attributes[key] || key; }
     querySelector(selector) {
+      if (selector === "button") return this.children.find((child) => child.type === "button") || null;
       if (selector === ".architecture-search") return this.searchContainer;
       if (selector === ".architecture-secondary") return this.secondary;
       if (selector.startsWith(".")) return this.children.find((child) => child.className === selector.slice(1)) || this.children.map((child) => child.querySelector?.(selector)).find(Boolean) || null;
@@ -258,6 +277,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.ok(lastGraph.nodes('[type = "file"]').length > 1);
     assert.equal(lastFit.length, lastGraph.elements().length);
     direction.value = "outbound"; direction.fire("change"); depth.value = "2"; depth.fire("change");
+    assert.match(stats.textContent, /^Map: Imports · 2 steps/);
+    assert.ok(details.children.some((child) => child.textContent?.includes("Direction and depth filter only the map")));
+    assert.ok(details.children.some((child) => child.children?.[0]?.textContent === "All direct importers"));
+    assert.ok(details.children.some((child) => child.children?.[0]?.textContent === "All direct imports"));
     view.value = "impact"; view.fire("change");
     results.value = "ui/Checkout.tsx"; results.fire("change"); assert.equal(view.value, "impact");
     history.go(-1); assert.equal(view.value, "impact"); assert.equal(direction.value, "outbound"); assert.equal(depth.value, "2");
@@ -387,9 +410,25 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     renderer.clear();
     const large = structuredClone(model);
     for (let i = 0; i < 14; i++) large.projectGraph.nodes.push({ id: `extra${String(i).padStart(2, "0")}.js`, path: `extra${String(i).padStart(2, "0")}.js` });
+    large.projectGraph.edges.push({ source: "extra00.js", target: "extra13.js" }, { source: "extra13.js", target: "extra00.js" });
     setLocation("/?page=architecture"); renderer.render(large);
     header.children[2].children.at(-1).fire("click");
     assert.equal(lastGraph.nodes().length, 6);
+    const boundary = details.querySelector(".architecture-boundary-connections");
+    const boundaryRow = boundary.children.find((row) => row.children?.[0]?.textContent?.includes("extra00.js → extra13.js"));
+    assert.match(boundaryRow.children[0].textContent, /1 file import/);
+    assert.match(boundaryRow.children[1].textContent, /extra13.js on page/);
+    boundaryRow.children[1].fire("click");
+    assert.ok(lastGraph.nodes().some((node) => node.data("path") === "extra13.js"));
+    assert.match(globalThis.document.activeElement.textContent, /extra00.js on page 1/);
+    history.go(-1); assert.doesNotMatch(location.hash, /page=/);
+    assert.ok(lastGraph.nodes().some((node) => node.data("path") === "extra00.js"));
+    const incomingRow = details.querySelector(".architecture-boundary-connections").children.find((row) => row.children?.[0]?.textContent?.includes("extra13.js → extra00.js"));
+    incomingRow.children[1].fire("click");
+    assert.ok(lastGraph.nodes().some((node) => node.data("path") === "extra13.js"));
+    assert.doesNotMatch(location.hash, /file=/);
+    assert.match(globalThis.document.activeElement.textContent, /extra00.js on page 1/);
+    history.go(-1); assert.doesNotMatch(location.hash, /page=/);
     details.scrollTop = 30;
     details.querySelector(".architecture-directory-pages").children[1].fire("click");
     assert.match(location.hash, /view=map.*page=2/);

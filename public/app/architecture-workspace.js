@@ -15,7 +15,7 @@ function renderFileRelations(panel, selected, analysis, fileButton) {
   const data = analysis?.data;
   const note = document.createElement("p");
   note.textContent = data?.files.has(selected)
-    ? `Direct relationships${data.graph.complete ? "" : " · partial dependency graph"}`
+    ? `All direct project relationships${data.graph.complete ? "" : " · partial dependency graph"}. Map direction and depth filters apply only to the map.`
     : "This listed file is not present in the dependency graph.";
   panel.append(note);
   if (!data?.files.has(selected)) return;

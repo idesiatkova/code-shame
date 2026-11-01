@@ -8,6 +8,7 @@ import { renderWorkspaceOverview } from "./architecture-workspace.js";
 const NODE_WIDTH = 142;
 const NODE_HEIGHT = 48;
 const GROUP_PADDING_X = 28;
+const DIRECTION_LABELS = { both: "Imports + imported by", inbound: "Imported by", outbound: "Imports" };
 
 function createRenderer({ container, details, fitButton, legend, stats }) {
   const sourcePanel = document.createElement("section");
@@ -495,8 +496,8 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (focusedLayer) [...legend.querySelectorAll("button")].find((button) => button.dataset.layerId === focusedLayer)?.focus();
     const status = projection.complete ? "" : " · partial dependency graph";
     stats.textContent = group || impactResult || missingFile || (graphSelected && view.value === "dependencies")
-      ? `${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
-      : directoryView ? `${formatNumber(projection.fileCount)} listed files in ${directory} · ${projection.nodes.length} / ${fullDirectory.nodes.length} items · ${projection.edges.length} connections shown${projection.pages > 1 ? ` · page ${projection.page + 1} / ${projection.pages}` : ""}${status}` : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
+      ? `${fileView ? `Map: ${DIRECTION_LABELS[direction.value]} · ${depth.value} ${depth.value === "1" ? "step" : "steps"} · ` : ""}${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
+      : directoryView ? `${formatNumber(projection.fileCount)} listed files in ${directory} · ${projection.nodes.length} / ${fullDirectory.nodes.length} items · ${projection.edges.length} connections drawn · ${projection.boundary.length} cross-page · ${projection.other.length} on other pages${projection.pages > 1 ? ` · page ${projection.page + 1} / ${projection.pages}` : ""}${status}` : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
     stats.title = stats.textContent; stats.tabIndex = 0;
     if (group) {
       graph.nodes('[type = "file"]').addClass("is-selected"); graph.edges().addClass("is-active");
@@ -518,7 +519,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       const node = projection.nodes.find((item) => item.canonicalId === selected);
       if (!graphSelected) renderPrompt(details, "This listed file is not present in the dependency graph.", view.value === "impact" ? "Impact" : "Imports");
       else if (view.value === "impact" && !analysis) renderPrompt(details, "Impact analysis is unavailable for this report.", "Impact");
-      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); const sourceButton = document.createElement("button"); sourceButton.type = "button"; sourceButton.className = "secondary-button source-explorer-open"; sourceButton.textContent = "Explore code"; sourceButton.addEventListener("click", () => openSource(browserHeader.querySelector('[data-mode="source"]'))); details.append(sourceButton); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else { if (analysis) { appendFiles(details, "Imports", analysis.outgoing.get(selected).map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Imported by", analysis.incoming.get(selected).map((id) => analysis.data.files.get(id)), explore, true); } appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); } }
+      else if (node) { graph.getElementById(node.id).addClass("is-selected"); renderFileDetails(details, node, graph, currentModel, analysis, impactResult); const sourceButton = document.createElement("button"); sourceButton.type = "button"; sourceButton.className = "secondary-button source-explorer-open"; sourceButton.textContent = "Explore code"; sourceButton.addEventListener("click", () => openSource(browserHeader.querySelector('[data-mode="source"]'))); details.append(sourceButton); if (impactResult) { const direct = new Set(analysis.incoming.get(selected)); direct.delete(selected); const visited = new Set([selected]), queue = [selected]; for (let i = 0; i < queue.length; i++) for (const id of analysis.incoming.get(queue[i])) if (!visited.has(id)) { visited.add(id); queue.push(id); } appendFiles(details, "Direct consumers", [...direct].map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "Other reachable consumers", queue.slice(1).filter((id) => !direct.has(id)).map((id) => analysis.data.files.get(id)), explore, true); } else { appendNote(details, `Map: ${DIRECTION_LABELS[direction.value]}, ${depth.value} ${depth.value === "1" ? "step" : "steps"}. Import counts and all-direct lists use the project graph. Direction and depth filter only the map.`); if (analysis) { appendFiles(details, "All direct imports", analysis.outgoing.get(selected).map((id) => analysis.data.files.get(id)), explore, true); appendFiles(details, "All direct importers", analysis.incoming.get(selected).map((id) => analysis.data.files.get(id)), explore, true); } appendFiles(details, "Files shown in this view", projection.nodes.filter((item) => item.type === "file" && item.canonicalId !== selected), explore); } }
     } else if (directoryView) {
       renderPrompt(details, `Contents of ${directory}. Arrows aggregate imports between these immediate children; imports within a folder are not shown here.`, "Folder contents");
       if (projection.pages > 1) {
@@ -530,6 +531,12 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
         }
         details.append(pages);
         appendNote(details, `Page ${projection.page + 1} of ${projection.pages}: ${projection.nodes.length} of ${fullDirectory.nodes.length} items. Only imports between items on this page are drawn; other pages and cross-page connections are listed below.${projection.edges.length ? "" : " No imports between items on this page; other pages may have connections."}`);
+        renderBoundaryConnections(details, projection, (page, edgeId) => {
+          const scroll = details.scrollTop;
+          directoryPageIndex = page; draw(); details.scrollTop = scroll; saveNavigation();
+          const list = details.querySelector(".architecture-boundary-connections");
+          [...(list?.children || [])].find((row) => row.dataset.edgeId === edgeId)?.querySelector("button")?.focus({ preventScroll: true });
+        });
       }
       const list = document.createElement("details"); list.className = "architecture-directory-list";
       const summary = document.createElement("summary"); summary.textContent = `Browse all ${fullDirectory.nodes.length} items and ${fullDirectory.edges.length} connections`; list.append(summary);
@@ -787,6 +794,25 @@ function renderFileDetails(element, data, graph, model, analysis, impactResult) 
     note.textContent = "Partial graph: missing dependencies may change these results.";
     element.append(note);
   }
+}
+
+function renderBoundaryConnections(element, projection, navigate) {
+  if (!projection.boundary.length) return;
+  const list = document.createElement("div");
+  list.className = "architecture-boundary-connections";
+  const heading = document.createElement("h3");
+  heading.textContent = `Cross-page connections (${projection.boundary.length})`;
+  list.append(heading);
+  for (const edge of projection.boundary) {
+    const row = document.createElement("p"); row.dataset.edgeId = edge.id;
+    const description = document.createElement("span");
+    description.textContent = `${edge.sourceNode.path} → ${edge.targetNode.path} · ${edge.weight} file ${edge.weight === 1 ? "import" : "imports"} · `;
+    const button = document.createElement("button"); button.type = "button"; button.className = "secondary-button";
+    button.textContent = `Show ${edge.destination.node.path} on page ${edge.destination.page + 1}`;
+    button.addEventListener("click", () => navigate(edge.destination.page, edge.id));
+    row.append(description, button); list.append(row);
+  }
+  element.append(list);
 }
 
 function appendNote(element, text) {
