@@ -1127,7 +1127,8 @@ li {
 }
 
 .architecture-stats {
-  min-height: 36px;
+  height: 36px;
+  overflow: auto;
   margin-top: 5px;
   color: var(--muted);
   font-size: 12px;
@@ -1359,7 +1360,7 @@ li {
 .architecture-selected-file { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; font-size: 12px; overflow-wrap: anywhere; }
 .architecture-selected-file strong { min-width: 0; flex: 1 1 200px; }
 .architecture-selected-file button { min-height: 30px; padding: 6px 9px; font-size: 12px; }
-.architecture-map-disclosure { margin-top: 14px; }
+.architecture-map-disclosure { margin-top: 14px; container-type: inline-size; }
 .architecture-map-disclosure > summary { color: var(--ink); font-size: 13px; font-weight: 650; cursor: pointer; }
 .architecture-map-disclosure > .architecture-secondary { margin-top: 12px; }
 @media (max-width: 700px) {
@@ -1370,25 +1371,43 @@ li {
 }
 .architecture-controls[hidden] { display: none; }
 .architecture-map { min-width: 0; }
-.architecture-map-actions { grid-column: 1 / -1; position: sticky; top: 0; z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--control); }
-.architecture-context { flex: 1 1 180px; min-width: 0; color: var(--ink); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
-.architecture-context:not([hidden]) { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
-.architecture-context > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.architecture-map-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; font-weight: 650; }
+.architecture-map-actions { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, minmax(70px, auto)); gap: 6px; min-height: 38px; }
+.architecture-map-actions > :nth-child(1) { grid-column: 1; justify-self: start; }
+.architecture-map-actions > :nth-child(2) { grid-column: 2; }
+.architecture-map-actions > :nth-child(3) { grid-column: 3; }
+.architecture-map-actions > :nth-child(4) { grid-column: 4; }
+.architecture-map-actions > :nth-child(5) { grid-column: 5; }
+.architecture-action-short { display: none; }
+@container (max-width: 700px) {
+  .architecture-map-actions { grid-template-columns: minmax(0, 1fr) repeat(4, 44px); }
+  .architecture-action-full { display: none; }
+  .architecture-action-short { display: inline; }
+}
+.architecture-map-actions button { min-height: 38px; padding: 6px 10px; font-size: 12px; font-weight: 650; }
 .architecture-map-actions > button[hidden] { display: none; }
-.architecture-secondary { min-width: 0; }
-.architecture-secondary > div { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 8px; padding-left: 12px; border-left: 1px solid var(--border); }
-.architecture-secondary > summary, .architecture-diagnostics > summary, .source-explorer-unresolved > summary { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; line-height: 1.4; cursor: pointer; list-style: none; }
-.architecture-secondary > summary::-webkit-details-marker, .architecture-diagnostics > summary::-webkit-details-marker, .source-explorer-unresolved > summary::-webkit-details-marker { display: none; }
-.architecture-secondary > summary::after, .architecture-diagnostics > summary::after, .source-explorer-unresolved > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
-.architecture-secondary[open] > summary::after, .architecture-diagnostics[open] > summary::after, .source-explorer-unresolved[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
-.architecture-secondary > summary:hover, .architecture-diagnostics > summary:hover, .source-explorer-unresolved > summary:hover { color: var(--ink); }
-.architecture-secondary > summary:focus-visible, .architecture-diagnostics > summary:focus-visible, .source-explorer-unresolved > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.architecture-secondary { position: relative; z-index: 6; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 38px 52px; gap: 6px; }
+.architecture-graph-modes { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 3px; border-radius: 5px; background: #252b27; }
+.architecture-graph-modes button { min-width: 0; border: 0; border-radius: 3px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 650; }
+.architecture-graph-modes button[aria-pressed="true"] { color: var(--ink); background: #414d45; }
+.architecture-graph-settings { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 160px)); grid-template-rows: 52px; gap: 8px; }
+.architecture-graph-settings > label { min-width: 0; grid-row: 1; }
+.architecture-direction, .architecture-cycle { grid-column: 1; }
+.architecture-depth { grid-column: 2; }
+.architecture-control-hint { grid-column: 1; grid-row: 2; align-self: center; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.architecture-secondary:has(.architecture-direction:not([hidden])) .architecture-control-hint,
+.architecture-secondary:has(.architecture-cycle:not([hidden])) .architecture-control-hint { display: none; }
+.architecture-diagnostics > summary, .source-explorer-unresolved > summary { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 650; line-height: 1.4; cursor: pointer; list-style: none; }
+.architecture-diagnostics > summary::-webkit-details-marker, .source-explorer-unresolved > summary::-webkit-details-marker { display: none; }
+.architecture-diagnostics > summary::after, .source-explorer-unresolved > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
+.architecture-diagnostics[open] > summary::after, .source-explorer-unresolved[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
+.architecture-diagnostics > summary:hover, .source-explorer-unresolved > summary:hover { color: var(--ink); }
+.architecture-diagnostics > summary:focus-visible, .source-explorer-unresolved > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .architecture-diagnostics { margin-top: 6px; }
+.architecture-graph-help { margin-top: 12px; }
+.architecture-graph-help > summary { color: var(--muted); font-size: 12px; font-weight: 650; cursor: pointer; }
+.architecture-graph-help > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .architecture-diagnostics ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
-.architecture-control-hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
 .architecture-search { position: relative; min-width: 0; width: 240px; max-width: 100%; }
-@media (min-width: 601px) { .architecture-controls:has(.architecture-secondary[open]) .architecture-search { margin-top: 28px; } }
 .architecture-search input { width: 100%; }
 .architecture-search-options { position: absolute; z-index: 10; top: calc(100% + 4px); left: 0; width: 420px; max-width: calc(100vw - 64px); max-height: 240px; overflow: auto; padding: 4px; border: 1px solid #59625d; border-radius: 6px; background: #202522; box-shadow: 0 8px 24px #0008; color: var(--ink); font-size: 12px; scrollbar-color: #59625d #202522; }
 .architecture-search-options[hidden] { display: none; }
@@ -1469,7 +1488,7 @@ li {
 .architecture-browser > div { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .architecture-browser > .architecture-inventory { min-width: 0; border-right: 1px solid #383d3a; background: #202321; }
 .architecture-inventory-header { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; }
-.architecture-inventory-header h3 { margin: 0; color: #b7bdb9; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.architecture-inventory-header h3 { margin: 0; color: #b7bdb9; font-size: 12px; line-height: 14px; text-transform: uppercase; letter-spacing: .06em; }
 .architecture-collapse { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: #b7bdb9; font-size: 17px; font-weight: 400; }
 .architecture-collapse:hover { background: #343a36; color: white; }
 .architecture-inventory .architecture-search { width: auto; margin: 0 10px 10px; }
@@ -1490,7 +1509,7 @@ li {
 .architecture-directory-pages button { min-height: 30px; padding: 4px 8px; font-size: 12px; }
 .architecture-directory-list p { margin: 2px 0; overflow-wrap: anywhere; }
 .architecture-workspace > div:first-child { padding-top: 12px; }
-.architecture-scope { margin-bottom: 7px; }
+.architecture-scope { margin-bottom: 7px; line-height: 14px; }
 .architecture-selected-file { margin-bottom: 8px; color: #d4dad6; }
 .architecture-selected-file strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .architecture-selected-file button { border: 0; padding: 0; min-height: 0; background: transparent; color: #9bb9d6; font-weight: 500; }
