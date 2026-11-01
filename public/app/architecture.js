@@ -207,6 +207,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
   let currentModel = null;
   let modelSignature = null;
   let selected = null;
+  let detailsFile = null;
   let activeLayer = null;
   let analysis = null;
   let cycleMember = null;
@@ -394,7 +395,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     const grouped = new Map();
     for (const node of fallbackFiles) { const parent = node.path.includes("/") ? node.path.slice(0, node.path.lastIndexOf("/")) : "."; if (!grouped.has(parent)) grouped.set(parent, []); grouped.get(parent).push(node.path); }
     structure = model.overview || { directories: [...grouped].map(([path, files]) => ({ path, files: files.sort() })).sort((a, b) => a.path.localeCompare(b.path)), entryPoints: fallbackFiles.filter((node) => node.entryPoint).map((node) => ({ path: node.path, evidence: "Reported as an entry point" })), scope: { listedFileCount: model.totalFileCount ?? fallbackFiles.length } };
-    if (newProject) { directory = "."; selected = null; mode = "overview"; explorer.clear(); }
+    if (newProject) { directory = "."; selected = null; detailsFile = null; mode = "overview"; explorer.clear(); }
     const reasons = model.projectGraph?.complete === false ? model.projectGraph.diagnostics || [] : [];
     diagnostics.hidden = reasons.length === 0;
     diagnosticsList.replaceChildren(...reasons.map((reason) => { const item = document.createElement("li"); item.textContent = reason; return item; }));
@@ -411,6 +412,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     if (newProject) { navigationReady = true; restoreNavigation(); }
   }
   function draw() {
+    if (selected !== detailsFile) { details.scrollTop = 0; detailsFile = selected; }
     const focusedLayer = document.activeElement?.dataset?.layerId;
     const retainedLayer = view.value === "project" ? activeLayer : null;
     activeLayer = null;

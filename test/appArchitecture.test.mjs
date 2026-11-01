@@ -281,6 +281,18 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.ok(details.children.some((child) => child.textContent?.includes("Direction and depth filter only the map")));
     assert.ok(details.children.some((child) => child.children?.[0]?.textContent === "All direct importers"));
     assert.ok(details.children.some((child) => child.children?.[0]?.textContent === "All direct imports"));
+    details.scrollTop = 100;
+    depth.value = "1"; depth.fire("change");
+    assert.equal(details.scrollTop, 100);
+    depth.value = "2"; depth.fire("change");
+    const importer = details.children.find((child) => child.children?.[0]?.textContent === "All direct importers");
+    importer.children[1].children[0].children[1].fire("click");
+    assert.equal(details.scrollTop, 0);
+    assert.match(details.children[1].textContent, /ui\/Checkout.tsx/);
+    details.scrollTop = 100;
+    history.go(-1);
+    assert.equal(details.scrollTop, 0);
+    assert.match(details.children[1].textContent, /domain\/checkout.ts/);
     view.value = "impact"; view.fire("change");
     results.value = "ui/Checkout.tsx"; results.fire("change"); assert.equal(view.value, "impact");
     history.go(-1); assert.equal(view.value, "impact"); assert.equal(direction.value, "outbound"); assert.equal(depth.value, "2");
