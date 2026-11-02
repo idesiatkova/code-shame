@@ -1,5 +1,5 @@
 import { createSymbolContext } from "./symbol-context.js";
-import { hasCallSite } from "./source-navigation.js";
+import { hasCallSite } from "./source-identity.js";
 import { functionGraphStyle } from "./graph/function-graph.js";
 
 async function readJsonResponse(response, label) {

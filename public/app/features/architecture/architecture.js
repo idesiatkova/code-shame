@@ -14,10 +14,12 @@ import {
   formatNumber,
 } from "./components/organisms/graph-details.js";
 import { overview, directoryGraph } from "./architectureProjection.js";
-import { analytics, impact } from "./graph/analysis.js";
+import { analytics } from "./graph/cycles.js";
+import { impact } from "./graph/selection.js";
 import { createStyledSelect } from "../../shared/components/molecules/styled-select.js";
 import { createSourceExplorer } from "../source/source-explorer.js";
-import { readLocation, matchingSavedState } from "../source/source-navigation.js";
+import { readLocation } from "../source/source-location.js";
+import { matchingSavedState } from "../source/source-identity.js";
 import { createProjectExplorer } from "../explorer/project-explorer.js";
 import { projectStructure, renderWorkspaceOverview } from "./architecture-workspace.js";
 

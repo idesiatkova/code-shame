@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  hasCallSite,
-  matchingSavedState,
-  readLocation,
-} from "../public/app/features/source/source-navigation.js";
+import { hasCallSite, matchingSavedState } from "../public/app/features/source/source-identity.js";
+import { readLocation } from "../public/app/features/source/source-location.js";
 
 test("validates deep-link call locations and binds saved state to source identity", () => {
   const hash = "a".repeat(64);

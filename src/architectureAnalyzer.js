@@ -3,8 +3,9 @@ const {
   buildProjectArchitecture,
   createArchitecturePlan,
 } = require("./projectArchitecture");
-const { mapConcurrent } = require("./concurrency");
-const { parseFallowGraph } = require("./fallowGraphAdapter");
+const { inspectAssignments } = require("./architectureInspection");
+const { graphDiagnostics } = require("./architectureDiagnostics");
+const { extractArchitectureGraph } = require("./architectureGraph");
 
 const DEFAULT_INSPECTION_CONCURRENCY = 4;
 
@@ -34,30 +35,15 @@ class ProjectArchitectureAnalyzer {
     let graphError;
     if (typeof this.client.exportGraph === "function") {
       try {
-        const dot = await this.client.exportGraph();
-        const listed = listResult.data?.files;
-        const count = listResult.data?.file_count;
-        if (
-          !Array.isArray(listed) ||
-          listed.some((file) => typeof file !== "string" || !file) ||
-          listed.length !== plan.files.length ||
-          (count !== undefined && count !== listed.length)
-        ) {
-          throw new Error("Fallow returned an invalid project file list.");
-        }
-        const edges = parseFallowGraph(dot, plan.files);
-        return buildProjectArchitecture(plan, [], {
-          edges,
-          diagnostics: graphDiagnostics(listResult.data, rawReport),
-        });
+        return await extractArchitectureGraph(this.client, listResult.data, plan, rawReport);
       } catch (error) {
         graphError = error;
       }
     }
-    const inspections = await mapConcurrent(
+    const inspections = await inspectAssignments(
+      this.client,
       plan.visibleAssignments,
       this.inspectionConcurrency,
-      (assignment) => inspectAssignment(this.client, assignment),
     );
     const result = buildProjectArchitecture(plan, inspections);
     const diagnostics = graphDiagnostics(listResult.data, rawReport);
@@ -77,57 +63,6 @@ class ProjectArchitectureAnalyzer {
       error: error.message || String(error),
       nodes: [],
       edges: [],
-    };
-  }
-}
-
-function graphDiagnostics(listOutput, rawReport) {
-  const check = rawReport?.check;
-  const diagnostics = [];
-  const groups = [
-    listOutput?.workspace_diagnostics,
-    rawReport?.workspace_diagnostics,
-    check?.workspace_diagnostics,
-  ];
-  for (const item of groups.flatMap((group) => (Array.isArray(group) ? group : []))) {
-    if (item?.degrades_analysis)
-      diagnostics.push(
-        `Fallow analysis degraded: ${item.message || item.kind || "unknown reason"}`,
-      );
-  }
-  const unresolved = check?.summary?.unresolved_imports;
-  const imports = Array.isArray(check?.unresolved_imports) ? check.unresolved_imports : [];
-  if (unresolved > 0 || imports.length > 0) {
-    const detailed = imports.filter(
-      (item) => typeof item?.path === "string" && typeof item?.specifier === "string",
-    );
-    const details = [
-      ...new Set(
-        detailed.map((item) => `${item.path}: Fallow could not resolve import ${item.specifier}.`),
-      ),
-    ];
-    diagnostics.push("Fallow reported unresolved imports; some dependencies may be missing.");
-    diagnostics.push(...details.slice(0, 20));
-    const missingDetails =
-      Math.max(0, Number(unresolved) - imports.length || 0) +
-      imports.length -
-      detailed.length +
-      Math.max(0, details.length - 20);
-    if (missingDetails > 0)
-      diagnostics.push(`${missingDetails} unresolved import(s) not shown or without details.`);
-    if (detailed.length === 0) diagnostics.push("Fallow did not provide file and import details.");
-  }
-  return [...new Set(diagnostics)];
-}
-
-async function inspectAssignment(client, assignment) {
-  try {
-    const result = await client.inspectFile(assignment.filePath);
-    return { filePath: assignment.filePath, report: result.data };
-  } catch (error) {
-    return {
-      filePath: assignment.filePath,
-      error: error.message || String(error),
     };
   }
 }

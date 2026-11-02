@@ -1,5 +1,6 @@
 import { overview, directoryPage } from "../architectureProjection.js";
-import { focus, projectSelection } from "./analysis.js";
+import { focus } from "./neighborhood.js";
+import { projectSelection } from "./selection.js";
 
 function graphProjection({
   model,
