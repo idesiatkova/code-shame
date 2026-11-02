@@ -22,10 +22,10 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: "24"
           package-manager-cache: false
       - run: npm ci
-      - run: npm test
+      - run: npm run check
       - run: npm run pack:dry
       - name: Tag package version
         id: version

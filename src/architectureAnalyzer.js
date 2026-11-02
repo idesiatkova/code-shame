@@ -1,9 +1,12 @@
 const {
   DEFAULT_MAX_FILES,
   buildProjectArchitecture,
-  createArchitecturePlan
+  createArchitecturePlan,
 } = require("./projectArchitecture");
-const { mapConcurrent } = require("./concurrency");
+const { inspectAssignments } = require("./architectureInspection");
+const { graphDiagnostics } = require("./architectureDiagnostics");
+const { extractArchitectureGraph } = require("./architectureGraph");
+const { readArchitectureInputs } = require("./fallowClient");
 
 const DEFAULT_INSPECTION_CONCURRENCY = 4;
 
@@ -11,7 +14,7 @@ class ProjectArchitectureAnalyzer {
   constructor({
     client,
     maxFiles = DEFAULT_MAX_FILES,
-    inspectionConcurrency = DEFAULT_INSPECTION_CONCURRENCY
+    inspectionConcurrency = DEFAULT_INSPECTION_CONCURRENCY,
   }) {
     if (!client) throw new Error("ProjectArchitectureAnalyzer requires a Fallow client.");
     this.client = client;
@@ -20,22 +23,35 @@ class ProjectArchitectureAnalyzer {
   }
 
   async analyze({ rawReport }) {
-    const [listResult, configResult] = await Promise.all([
-      this.client.listProject(),
-      this.client.resolvedConfig()
-    ]);
+    const [listResult, configResult] = await readArchitectureInputs(this.client);
     const plan = createArchitecturePlan({
       listOutput: listResult.data,
       configOutput: configResult.data,
       fileScores: rawReport && rawReport.health && rawReport.health.file_scores,
-      maxFiles: this.maxFiles
+      maxFiles: this.maxFiles,
     });
-    const inspections = await mapConcurrent(
+    let graphError;
+    if (typeof this.client.exportGraph === "function") {
+      try {
+        return await extractArchitectureGraph(this.client, listResult.data, plan, rawReport);
+      } catch (error) {
+        graphError = error;
+      }
+    }
+    const inspections = await inspectAssignments(
+      this.client,
       plan.visibleAssignments,
       this.inspectionConcurrency,
-      (assignment) => inspectAssignment(this.client, assignment)
     );
-    return buildProjectArchitecture(plan, inspections);
+    const result = buildProjectArchitecture(plan, inspections);
+    const diagnostics = graphDiagnostics(listResult.data, rawReport);
+    if (graphError)
+      diagnostics.unshift(
+        `Fallow DOT extraction failed: ${graphError.message || String(graphError)}`,
+      );
+    result.projectGraph.diagnostics.push(...diagnostics);
+    result.projectGraph.complete = result.projectGraph.complete && diagnostics.length === 0;
+    return result;
   }
 
   fallback(error) {
@@ -44,23 +60,11 @@ class ProjectArchitectureAnalyzer {
       source: "fallow",
       error: error.message || String(error),
       nodes: [],
-      edges: []
-    };
-  }
-}
-
-async function inspectAssignment(client, assignment) {
-  try {
-    const result = await client.inspectFile(assignment.filePath);
-    return { filePath: assignment.filePath, report: result.data };
-  } catch (error) {
-    return {
-      filePath: assignment.filePath,
-      error: error.message || String(error)
+      edges: [],
     };
   }
 }
 
 module.exports = {
-  ProjectArchitectureAnalyzer
+  ProjectArchitectureAnalyzer,
 };

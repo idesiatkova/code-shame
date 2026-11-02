@@ -9,13 +9,15 @@ function start() {
   const projectRoot = path.resolve(process.env.CODE_SCAN_ROOT || process.cwd());
   const server = createServer({
     projectRoot,
-    maxFiles: integerSetting("ARCHITECTURE_MAX_FILES", 48, 1, 1000)
+    maxFiles: integerSetting("ARCHITECTURE_MAX_FILES", 48, 1, 1000),
   });
 
   server.once("error", (error) => {
-    console.error(error.code === "EADDRINUSE"
-      ? `Code Shame could not start: http://${host}:${port} is already in use.`
-      : error.message);
+    console.error(
+      error.code === "EADDRINUSE"
+        ? `Code Shame could not start: http://${host}:${port} is already in use.`
+        : error.message,
+    );
     process.exitCode = 1;
   });
   server.listen(port, host, () => {

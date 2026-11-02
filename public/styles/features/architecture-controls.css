@@ -1,0 +1,22 @@
+.architecture-controls label,
+.architecture-secondary label {
+  display: grid;
+  gap: var(--space-xs);
+  color: var(--muted);
+  font-size: var(--text-small);
+}
+
+.architecture-controls label[hidden],
+.architecture-secondary label[hidden] {
+  display: none;
+}
+
+.architecture-controls input,
+.architecture-secondary select {
+  max-width: 280px;
+  padding: var(--space-sm);
+  color: var(--ink);
+  background: var(--control-surface);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-button);
+}

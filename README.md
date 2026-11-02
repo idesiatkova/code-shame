@@ -4,11 +4,11 @@ Local web dashboard for Fallow code analysis reports.
 
 ### Project structure
 
-![Code Shame project structure](https://raw.githubusercontent.com/idesiatkova/code-shame/main/assets/code-shame-project-structure.jpg)
+![Code Shame project structure](./assets/code-shame-project-structure.webp)
 
 ### Fallow report
 
-![Code Shame Fallow report](https://raw.githubusercontent.com/idesiatkova/code-shame/main/assets/code-shame-fallow-report.jpg)
+![Code Shame Fallow report](./assets/code-shame-fallow-report.webp)
 
 ## Usage
 
@@ -59,3 +59,9 @@ and extension points.
 
 Fallow is installed as a package dependency, so users do not need to install it
 separately.
+
+### Project structure
+
+The architecture map starts with directed layer-to-layer dependencies. Each edge label counts unique importing-file → imported-file pairs from the project graph, including files hidden by the old display limit. Search a file path and select a match to explore its inbound and outbound dependencies at depth one or two. The focus view limits rendering to 60 files and 300 dependencies and reports shown and total counts; use Back to layers to return. File metrics are shown when available. A partial graph label means dependency counts and results reflect only the data collected.
+
+Choose Impact to see direct consumers and other files reachable through their imports. Choose Cycles to inspect groups of mutually dependent files, including self-imports. These analyses use the entire collected graph before applying display limits; they describe static dependencies, not runtime effects. Imports and imported-by counts use unique directed file pairs, including self-imports, and are separate from Fallow's metrics. In a partial graph, counts are lower bounds except the observed indirect-consumer count, which can change as missing direct dependencies are found. Legacy reports without a project graph cannot provide these analyses.

@@ -15,5 +15,5 @@ async function mapConcurrent(values, concurrency, mapper) {
 }
 
 module.exports = {
-  mapConcurrent
+  mapConcurrent,
 };

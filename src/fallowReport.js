@@ -11,7 +11,7 @@ const CHECK_SECTIONS = [
   ["circular_dependencies", "Circular dependencies"],
   ["re_export_cycles", "Re-export cycles"],
   ["boundary_violations", "Boundary violations"],
-  ["stale_suppressions", "Stale suppressions"]
+  ["stale_suppressions", "Stale suppressions"],
 ];
 
 const SUMMARY_FIELDS = [
@@ -22,7 +22,7 @@ const SUMMARY_FIELDS = [
   ["averageMaintainability", "average_maintainability"],
   ["criticalCount", "severity_critical_count"],
   ["highCount", "severity_high_count"],
-  ["moderateCount", "severity_moderate_count"]
+  ["moderateCount", "severity_moderate_count"],
 ];
 
 const VITAL_SIGN_FIELDS = [
@@ -30,7 +30,7 @@ const VITAL_SIGN_FIELDS = [
   ["p90Cyclomatic", "p90_cyclomatic"],
   ["maintainabilityLowPercent", "maintainability_low_pct"],
   ["couplingHighPercent", "coupling_high_pct"],
-  ["totalLoc", "total_loc"]
+  ["totalLoc", "total_loc"],
 ];
 
 const FILE_SCORE_FIELDS = [
@@ -39,7 +39,7 @@ const FILE_SCORE_FIELDS = [
   ["cognitive", "total_cognitive"],
   ["fanIn", "fan_in"],
   ["fanOut", "fan_out"],
-  ["lines", "lines"]
+  ["lines", "lines"],
 ];
 
 function normalizeFallowReport(report, meta = {}) {
@@ -62,7 +62,7 @@ function normalizeFallowReport(report, meta = {}) {
     hardFindings,
     check,
     duplication,
-    health
+    health,
   };
 }
 
@@ -74,7 +74,7 @@ function splitReport(report) {
     health,
     cloneGroups: asArray(objectValue(report.dupes).clone_groups),
     healthFindings: asArray(health.findings),
-    targets: asArray(health.targets)
+    targets: asArray(health.targets),
   };
 }
 
@@ -86,22 +86,33 @@ function buildCounts(parts, checkSections) {
   return {
     checkIssueCount,
     duplicateCount,
-    hardFindingCount
+    hardFindingCount,
   };
 }
 
 function buildOverview(parts, counts, health) {
   const summary = normalizeNumberFields(parts.health.summary, SUMMARY_FIELDS);
   return [
-    metric("blocking-findings", "Blocking Findings", counts.hardFindingCount, zeroTone(counts.hardFindingCount)),
+    metric(
+      "blocking-findings",
+      "Blocking Findings",
+      counts.hardFindingCount,
+      zeroTone(counts.hardFindingCount),
+    ),
     metric(
       "refactoring-suggestions",
       "Refactoring Suggestions",
       parts.targets.length,
-      zeroTone(parts.targets.length, "neutral")
+      zeroTone(parts.targets.length, "neutral"),
     ),
     metric("unusually-reused-files", "Coupling", health.coupling.candidateCount, "neutral"),
-    metric("maintainability", "Maintainability", summary.averageMaintainability, maintainabilityTone(summary), "%")
+    metric(
+      "maintainability",
+      "Maintainability",
+      summary.averageMaintainability,
+      maintainabilityTone(summary),
+      "%",
+    ),
   ];
 }
 
@@ -111,7 +122,7 @@ function metric(id, label, value, tone, suffix = "") {
     label,
     value,
     tone,
-    suffix
+    suffix,
   };
 }
 
@@ -119,7 +130,7 @@ function buildCheckSummary(check, sections) {
   return {
     totalIssues: totalCheckIssues(check, sections),
     entryPointCount: numberOr(objectValue(check.entry_points).total, 0),
-    sections
+    sections,
   };
 }
 
@@ -130,7 +141,7 @@ function buildDuplicationSummary(dupes, cloneGroups) {
     cloneInstanceCount: numberOr(stats.clone_instances, 0),
     duplicatedLineCount: numberOr(stats.duplicated_lines, 0),
     duplicatedPercent: numberOr(stats.duplication_percentage, 0),
-    groups: cloneGroups.map(normalizeCloneGroup)
+    groups: cloneGroups.map(normalizeCloneGroup),
   };
 }
 
@@ -145,15 +156,22 @@ function buildHealthSummary(parts) {
     vitalSigns,
     coupling: buildCouplingSummary(parts.health, summary, vitalSigns, fileScores),
     findings: parts.healthFindings.map(normalizeHealthFinding),
-    fileScores: fileScores.slice(0, 8),
-    targets: parts.targets.map(normalizeTarget)
+    fileScores: asArray(parts.health.file_scores)
+      .filter((score) => Number.isFinite(score?.maintainability_index))
+      .map(normalizeFileScore)
+      .sort((left, right) => left.maintainability - right.maintainability)
+      .slice(0, 8),
+    targets: parts.targets.map(normalizeTarget),
   };
 }
 
 function buildCouplingSummary(health, summary, vitalSigns, fileScores) {
   const rawVitalSigns = objectValue(health.vital_signs);
   const rawCounts = objectValue(rawVitalSigns.counts);
-  const scoredFileCount = numberOr(firstNumber([summary.filesScored, rawCounts.files_scored, fileScores.length]), 0);
+  const scoredFileCount = numberOr(
+    firstNumber([summary.filesScored, rawCounts.files_scored, fileScores.length]),
+    0,
+  );
   const highPercent = vitalSigns.couplingHighPercent;
   const estimatedHighFileCount = estimateFileCount(highPercent, scoredFileCount);
   const fanInThreshold = positiveNumberField(rawVitalSigns, "p95_fan_in");
@@ -167,7 +185,7 @@ function buildCouplingSummary(health, summary, vitalSigns, fileScores) {
     candidateCount: candidates.length,
     fanInThreshold,
     fanOutThreshold,
-    candidates
+    candidates,
   };
 }
 
@@ -186,7 +204,7 @@ function highCouplingCandidates(fileScores, fanInThreshold, fanOutThreshold) {
       path: score.path,
       fanIn: score.fanIn,
       fanOut: score.fanOut,
-      lines: score.lines
+      lines: score.lines,
     }));
 }
 
@@ -199,7 +217,9 @@ function isHighCouplingCandidate(score, fanInThreshold, fanOutThreshold) {
 function buildCheckSections(check) {
   const summary = objectValue(check.summary);
 
-  return CHECK_SECTIONS.map(([id, label]) => checkSection(check, summary, id, label)).filter(hasFindings);
+  return CHECK_SECTIONS.map(([id, label]) => checkSection(check, summary, id, label)).filter(
+    hasFindings,
+  );
 }
 
 function checkSection(check, summary, id, label) {
@@ -208,7 +228,7 @@ function checkSection(check, summary, id, label) {
     id,
     label,
     count: numberOr(summary[id], records.length),
-    records: records.map((record) => normalizeCheckRecord(id, record))
+    records: records.map((record) => normalizeCheckRecord(id, record)),
   };
 }
 
@@ -216,12 +236,12 @@ function buildHardFindings(check, duplication, health) {
   const sections = [
     ...check.sections,
     duplicationSection(duplication),
-    complexitySection(health)
+    complexitySection(health),
   ].filter(hasFindings);
 
   return {
     count: sections.reduce((sum, section) => sum + section.count, 0),
-    sections
+    sections,
   };
 }
 
@@ -232,8 +252,8 @@ function duplicationSection(duplication) {
     count: duplication.cloneGroupCount,
     records: duplication.groups.map((group) => ({
       title: `${group.lineCount} duplicated lines`,
-      detail: group.instances.join(" | ")
-    }))
+      detail: group.instances.join(" | "),
+    })),
   };
 }
 
@@ -244,8 +264,8 @@ function complexitySection(health) {
     count: health.findingCount,
     records: health.findings.map((finding) => ({
       title: pathWithLine(finding.path, finding.line) || finding.title,
-      detail: `Cyclomatic complexity ${finding.cyclomatic}, cognitive complexity ${finding.cognitive}`
-    }))
+      detail: `Cyclomatic complexity ${finding.cyclomatic}, cognitive complexity ${finding.cognitive}`,
+    })),
   };
 }
 
@@ -261,14 +281,20 @@ function isStandaloneHealthReport(report) {
 function duplicateExportRecord(record) {
   return {
     title: stringOr(record.export_name, "Duplicate export"),
-    detail: asArray(record.locations).map(formatLocation).filter(Boolean).join(" | ")
+    detail: asArray(record.locations).map(formatLocation).filter(Boolean).join(" | "),
   };
 }
 
 function genericCheckRecord(record, sectionId) {
   return {
-    title: firstString([record.path, record.file, record.dependency, record.export_name, sectionId]),
-    detail: stringOr(formatLocation(record), firstString([record.reason, record.message]))
+    title: firstString([
+      record.path,
+      record.file,
+      record.dependency,
+      record.export_name,
+      sectionId,
+    ]),
+    detail: stringOr(formatLocation(record), firstString([record.reason, record.message])),
   };
 }
 
@@ -277,7 +303,7 @@ function normalizeCloneGroup(group) {
     title: firstString([group.fingerprint, group.id, "Clone group"]),
     lineCount: numberOr(firstNumber([group.line_count, group.lines]), 0),
     tokenCount: numberOr(firstNumber([group.token_count, group.tokens]), 0),
-    instances: asArray(group.instances).map(formatLocation).filter(Boolean)
+    instances: asArray(group.instances).map(formatLocation).filter(Boolean),
   };
 }
 
@@ -288,14 +314,14 @@ function normalizeHealthFinding(finding) {
     line: numberOr(finding.line, 0),
     severity: stringOr(finding.severity, "moderate"),
     cyclomatic: numberOr(finding.cyclomatic, 0),
-    cognitive: numberOr(finding.cognitive, 0)
+    cognitive: numberOr(finding.cognitive, 0),
   };
 }
 
 function normalizeFileScore(score) {
   return {
     path: stringValue(score.path),
-    ...normalizeNumberFields(score, FILE_SCORE_FIELDS)
+    ...normalizeNumberFields(score, FILE_SCORE_FIELDS),
   };
 }
 
@@ -307,13 +333,15 @@ function normalizeTarget(target) {
     category: stringValue(target.category),
     effort: stringValue(target.effort),
     confidence: stringValue(target.confidence),
-    recommendation: stringValue(target.recommendation)
+    recommendation: stringValue(target.recommendation),
   };
 }
 
 function normalizeNumberFields(source, fields) {
   const sourceObject = objectValue(source);
-  return Object.fromEntries(fields.map(([targetKey, sourceKey]) => [targetKey, numberOr(sourceObject[sourceKey], 0)]));
+  return Object.fromEntries(
+    fields.map(([targetKey, sourceKey]) => [targetKey, numberOr(sourceObject[sourceKey], 0)]),
+  );
 }
 
 function positiveNumberField(source, key) {
@@ -395,5 +423,5 @@ function stringValue(value) {
 }
 
 module.exports = {
-  normalizeFallowReport
+  normalizeFallowReport,
 };

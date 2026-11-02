@@ -1,9 +1,9 @@
-import * as navigation from "./navigation.js";
-import * as architecture from "./architecture.js";
-import * as icons from "./icons.js";
-import { createReportRenderer } from "./report.js";
-import { createScanController } from "./scan-controller.js";
-import { isDemoMode } from "./demo.js";
+import * as navigation from "./shell/navigation.js";
+import * as architecture from "./features/architecture/architecture.js";
+import * as icons from "./shared/utils/icons.js";
+import { createReportRenderer } from "./features/report/report.js";
+import { createScanController } from "./features/scan/scan-controller.js";
+import { isDemoMode } from "./features/scan/demo.js";
 
 const elements = {
   architectureDetails: document.getElementById("architecture-details"),
@@ -41,7 +41,7 @@ const elements = {
   targetCount: document.getElementById("target-count"),
   targetsList: document.getElementById("targets-list"),
   titleLogo: document.getElementById("title-logo"),
-  architecturePage: document.getElementById("architecture-page")
+  architecturePage: document.getElementById("architecture-page"),
 };
 
 const pageNavigation = navigation.createController({
@@ -53,19 +53,29 @@ const pageNavigation = navigation.createController({
   menu: elements.pageMenu,
   options: elements.pageMenuOptions,
   reportPage: elements.reportPage,
-  toggle: elements.pageMenuToggle
+  toggle: elements.pageMenuToggle,
 });
 const architectureRenderer = architecture.createRenderer({
   container: elements.architectureGraph,
   details: elements.architectureDetails,
   fitButton: elements.architectureFit,
   legend: elements.architectureLegend,
-  stats: elements.architectureStats
+  stats: elements.architectureStats,
+  refreshIcons: icons.refresh,
 });
 
 const isDemo = isDemoMode();
-const report = createReportRenderer({ elements, architectureRenderer, isArchitecturePage: pageNavigation.isArchitecturePage, isDemo });
-const scans = createScanController({ elements, renderPayload: report.renderPayload, showError: report.renderError });
+const report = createReportRenderer({
+  elements,
+  architectureRenderer,
+  isArchitecturePage: pageNavigation.isArchitecturePage,
+  isDemo,
+});
+const scans = createScanController({
+  elements,
+  renderPayload: report.renderPayload,
+  showError: report.renderError,
+});
 const label = isDemo ? "Exit demo mode" : "Enter demo mode";
 elements.titleLogo.classList.toggle("is-demo", isDemo);
 elements.titleLogo.setAttribute("aria-label", label);

@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as format from "../public/app/format.js";
+import { shameLabel } from "../public/app/features/report/overview.js";
+import * as format from "../public/app/features/report/report-format.js";
+import { formatReportText } from "../public/app/features/report/report-text.js";
 
 test("maps metric tones to shame labels", () => {
-  assert.equal(format.shameLabel("good"), "No shame");
-  assert.equal(format.shameLabel("neutral"), "No shame");
-  assert.equal(format.shameLabel("warn"), "A little shame");
-  assert.equal(format.shameLabel("critical"), "Secondhand embarrassment");
+  assert.equal(shameLabel("good"), "No shame");
+  assert.equal(shameLabel("neutral"), "No shame");
+  assert.equal(shameLabel("warn"), "A little shame");
+  assert.equal(shameLabel("critical"), "Secondhand embarrassment");
 });
 
 test("labels copied output as a Fallow report without dashboard branding", () => {
@@ -14,10 +16,10 @@ test("labels copied output as a Fallow report without dashboard branding", () =>
     generatedAt: "2026-07-20T00:00:00.000Z",
     status: "clear",
     hardFindings: { count: 0, sections: [] },
-    health: { targets: [] }
+    health: { targets: [] },
   };
 
-  const text = format.formatReportText(report);
+  const text = formatReportText(report);
   assert.match(text, /^Fallow report\n/);
   assert.doesNotMatch(text, /Code Shame/i);
 });

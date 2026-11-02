@@ -1,6 +1,6 @@
 {
   "name": "code-shame",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Local web dashboard for Fallow code analysis reports.",
   "main": "src/server.js",
   "bin": {
@@ -16,6 +16,14 @@
   "scripts": {
     "dev": "node src/start.js",
     "test": "node --test test/*.test.js test/*.test.mjs",
+    "lint:js": "eslint . --max-warnings 0",
+    "lint:css": "stylelint 'public/styles/**/*.css'",
+    "lint": "npm run lint:js && npm run lint:css",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:fallow": "node scripts/check-fallow.cjs",
+    "check:fallow:production": "fallow --production --fail-on-issues --fail-on-parse-error --format json --quiet",
+    "check": "npm run lint && npm run format:check && npm test && npm run check:fallow",
     "pack:dry": "npm pack --dry-run"
   },
   "keywords": [
@@ -42,9 +50,21 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@babel/parser": "7.28.5",
+    "@babel/traverse": "7.28.5",
     "cytoscape": "3.34.0",
+    "cytoscape-dagre": "4.0.0",
     "fallow": "3.37.0",
+    "graphlib-dot": "0.6.4",
     "lucide": "1.21.0",
     "minimatch": "10.2.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "stylelint": "17.16.0",
+    "stylelint-config-standard": "40.0.0"
   }
 }

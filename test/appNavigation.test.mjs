@@ -1,13 +1,29 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as navigation from "../public/app/navigation.js";
+import * as navigation from "../public/app/shell/navigation.js";
 
 test("uses the report as the default page and preserves unrelated URL state", () => {
-  assert.equal(navigation.pageFromHref("http://localhost:5179/?demo-coupling=1"), "report");
-  assert.equal(
-    navigation.pageHref("http://localhost:5179/?demo-coupling=1#results", "architecture"),
-    "/?demo-coupling=1&page=architecture#results"
-  );
+  let assignedHref;
+  const option = fakeElement({ page: "architecture" });
+  const controller = navigation.createController({
+    architecturePage: {},
+    control: fakeElement(),
+    document: fakeElement(),
+    label: fakeElement(),
+    location: {
+      href: "http://localhost:5179/?demo-coupling=1#results",
+      assign(href) {
+        assignedHref = href;
+      },
+    },
+    menu: fakeElement(),
+    options: [option],
+    reportPage: {},
+    toggle: fakeElement(),
+  });
+  assert.equal(controller.page, "report");
+  option.emit("click");
+  assert.equal(assignedHref, "/?demo-coupling=1&page=architecture#results");
 });
 
 test("shows only the selected page and navigates from the dropdown", () => {
@@ -22,8 +38,10 @@ test("shows only the selected page and navigates from the dropdown", () => {
   const architecturePage = { hidden: true };
   const document = fakeElement();
   const location = {
-    assign(href) { assignedHref = href; },
-    href: "http://localhost:5179/?page=architecture"
+    assign(href) {
+      assignedHref = href;
+    },
+    href: "http://localhost:5179/?page=architecture",
   };
 
   const controller = navigation.createController({
@@ -35,7 +53,7 @@ test("shows only the selected page and navigates from the dropdown", () => {
     menu,
     options: [reportOption, architectureOption],
     reportPage,
-    toggle
+    toggle,
   });
   assert.equal(controller.isArchitecturePage, true);
   assert.equal(reportPage.hidden, true);
@@ -59,16 +77,24 @@ function fakeElement(dataset = {}) {
     dataset,
     hidden: true,
     textContent: "",
-    addEventListener(event, listener) { listeners.set(event, listener); },
+    addEventListener(event, listener) {
+      listeners.set(event, listener);
+    },
     classList: {
       toggle(name, enabled) {
         if (enabled) classes.add(name);
         else classes.delete(name);
-      }
+      },
     },
-    contains(target) { return target === this; },
-    emit(event, payload = {}) { listeners.get(event)({ target: this, ...payload }); },
+    contains(target) {
+      return target === this;
+    },
+    emit(event, payload = {}) {
+      listeners.get(event)({ target: this, ...payload });
+    },
     focus() {},
-    setAttribute(name, value) { attributes.set(name, value); }
+    setAttribute(name, value) {
+      attributes.set(name, value);
+    },
   };
 }

@@ -5,14 +5,21 @@ const { createScanService } = require("../src/scanService");
 test("publishes the primary report before architecture finishes and coalesces scans", async () => {
   let finishList;
   let beginList;
-  const listed = new Promise((resolve) => { beginList = resolve; });
-  const listing = new Promise((resolve) => { finishList = resolve; });
+  const listed = new Promise((resolve) => {
+    beginList = resolve;
+  });
+  const listing = new Promise((resolve) => {
+    finishList = resolve;
+  });
   const service = createScanService({
     createClient: () => ({
       analyze: async () => ({ data: {}, exitCode: 0 }),
-      listProject: () => { beginList(); return listing; },
-      resolvedConfig: async () => ({ data: {} })
-    })
+      listProject: () => {
+        beginList();
+        return listing;
+      },
+      resolvedConfig: async () => ({ data: {} }),
+    }),
   });
   const scan = service.start();
   assert.equal(service.start(), scan);
@@ -30,11 +37,15 @@ test("publishes the primary report before architecture finishes and coalesces sc
 });
 
 test("keeps primary results when the graph fails and permits another scan", async () => {
-  const service = createScanService({ createClient: () => ({
-    analyze: async () => ({ data: {}, exitCode: 0 }),
-    listProject: async () => { throw new Error("inspection failed"); },
-    resolvedConfig: async () => ({ data: {} })
-  }) });
+  const service = createScanService({
+    createClient: () => ({
+      analyze: async () => ({ data: {}, exitCode: 0 }),
+      listProject: async () => {
+        throw new Error("inspection failed");
+      },
+      resolvedConfig: async () => ({ data: {} }),
+    }),
+  });
   await service.start();
   assert.equal(service.getSnapshot().state, "ready");
   assert.equal(service.getSnapshot().report.architecture.state, "failed");
@@ -45,13 +56,19 @@ test("keeps primary results when the graph fails and permits another scan", asyn
 
 test("cancels active work on shutdown and isolates service instances", async () => {
   let started;
-  const begun = new Promise((resolve) => { started = resolve; });
-  const first = createScanService({ projectRoot: "/project-a", createClient: ({ signal }) => ({
-    analyze: () => new Promise((resolve, reject) => {
-      started();
-      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
-    })
-  }) });
+  const begun = new Promise((resolve) => {
+    started = resolve;
+  });
+  const first = createScanService({
+    projectRoot: "/project-a",
+    createClient: ({ signal }) => ({
+      analyze: () =>
+        new Promise((resolve, reject) => {
+          started();
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+        }),
+    }),
+  });
   const second = createScanService({ projectRoot: "/project-b" });
   first.start();
   await begun;
@@ -59,6 +76,8 @@ test("cancels active work on shutdown and isolates service instances", async () 
   assert.equal(first.getSnapshot().running, false);
   assert.equal(second.getSnapshot().state, "idle");
   assert.notEqual(first.getSnapshot().projectId, second.getSnapshot().projectId);
+  assert.equal(first.getSnapshot().projectName, "project-a");
+  assert.equal(second.getSnapshot().projectName, "project-b");
   await first.start();
   assert.equal(first.getSnapshot().running, false);
   await second.close();
@@ -66,14 +85,28 @@ test("cancels active work on shutdown and isolates service instances", async () 
 
 test("bounds total scan time without discarding the primary report", async () => {
   let count = 0;
-  const service = createScanService({ timeoutMs: 30, createClient: ({ signal }) => ({
-    analyze: async () => { count++; return { data: {}, exitCode: 0 }; },
-    resolvedConfig: async () => ({ data: {} }),
-    listProject: () => new Promise((resolve, reject) => {
-      const timer = setTimeout(() => resolve({ data: {} }), 1000);
-      signal.addEventListener("abort", () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
-    })
-  }) });
+  const service = createScanService({
+    timeoutMs: 30,
+    createClient: ({ signal }) => ({
+      analyze: async () => {
+        count++;
+        return { data: {}, exitCode: 0 };
+      },
+      resolvedConfig: async () => ({ data: {} }),
+      listProject: () =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => resolve({ data: {} }), 1000);
+          signal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              reject(signal.reason);
+            },
+            { once: true },
+          );
+        }),
+    }),
+  });
   await service.start();
   const snapshot = service.getSnapshot();
   assert.equal(snapshot.state, "ready");
