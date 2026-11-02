@@ -1,4 +1,4 @@
-import { overview } from "../architectureProjection.js";
+import { overview } from "../graph/layer-projection.js";
 import { readLocation } from "../../source/source-location.js";
 import { matchingSavedState } from "../../source/source-identity.js";
 

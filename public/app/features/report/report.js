@@ -1,4 +1,6 @@
-import * as format from "../../shared/utils/format.js";
+import { formatNumber } from "../../shared/utils/format.js";
+import * as format from "./report-format.js";
+import * as reportText from "./report-text.js";
 import * as copy from "../../shared/utils/copy.js";
 import * as findings from "./findings.js";
 import * as icons from "../../shared/utils/icons.js";
@@ -18,25 +20,25 @@ export function createReportRenderer({
   });
 
   elements.copyBlocking.addEventListener("click", () => {
-    copySection(elements.copyBlocking, format.formatBlockingFindingsText).catch((error) =>
+    copySection(elements.copyBlocking, reportText.formatBlockingFindingsText).catch((error) =>
       renderError(error.message),
     );
   });
 
   elements.copyRefactoring.addEventListener("click", () => {
-    copySection(elements.copyRefactoring, format.formatRefactoringSuggestionsText).catch((error) =>
-      renderError(error.message),
+    copySection(elements.copyRefactoring, reportText.formatRefactoringSuggestionsText).catch(
+      (error) => renderError(error.message),
     );
   });
 
   elements.copyCoupling.addEventListener("click", () => {
-    copySection(elements.copyCoupling, format.formatCouplingText).catch((error) =>
+    copySection(elements.copyCoupling, reportText.formatCouplingText).catch((error) =>
       renderError(error.message),
     );
   });
 
   elements.copyMaintainability.addEventListener("click", () => {
-    copySection(elements.copyMaintainability, format.formatLowestMaintainabilityText).catch(
+    copySection(elements.copyMaintainability, reportText.formatLowestMaintainabilityText).catch(
       (error) => renderError(error.message),
     );
   });
@@ -85,7 +87,7 @@ export function createReportRenderer({
   function renderHardFindings(hardFindings) {
     elements.blockingCount.textContent = String(hardFindings.count);
     if (latestReport) {
-      elements.copyBlocking.dataset.copyText = format.formatBlockingFindingsText(latestReport);
+      elements.copyBlocking.dataset.copyText = reportText.formatBlockingFindingsText(latestReport);
     }
 
     if (hardFindings.sections.length === 0) {
@@ -101,27 +103,27 @@ export function createReportRenderer({
 
   function renderHealth(health) {
     const findingsByPath = countFindingsByPath(health.findings);
-    elements.maintainabilityCount.textContent = `${format.formatNumber(health.summary.averageMaintainability)}%`;
+    elements.maintainabilityCount.textContent = `${formatNumber(health.summary.averageMaintainability)}%`;
     setSectionWarning(elements.maintainabilitySubhead, health.findings.length > 0);
     if (latestReport) {
       elements.copyMaintainability.dataset.copyText =
-        format.formatLowestMaintainabilityText(latestReport);
+        reportText.formatLowestMaintainabilityText(latestReport);
     }
     elements.healthSummary.replaceChildren(
       healthSection("Scan Scope", [
-        ["Analyzed files", format.formatNumber(health.summary.filesAnalyzed)],
-        ["Analyzed functions", format.formatNumber(health.summary.functionsAnalyzed)],
-        ["Source lines", format.formatNumber(health.vitalSigns.totalLoc)],
+        ["Analyzed files", formatNumber(health.summary.filesAnalyzed)],
+        ["Analyzed functions", formatNumber(health.summary.functionsAnalyzed)],
+        ["Source lines", formatNumber(health.vitalSigns.totalLoc)],
       ]),
       riskSignalsSection([
         riskSignalRow(
           "Functions over complexity limit",
-          format.formatNumber(health.summary.functionsAboveThreshold),
+          formatNumber(health.summary.functionsAboveThreshold),
           format.thresholdTone(health.summary.functionsAboveThreshold, 0, 10),
         ),
         riskSignalRow(
           "90th percentile function complexity",
-          format.formatNumber(health.vitalSigns.p90Cyclomatic),
+          formatNumber(health.vitalSigns.p90Cyclomatic),
           format.thresholdTone(health.vitalSigns.p90Cyclomatic, 5, 10),
         ),
       ]),
@@ -171,9 +173,9 @@ export function createReportRenderer({
     button.type = "button";
     button.innerHTML =
       '<i data-lucide="copy" aria-hidden="true"></i><span class="button-label">Copy</span>';
-    button.dataset.copyText = latestReport ? format.formatRiskSignalsText(latestReport) : "";
+    button.dataset.copyText = latestReport ? reportText.formatRiskSignalsText(latestReport) : "";
     button.addEventListener("click", () => {
-      copySection(button, format.formatRiskSignalsText).catch((error) =>
+      copySection(button, reportText.formatRiskSignalsText).catch((error) =>
         renderError(error.message),
       );
     });
@@ -219,7 +221,7 @@ export function createReportRenderer({
       <div>
         <span class="item-title">${escapeHtml(score.path)}</span>
         <span class="item-detail">
-          ${escapeHtml(format.formatNumber(score.lines))} lines of code
+          ${escapeHtml(formatNumber(score.lines))} lines of code
         </span>
       </div>
       <div class="file-score-side">
@@ -232,7 +234,7 @@ export function createReportRenderer({
 
   function renderCouplingFiles(coupling) {
     const candidates = couplingCandidates(coupling);
-    elements.couplingCount.textContent = format.formatNumber(candidates.length);
+    elements.couplingCount.textContent = formatNumber(candidates.length);
     renderCouplingCopyText();
     if (candidates.length === 0) {
       elements.couplingFiles.replaceChildren(emptyState("No high-coupling files."));
@@ -251,7 +253,7 @@ export function createReportRenderer({
 
   function renderCouplingCopyText() {
     if (!latestReport) return;
-    elements.copyCoupling.dataset.copyText = format.formatCouplingText(latestReport);
+    elements.copyCoupling.dataset.copyText = reportText.formatCouplingText(latestReport);
   }
 
   function renderCouplingFile(candidate, coupling) {
@@ -259,7 +261,7 @@ export function createReportRenderer({
     node.className = "target-card coupling-card";
     node.innerHTML = `
       <h3>${escapeHtml(candidate.path)}</h3>
-      <p class="coupling-size">${escapeHtml(format.formatNumber(candidate.lines))} lines of code</p>
+      <p class="coupling-size">${escapeHtml(formatNumber(candidate.lines))} lines of code</p>
       <div class="coupling-badges">
         ${couplingMetricHtml("Used by", candidate.fanIn, coupling.fanInThreshold)}
         ${couplingMetricHtml("Uses", candidate.fanOut, coupling.fanOutThreshold)}
@@ -277,7 +279,7 @@ export function createReportRenderer({
     const isAboveThreshold = format.isAboveCouplingThreshold(count, threshold);
     return `
       <span class="complexity-badge coupling-badge ${isAboveThreshold ? "coupling-badge-high" : "coupling-badge-neutral"}">
-        ${escapeHtml(`${label} ${format.formatNumber(count)} ${pluralize("file", count)}`)}
+        ${escapeHtml(`${label} ${formatNumber(count)} ${pluralize("file", count)}`)}
       </span>
     `;
   }
@@ -293,10 +295,10 @@ export function createReportRenderer({
   }
 
   function renderTargets(targets) {
-    elements.targetCount.textContent = format.formatNumber(targets.length);
+    elements.targetCount.textContent = formatNumber(targets.length);
     if (latestReport) {
       elements.copyRefactoring.dataset.copyText =
-        format.formatRefactoringSuggestionsText(latestReport);
+        reportText.formatRefactoringSuggestionsText(latestReport);
     }
 
     if (targets.length === 0) {
@@ -312,7 +314,7 @@ export function createReportRenderer({
     node.className = `target-card target-${format.effortTone(target.effort)}`;
     node.innerHTML = `
       <h3>${escapeHtml(target.path)}</h3>
-      <p>${escapeHtml(format.formatRecommendation(target.recommendation))}</p>
+      <p>${escapeHtml(reportText.formatRecommendation(target.recommendation))}</p>
       <div class="complexity-badge target-score">Priority ${escapeHtml(target.priority.toFixed(1))}</div>
     `;
     return node;
@@ -327,8 +329,8 @@ export function createReportRenderer({
 
   async function copyReport() {
     if (!latestReport) return;
-    const reportText = format.formatReportText(latestReport);
-    await copyText(elements.copyReport, reportText);
+    const text = reportText.formatReportText(latestReport);
+    await copyText(elements.copyReport, text);
   }
 
   async function copySection(button, formatter) {

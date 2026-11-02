@@ -4,7 +4,7 @@ import { createDemoModel } from "./helpers/architecture-fixtures.mjs";
 
 test("projects full graph, including hidden files, with unique directed dependencies", async () => {
   const { overview } =
-    await import("../public/app/features/architecture/architectureProjection.js");
+    await import("../public/app/features/architecture/graph/layer-projection.js");
   const { focus } = await import("../public/app/features/architecture/graph/neighborhood.js");
   const model = createDemoModel();
   model.nodes = model.nodes.filter((node) => node.path !== "domain/checkout.ts");
@@ -45,8 +45,10 @@ test("projects full graph, including hidden files, with unique directed dependen
 });
 
 test("directory graph aggregates canonical imports between immediate children", async () => {
-  const { directoryGraph, directoryPage } =
-    await import("../public/app/features/architecture/architectureProjection.js");
+  const { directoryGraph } =
+    await import("../public/app/features/architecture/graph/directory-projection.js");
+  const { directoryPage } =
+    await import("../public/app/features/architecture/graph/directory-page.js");
   const paths = ["src/a.js", "src/nested/b.js", "src/nested/c.js", "test/a.js", "root.js"];
   const model = {
     nodes: [],

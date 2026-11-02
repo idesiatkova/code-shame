@@ -1,36 +1,4 @@
-import { prepare } from "./graph/model.js";
-
-function overview(model) {
-  const data = prepare(model);
-  const counts = new Map();
-  for (const edge of data.edges) {
-    const source = data.files.get(edge.source).parent;
-    const target = data.files.get(edge.target).parent;
-    const key = JSON.stringify([source, target]);
-    const item = counts.get(key) || {
-      id: `aggregate:${key}`,
-      source,
-      target,
-      type: "imports",
-      weight: 0,
-      crossLayer: source !== target,
-    };
-    item.weight++;
-    counts.set(key, item);
-  }
-  return {
-    nodes: [...data.layers.values()].map((layer) => ({
-      ...layer,
-      type: "overview-layer",
-      withinLayer: counts.get(JSON.stringify([layer.id, layer.id]))?.weight || 0,
-      displayLabel: `${layer.label} · ${layer.fileCount} files`,
-    })),
-    edges: [...counts.values()].filter((edge) => edge.crossLayer),
-    fileCount: data.files.size,
-    edgeCount: data.edges.length,
-    complete: data.graph.complete,
-  };
-}
+import { prepare } from "./model.js";
 
 // Project file imports onto the immediate children of a real directory.
 function directoryGraph(model, directory = ".", listedPaths = []) {
@@ -102,31 +70,4 @@ function directoryEdges(edges, membership) {
   return pairs;
 }
 
-function directoryPage(projection, page, size = 6) {
-  const pages = Math.max(1, Math.ceil(projection.nodes.length / size));
-  const index = Math.max(0, Math.min(pages - 1, Number.isInteger(page) ? page : 0));
-  const nodes = projection.nodes.slice(index * size, (index + 1) * size);
-  const ids = new Set(nodes.map((node) => node.id));
-  const positions = new Map(
-    projection.nodes.map((node, i) => [node.id, { node, page: Math.floor(i / size) }]),
-  );
-  const edges = [],
-    boundary = [],
-    other = [];
-  for (const edge of projection.edges) {
-    const sourceHere = ids.has(edge.source),
-      targetHere = ids.has(edge.target);
-    if (sourceHere && targetHere) edges.push(edge);
-    else if (sourceHere || targetHere)
-      boundary.push({
-        ...edge,
-        sourceNode: positions.get(edge.source).node,
-        targetNode: positions.get(edge.target).node,
-        destination: positions.get(sourceHere ? edge.target : edge.source),
-      });
-    else other.push(edge);
-  }
-  return { ...projection, nodes, edges, boundary, other, page: index, pages };
-}
-
-export { overview, directoryGraph, directoryPage };
+export { directoryGraph };

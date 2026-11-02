@@ -1,9 +1,9 @@
-import { renderLegend, renderDetails } from "../components/organisms/graph-details.js";
+import { renderDetails } from "../components/molecules/detail-content.js";
 import {
   renderGraphInspector,
   renderLayerInspector,
 } from "../components/organisms/graph-inspector.js";
-import { prepareGraph, showGraphSurface, updateGraphStats } from "./graph-view.js";
+import { prepareGraph, renderLegend, showGraphSurface, updateGraphStats } from "./graph-view.js";
 
 function createGraphPresenter({
   runtime,

@@ -1,13 +1,8 @@
-import {
-  renderOverviewLayerDetails,
-  renderLayerDetails,
-  renderFileDetails,
-  renderBoundaryConnections,
-  appendNote,
-  appendFiles,
-  renderDetails,
-  renderPrompt,
-} from "./graph-details.js";
+import { renderFileDetails } from "./graph-details.js";
+import { renderOverviewLayerDetails, renderLayerDetails } from "./layer-details.js";
+import { renderBoundaryConnections, appendFiles } from "../molecules/detail-lists.js";
+import { appendNote, renderDetails } from "../molecules/detail-content.js";
+import { renderPrompt } from "../molecules/graph-empty-state.js";
 
 const DIRECTION_LABELS = {
   both: "Imports + imported by",

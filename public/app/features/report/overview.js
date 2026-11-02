@@ -1,4 +1,3 @@
-import * as format from "../../shared/utils/format.js";
 import * as icons from "../../shared/utils/icons.js";
 import { escapeHtml } from "../../shared/utils/html.js";
 import {
@@ -22,6 +21,12 @@ export function renderOverview(container, items, sampleId, projectId, isDemo) {
   if (!isDemo) writeMetricHistory(projectId, state, sampleId);
 }
 
+export function shameLabel(tone) {
+  if (tone === "critical") return "Secondhand embarrassment";
+  if (tone === "warn") return "A little shame";
+  return "No shame";
+}
+
 function renderMetric(item, previousValue, series) {
   const node = document.createElement("a");
   node.className = `metric metric-${item.id} metric-${item.tone}`;
@@ -37,7 +42,7 @@ function renderMetric(item, previousValue, series) {
       ${metricValueHtml(item)}
       ${metricDeltaHtml(item, previousValue)}
     </div>
-    <div class="metric-shame-text metric-shame-text-${escapeHtml(item.tone)}">${escapeHtml(format.shameLabel(item.tone))}</div>
+    <div class="metric-shame-text metric-shame-text-${escapeHtml(item.tone)}">${escapeHtml(shameLabel(item.tone))}</div>
   `;
 
   if (histogram) {

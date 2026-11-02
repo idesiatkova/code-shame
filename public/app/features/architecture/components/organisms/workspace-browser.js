@@ -1,5 +1,5 @@
 import { renderWorkspaceOverview } from "../../architecture-workspace.js";
-import { formatNumber } from "./graph-details.js";
+import { formatNumber } from "../../../../shared/utils/format.js";
 
 function createWorkspaceShell({ legend, stats, details }) {
   const sourcePanel = document.createElement("section");

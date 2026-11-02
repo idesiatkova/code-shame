@@ -1,4 +1,5 @@
-import { overview, directoryPage } from "../architectureProjection.js";
+import { directoryPage } from "./directory-page.js";
+import { overview } from "./layer-projection.js";
 import { focus } from "./neighborhood.js";
 import { projectSelection } from "./selection.js";
 

@@ -29,6 +29,10 @@ vendor UMD scripts; their globals are used only by their presentation adapters.
 The graph model does not depend on Cytoscape or browser APIs.
 
 Browser features live under `app/features/{architecture,explorer,report,scan,source}`.
+Layer, directory, and paginated directory projections have separate graph modules;
+all use the canonical graph model. Inspector content, file lists, empty states, and
+layer details have their own presentation owners. Report text serialization lives
+in `features/report/report-text.js`; shared number formatting stays in `shared/utils/format.js`.
 Each feature owns its controllers and presentation; `app/shell` owns page navigation.
 Shared components and utilities do not import feature controllers. Source call-graph
 styles live with the source feature; project-graph styles live with architecture.

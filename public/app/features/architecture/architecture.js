@@ -11,8 +11,8 @@ import {
 import { createWorkspaceHistory } from "./navigation/workspace-history.js";
 import { createGraphRuntime } from "./graph/graph-runtime.js";
 import { createFileSearch } from "./search.js";
-import { renderPrompt, emptyState } from "./components/organisms/graph-details.js";
-import { directoryGraph } from "./architectureProjection.js";
+import { renderPrompt, emptyState } from "./components/molecules/graph-empty-state.js";
+import { directoryGraph } from "./graph/directory-projection.js";
 import { analytics } from "./graph/cycles.js";
 import { createSourceExplorer } from "../source/source-explorer.js";
 import { createProjectExplorer } from "../explorer/project-explorer.js";

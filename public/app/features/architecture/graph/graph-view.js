@@ -1,6 +1,7 @@
-import { emptyState, renderPrompt, formatNumber } from "../components/organisms/graph-details.js";
+import { emptyState, renderPrompt } from "../components/molecules/graph-empty-state.js";
+import { formatNumber } from "../../../shared/utils/format.js";
 import { graphUnavailable } from "./projection-view.js";
-import { directoryGraph } from "../architectureProjection.js";
+import { directoryGraph } from "./directory-projection.js";
 import { impact } from "./selection.js";
 import { readDesignTokens } from "../../../shared/design/tokens.js";
 import { colorizeProjection } from "./layer-colors.js";
@@ -147,4 +148,21 @@ function updateGraphStats({
   stats.tabIndex = 0;
 }
 
-export { prepareGraph, showGraphSurface, updateGraphStats };
+function renderLegend(element, nodes, selectLayer) {
+  const layers = nodes.filter((node) => node.type === "layer" || node.type === "overview-layer");
+  element.replaceChildren(
+    ...layers.map((layerNode) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "architecture-legend-item";
+      button.dataset.layerId = layerNode.id;
+      button.setAttribute("aria-pressed", "false");
+      button.style.setProperty("--layer-color", layerNode.color);
+      button.textContent = `${layerNode.label} · ${formatNumber(layerNode.fileCount)}`;
+      button.addEventListener("click", () => selectLayer(layerNode.id));
+      return button;
+    }),
+  );
+}
+
+export { renderLegend, prepareGraph, showGraphSurface, updateGraphStats };
