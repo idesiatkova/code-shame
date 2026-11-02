@@ -1,67 +1,148 @@
 # Code Shame
 
-Local web dashboard for Fallow code analysis reports.
+**Explore code health, dependencies, and source code in one local dashboard.**
 
-### Project structure
+Code Shame turns Fallow analysis into a browser workspace for JavaScript and
+TypeScript projects. Find unused code, review refactoring suggestions, and trace
+dependencies from architectural layers down to files and function calls.
 
-![Code Shame project structure](./assets/code-shame-project-structure.webp)
+[Quick start](#quick-start) · [Features](#features) · [Configuration](#configuration) · [Development](#development)
 
-### Fallow report
+![Code Shame project explorer and dependency map](./assets/code-shame-project-structure.webp)
 
-![Code Shame Fallow report](./assets/code-shame-fallow-report.webp)
+## Quick start
 
-## Usage
+You need **Node.js 22 or newer** and a JavaScript or TypeScript project supported
+by Fallow. Fallow is bundled as a dependency; no separate installation is needed.
 
-Run it from the root of the project you want to analyze:
+From the root of the project you want to analyze, run:
 
 ```sh
 npx code-shame
 ```
 
-Open the printed local URL, then press **Refresh** to run a scan.
+Open the URL printed in your terminal, usually `http://127.0.0.1:5179`.
+The dashboard starts scanning when opened. The report appears first; the
+dependency map follows as graph analysis finishes.
 
-The dashboard starts an initial scan when opened. The report becomes available
-before the project map finishes building. Commands time out after 60 seconds and
-the whole scan after 180 seconds, so a stalled analysis can be retried.
+Use **Refresh** to scan again, or choose an auto-refresh interval.
+Press `Ctrl+C` in the terminal to stop the server and its active analysis processes.
 
-By default Code Shame listens on `127.0.0.1:5179`. Override it with environment
-variables when needed:
+## Features
+
+### Review code health
+
+- **Blocking Findings** — unused files, exports, types, and dependencies;
+  unresolved imports; dependency cycles; boundary violations; duplicated code;
+  and complexity findings.
+- **Refactoring Suggestions** — recommendations with priority, effort, and
+  confidence to help choose where to start.
+- **Code Health** — maintainability, complexity, coupling, and files with the
+  lowest maintainability scores.
+- **Metric history** — compare recent scans, with up to 24 samples stored in your
+  browser for each project.
+- **Copyable reports** — share findings as text.
+
+![Code Shame Fallow analysis report](./assets/code-shame-fallow-report.webp)
+
+### Explore project dependencies
+
+- Browse architectural layers, directories, and files in an interactive map
+  alongside a nested project explorer.
+- Search for a file and inspect its incoming and outgoing dependencies.
+- Use **Impact** to find direct and transitive consumers of a file.
+- Use **Cycles** to inspect mutually dependent files and self-imports.
+- Move between views with exploration history and restored selection state.
+
+Layer grouping uses configured Fallow boundary zones when available, with
+automatic path-based categories as a fallback.
+
+### Read source and follow calls
+
+Open JavaScript or TypeScript source files from the current scan, inspect their
+symbols, and navigate to call sites. Function graphs resolve supported cross-file
+ES module imports, CommonJS imports, and class method calls.
+
+## Configuration
+
+Code Shame reads settings from environment variables:
+
+| Variable                 | Default           | Purpose                                                      |
+| ------------------------ | ----------------- | ------------------------------------------------------------ |
+| `CODE_SCAN_ROOT`         | Current directory | Project directory to analyze.                                |
+| `HOST`                   | `127.0.0.1`       | Address the HTTP server binds to.                            |
+| `PORT`                   | `5179`            | Server port, from `0` to `65535`; `0` picks a free port.     |
+| `ARCHITECTURE_MAX_FILES` | `48`              | File limit for the dashboard projection, from `1` to `1000`. |
+
+Analyze another directory or choose a different port (POSIX shell syntax):
 
 ```sh
-HOST=0.0.0.0 PORT=5180 npx code-shame
+CODE_SCAN_ROOT=/path/to/project PORT=5180 npx code-shame
 ```
 
-If the port is occupied, Code Shame reports an error and leaves the existing
-process running. Stop that process yourself or choose another port. Ctrl+C
-stops this server and its active analysis processes.
+The server serves project source code to the dashboard. Keep the default
+loopback address for local use; set `HOST` only when you intend to make the
+dashboard accessible through another network interface.
 
-Metric history is stored locally in the browser for each analyzed project.
-The previous unscoped history cookie is ignored.
+If a port is occupied, Code Shame exits with an error and leaves the existing
+process running. Choose another port or stop that process yourself.
 
-## What It Shows
+## How to interpret the graphs
 
-- An interactive project structure map grouped into architectural layers
-- Blocking Findings from Fallow checks
-- Refactoring Suggestions from maintainability analysis
-- Code Health metrics and lowest maintainability files
-- Copyable text reports for sharing findings
+Dependency and function graphs describe **static analysis**. They help explore
+possible relationships; they do not prove runtime behavior or the effects of a change.
 
-The project map uses configured Fallow boundary zones when available and falls
-back to automatic categories such as styles/design system, state stores, UI,
-API/data, domain, tests, server, and tooling. Open it as a separate page from the
-toolbar page selector. See [ARCHITECTURE.md](./ARCHITECTURE.md) for the graph model
-and extension points.
+- **Partial graphs:** diagnostics identify missing or unresolved data. Counts
+  and impact results reflect only the collected graph.
+- **Display limits:** views report shown and total counts. Impact and cycle
+  analysis use the collected file graph before display limits are applied.
+- **Function resolution:** calls that cannot be proven remain unresolved.
+  Coverage limits and truncation are reported in the interface.
+- **Source access:** the source browser supports JavaScript and TypeScript files
+  in the current scan, up to 512 KiB per file.
 
-## Requirements
+Each analysis command has a 60-second timeout; the whole scan has a 180-second
+timeout. A graph failure keeps the primary report available. Use **Refresh** to
+retry a failed scan.
 
-- Node.js 22 or newer
-- A JavaScript or TypeScript project supported by Fallow
+For the graph model, scan lifecycle, API, and extension points, see
+[Architecture](./ARCHITECTURE.md).
 
-Fallow is installed as a package dependency, so users do not need to install it
-separately.
+## Development
 
-### Project structure
+```sh
+git clone https://github.com/idesiatkova/code-shame.git
+cd code-shame
+npm ci
+npm run dev
+```
 
-The architecture map starts with directed layer-to-layer dependencies. Each edge label counts unique importing-file → imported-file pairs from the project graph, including files hidden by the old display limit. Search a file path and select a match to explore its inbound and outbound dependencies at depth one or two. The focus view limits rendering to 60 files and 300 dependencies and reports shown and total counts; use Back to layers to return. File metrics are shown when available. A partial graph label means dependency counts and results reflect only the data collected.
+`npm run dev` analyzes the Code Shame repository itself. To work on the dashboard
+against another project:
 
-Choose Impact to see direct consumers and other files reachable through their imports. Choose Cycles to inspect groups of mutually dependent files, including self-imports. These analyses use the entire collected graph before applying display limits; they describe static dependencies, not runtime effects. Imports and imported-by counts use unique directed file pairs, including self-imports, and are separate from Fallow's metrics. In a partial graph, counts are lower bounds except the observed indirect-consumer count, which can change as missing direct dependencies are found. Legacy reports without a project graph cannot provide these analyses.
+```sh
+CODE_SCAN_ROOT=/path/to/project npm run dev
+```
+
+The server uses Node.js CommonJS modules; the browser uses native ES modules.
+There is no frontend build step.
+
+| Command                           | Purpose                                                  |
+| --------------------------------- | -------------------------------------------------------- |
+| `npm run check`                   | Run linting, formatting checks, tests, and Fallow gates. |
+| `npm test`                        | Run backend and frontend module tests.                   |
+| `npm run lint`                    | Check JavaScript and CSS.                                |
+| `npm run format`                  | Format the repository with Prettier.                     |
+| `npm run check:fallow:production` | Run Fallow checks on production code only.               |
+| `npm run pack:dry`                | Inspect the npm package contents without publishing.     |
+
+## Project links
+
+- [Changelog](./CHANGELOG.md)
+- [Architecture and contributor reference](./ARCHITECTURE.md)
+- [Report a bug or request a feature](https://github.com/idesiatkova/code-shame/issues)
+
+## License
+
+[MIT](./LICENSE). Notices for bundled browser libraries are included in
+[public/licenses](./public/licenses/README.md).
