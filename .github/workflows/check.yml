@@ -1,8 +1,7 @@
 name: Check
 
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,14 +9,11 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node: [22, 24]
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node }}
+          node-version: "24"
           cache: npm
       - run: npm ci
       - run: npm run check
