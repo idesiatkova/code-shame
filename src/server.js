@@ -13,6 +13,7 @@ const MIME_TYPES = new Map([
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".svg", "image/svg+xml"],
+  [".txt", "text/plain; charset=utf-8"],
 ]);
 const VENDOR_SCRIPT_PATHS = new Map([
   ["/vendor/cytoscape.js", resolveCytoscapeScriptPath()],

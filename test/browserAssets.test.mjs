@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
+import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import test from "node:test";
 import { parse } from "@babel/parser";
@@ -70,4 +71,8 @@ test("HTML entry points and their complete module/style graphs are served", asyn
   const visited = await walkAssets(origin, queue);
   assert.ok(visited.has("/styles/tokens/index.css"));
   assert.ok(visited.has("/app/shared/design/tokens.js"));
+  const license = await fetch(`${origin}/licenses/lucide.txt`);
+  assert.equal(license.status, 200);
+  assert.match(license.headers.get("content-type"), /text\/plain/);
+  assert.equal(await license.text(), await readFile(require.resolve("lucide/LICENSE"), "utf8"));
 });
