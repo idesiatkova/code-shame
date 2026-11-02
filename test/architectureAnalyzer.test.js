@@ -31,6 +31,27 @@ test("architecture analyzer composes Fallow list, config, and inspect queries", 
   assert.equal(graph.projectGraph.complete, true);
 });
 
+test("architecture input queries start together", async () => {
+  const started = [];
+  let finishList;
+  const client = {
+    listProject: () => {
+      started.push("list");
+      return new Promise((resolve) => {
+        finishList = resolve;
+      });
+    },
+    resolvedConfig: async () => {
+      started.push("config");
+      return { data: {} };
+    },
+  };
+  const analysis = new ProjectArchitectureAnalyzer({ client }).analyze({});
+  assert.deepEqual(started, ["list", "config"]);
+  finishList({ data: { files: [] } });
+  assert.equal((await analysis).state, "ready");
+});
+
 test("a capped scan reports partial coverage even when every requested inspection succeeds", async () => {
   const client = {
     listProject: async () => ({ data: { files: ["a.js", "b.js"] } }),

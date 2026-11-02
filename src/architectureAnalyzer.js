@@ -6,6 +6,7 @@ const {
 const { inspectAssignments } = require("./architectureInspection");
 const { graphDiagnostics } = require("./architectureDiagnostics");
 const { extractArchitectureGraph } = require("./architectureGraph");
+const { readArchitectureInputs } = require("./fallowClient");
 
 const DEFAULT_INSPECTION_CONCURRENCY = 4;
 
@@ -22,10 +23,7 @@ class ProjectArchitectureAnalyzer {
   }
 
   async analyze({ rawReport }) {
-    const [listResult, configResult] = await Promise.all([
-      this.client.listProject(),
-      this.client.resolvedConfig(),
-    ]);
+    const [listResult, configResult] = await readArchitectureInputs(this.client);
     const plan = createArchitecturePlan({
       listOutput: listResult.data,
       configOutput: configResult.data,

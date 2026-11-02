@@ -34,4 +34,8 @@ class FallowClient {
   }
 }
 
-module.exports = { FallowClient };
+function readArchitectureInputs(client) {
+  return Promise.all([client.listProject(), client.resolvedConfig()]);
+}
+
+module.exports = { FallowClient, readArchitectureInputs };
