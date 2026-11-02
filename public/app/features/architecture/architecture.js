@@ -13,7 +13,8 @@ import {
   emptyState,
   formatNumber,
 } from "./components/organisms/graph-details.js";
-import { overview, directoryGraph, analytics, impact } from "./architectureProjection.js";
+import { overview, directoryGraph } from "./architectureProjection.js";
+import { analytics, impact } from "./graph/analysis.js";
 import { createStyledSelect } from "../../shared/components/molecules/styled-select.js";
 import { createSourceExplorer } from "../source/source-explorer.js";
 import { readLocation, matchingSavedState } from "../source/source-navigation.js";

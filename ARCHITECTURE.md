@@ -164,7 +164,7 @@ Partial graph diagnostics are available below the map statistics.
 
 ## Verification
 
-Run `npm run check` for ESLint, Stylelint, Prettier, backend/frontend tests, and production Fallow checks. Run `npm test` for backend CommonJS and frontend ES-module tests alone. The suite
+Run `npm run check` for ESLint, Stylelint, Prettier, backend/frontend tests, and full Fallow checks including tests. `npm run check:fallow:production` checks production code alone. Run `npm test` for backend CommonJS and frontend ES-module tests alone. The suite
 covers scan publication, deadlines, shutdown, process-tree cancellation, port
 conflicts, HTTP routes, report normalization, graph construction, polling, and
 per-project metric history. Frontend tests import modules directly.

@@ -126,15 +126,21 @@ test("marks reports without attention issues as clear", () => {
 });
 
 test("limits maintainability list while keeping all high-coupling candidates", () => {
+  const scores = [91.6, 92.2, 93.6, 79.2, 89.5, 95, 88, 85, 70, 99];
   const fileScores = Array.from({ length: 10 }, (_value, index) => ({
     path: `file-${index + 1}.js`,
-    maintainability_index: 70 + index,
+    maintainability_index: scores[index],
     total_cyclomatic: 1,
     total_cognitive: 1,
     fan_in: index + 1,
     fan_out: 0,
     lines: 20,
   }));
+  fileScores.push(
+    { path: "missing.js", fan_in: 11 },
+    { path: "invalid.js", maintainability_index: null },
+  );
+  const original = structuredClone(fileScores);
   const report = normalizeFallowReport({
     check: { total_issues: 0, summary: {} },
     dupes: { clone_groups: [], stats: { clone_groups: 0 } },
@@ -148,10 +154,15 @@ test("limits maintainability list while keeping all high-coupling candidates", (
   });
 
   assert.equal(report.health.fileScores.length, 8);
-  assert.equal(report.health.coupling.candidateCount, 3);
+  assert.deepEqual(
+    report.health.fileScores.map((score) => score.maintainability),
+    [70, 79.2, 85, 88, 89.5, 91.6, 92.2, 93.6],
+  );
+  assert.deepEqual(fileScores, original);
+  assert.equal(report.health.coupling.candidateCount, 4);
   assert.deepEqual(
     report.health.coupling.candidates.map((candidate) => candidate.path),
-    ["file-10.js", "file-9.js", "file-8.js"],
+    ["missing.js", "file-10.js", "file-9.js", "file-8.js"],
   );
 });
 

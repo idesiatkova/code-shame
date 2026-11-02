@@ -113,23 +113,8 @@ test("graph export bounds output and cleans temporary files after success, failu
   await assert.rejects(fs.stat(path.dirname(output)), { code: "ENOENT" });
 });
 
-test("cancellation terminates the launcher's child process", { timeout: 10000 }, async (t) => {
-  const controller = new AbortController();
-  const client = await fixture(
-    t,
-    `
-    const { spawn } = require("node:child_process");
-    const fs = require("node:fs");
-    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
-    fs.writeFileSync("child.pid", String(child.pid));
-    setInterval(() => {}, 1000);
-  `,
-    { signal: controller.signal },
-  );
-  const result = client.analyze();
-  // Attach before cancellation so the rejection is always observed.
-  const cancelled = assert.rejects(result, /cancelled scan/);
-  const pidPath = path.join(client.cwd, "child.pid");
+async function waitForChild(t, cwd) {
+  const pidPath = path.join(cwd, "child.pid");
   let pid;
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
@@ -148,6 +133,26 @@ test("cancellation terminates the launcher's child process", { timeout: 10000 },
       /* The child may already have exited. */
     }
   });
+  return pid;
+}
+
+test("cancellation terminates the launcher's child process", { timeout: 10000 }, async (t) => {
+  const controller = new AbortController();
+  const client = await fixture(
+    t,
+    `
+    const { spawn } = require("node:child_process");
+    const fs = require("node:fs");
+    const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
+    fs.writeFileSync("child.pid", String(child.pid));
+    setInterval(() => {}, 1000);
+  `,
+    { signal: controller.signal },
+  );
+  const result = client.analyze();
+  // Attach before cancellation so the rejection is always observed.
+  const cancelled = assert.rejects(result, /cancelled scan/);
+  const pid = await waitForChild(t, client.cwd);
   controller.abort(new Error("cancelled scan"));
   await cancelled;
   let alive = true;

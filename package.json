@@ -21,7 +21,8 @@
     "lint": "npm run lint:js && npm run lint:css",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check:fallow": "fallow --production --fail-on-issues --fail-on-parse-error --format json --quiet",
+    "check:fallow": "fallow --no-production --fail-on-issues --fail-on-parse-error --format json --quiet",
+    "check:fallow:production": "fallow --production --fail-on-issues --fail-on-parse-error --format json --quiet",
     "check": "npm run lint && npm run format:check && npm test && npm run check:fallow",
     "pack:dry": "npm pack --dry-run"
   },

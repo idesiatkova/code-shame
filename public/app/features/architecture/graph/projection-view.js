@@ -1,4 +1,5 @@
-import { overview, directoryPage, focus, projectSelection } from "../architectureProjection.js";
+import { overview, directoryPage } from "../architectureProjection.js";
+import { focus, projectSelection } from "./analysis.js";
 
 function graphProjection({
   model,

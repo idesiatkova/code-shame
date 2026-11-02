@@ -156,7 +156,11 @@ function buildHealthSummary(parts) {
     vitalSigns,
     coupling: buildCouplingSummary(parts.health, summary, vitalSigns, fileScores),
     findings: parts.healthFindings.map(normalizeHealthFinding),
-    fileScores: fileScores.slice(0, 8),
+    fileScores: asArray(parts.health.file_scores)
+      .filter((score) => Number.isFinite(score?.maintainability_index))
+      .map(normalizeFileScore)
+      .sort((left, right) => left.maintainability - right.maintainability)
+      .slice(0, 8),
     targets: parts.targets.map(normalizeTarget),
   };
 }

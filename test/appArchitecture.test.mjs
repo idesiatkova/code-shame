@@ -70,8 +70,9 @@ test("Dagre lays out cyclic and isolated layers and routes their edges", async (
 });
 
 test("projects full graph, including hidden files, with unique directed dependencies", async () => {
-  const { overview, focus } =
+  const { overview } =
     await import("../public/app/features/architecture/architectureProjection.js");
+  const { focus } = await import("../public/app/features/architecture/graph/analysis.js");
   const model = createDemoModel();
   model.nodes = model.nodes.filter((node) => node.path !== "domain/checkout.ts");
   model.projectGraph.edges.push({ ...model.projectGraph.edges[3], kind: "dynamic" });
@@ -198,7 +199,7 @@ test("directory graph aggregates canonical imports between immediate children", 
 
 test("focus counts follow direction and depth while direct lists remain project-wide", async () => {
   const { focus, analytics } =
-    await import("../public/app/features/architecture/architectureProjection.js");
+    await import("../public/app/features/architecture/graph/analysis.js");
   const paths = ["a", "b", "c", "d"];
   const model = {
     nodes: [],
@@ -1481,7 +1482,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
 
 test("analytics uses the full graph for unique consumers and cycle groups", async () => {
   const { analytics, impact, projectSelection } =
-    await import("../public/app/features/architecture/architectureProjection.js");
+    await import("../public/app/features/architecture/graph/analysis.js");
   const ids = ["A", "B", "C", "D", "E", "F", "G"];
   const pairs = [
     ["A", "B"],
