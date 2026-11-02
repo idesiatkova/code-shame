@@ -71,8 +71,15 @@ test("HTML entry points and their complete module/style graphs are served", asyn
   const visited = await walkAssets(origin, queue);
   assert.ok(visited.has("/styles/tokens/index.css"));
   assert.ok(visited.has("/app/shared/design/tokens.js"));
-  const license = await fetch(`${origin}/licenses/lucide.txt`);
-  assert.equal(license.status, 200);
-  assert.match(license.headers.get("content-type"), /text\/plain/);
-  assert.equal(await license.text(), await readFile(require.resolve("lucide/LICENSE"), "utf8"));
+  for (const [name, source] of [
+    ["lucide", require.resolve("lucide/LICENSE")],
+    ["cytoscape", new URL("../node_modules/cytoscape/LICENSE", import.meta.url)],
+    ["cytoscape-dagre", new URL("../node_modules/cytoscape-dagre/LICENSE", import.meta.url)],
+    ["dagre", new URL("../public/licenses/dagre.txt", import.meta.url)],
+  ]) {
+    const license = await fetch(`${origin}/licenses/${name}.txt`);
+    assert.equal(license.status, 200, `${name} license`);
+    assert.match(license.headers.get("content-type"), /text\/plain/);
+    assert.equal(await license.text(), await readFile(source, "utf8"));
+  }
 });
