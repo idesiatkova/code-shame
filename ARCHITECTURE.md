@@ -33,6 +33,44 @@ Each feature owns its controllers and presentation; `app/shell` owns page naviga
 Shared components and utilities do not import feature controllers. Source call-graph
 styles live with the source feature; project-graph styles live with architecture.
 
+### Workspace and source ownership
+
+`architecture/architecture.js` composes the workspace and owns its canonical
+project, file, directory, mode, page, layer, and cycle selection. It passes state
+snapshots and setters to the extracted modules. `navigation/workspace-transitions.js`
+coordinates selection and mode changes; `workspace-history.js` parses and writes
+URLs and history, gates writes until navigation is ready, and stores camera and
+source state. `workspace-restoration.js` applies locations, graph filters, and
+source state, including canonicalizing directory pages.
+
+`components/organisms/workspace-browser.js` renders the workspace shell and
+inventory. In `architecture/graph/`, `graph-view.js` projects data,
+`graph-controls.js` renders controls and diagnostics, and `graph-presenter.js`
+coordinates drawing and interactions with the graph inspector. `graph-runtime.js`
+owns Cytoscape lifecycle, layout, camera, resizing, and layer focus; history
+persists the camera only for the matching graph context.
+
+`source/source-explorer.js` coordinates source and function-graph views.
+`source-requests.js` gives each request type its own abortable, sequenced channel
+so stale responses cannot replace current results. `source-identity.js` checks
+saved state and call-site identity, including source hashes. `source-restoration.js`
+handles focus and scroll restoration; `source-dom.js` supplies shared DOM helpers,
+while source organisms render the workspace and code. The source graph runtime
+owns its own Cytoscape lifecycle.
+
+### Function resolution
+
+`src/functionResolver.js` composes a resolver for a root and snapshot. Its
+`function-resolver/source-repository.js` restricts relative paths to snapshot files,
+loads and parses them through a per-resolver promise cache, and reports its
+40-file coverage limit and diagnostics. `call-targets.js` coordinates binding and
+call resolution; `esm-exports.js`, `commonjs.js`, and `class-targets.js` own
+separate ESM export, CommonJS, and class/`this` proof rules. `symbols.js` supplies
+shared symbol and property helpers. Resolution is conservative when a target
+cannot be proven. `function-graph.js` gathers calls from the selected file and
+bounded transitive snapshot importers, reporting coverage, truncation, and
+unresolved calls rather than claiming a complete runtime call graph.
+
 ### Styles and components
 
 `public/styles/main.css` is the ordered stylesheet entry point. It loads tokens,
