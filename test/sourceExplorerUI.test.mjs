@@ -411,6 +411,7 @@ test("function graph navigates across files, restores history, and ignores stale
       symbol: "a",
       pageX: 0,
       pageY: 900,
+      focus: "edge:Outgoing:a.js:1:2:declaration",
     });
     pending.at(-1).resolve(source("a.js", "a", "a-hash"));
     await delayedPage;
@@ -419,10 +420,16 @@ test("function graph navigates across files, restores history, and ignores stale
     maxScroll = 1200;
     pending.at(-1).resolve({
       ok: true,
-      json: async () => ({ root: a, nodes: [a, b], edges: [], coverage: { files: ["a.js"] } }),
+      json: async () => ({
+        root: a,
+        nodes: [a, b],
+        edges: [{ source: a, target: b, file: "a.js", line: 1, column: 2 }],
+        coverage: { files: ["a.js"] },
+      }),
     });
     await new Promise(setImmediate);
     assert.equal(window.scrollY, 50);
+    assert.equal(document.activeElement, panel);
     explorer.close(true);
     assert.equal(document.activeElement, trigger);
   } finally {
