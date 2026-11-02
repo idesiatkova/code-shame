@@ -92,6 +92,21 @@ test("bounds large function neighborhoods", async (t) => {
   assert.equal(graph.coverage.truncated, true);
 });
 
+test("reports source repository limits in graph coverage", async (t) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "code-shame-source-limit-"));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const files = Array.from({ length: 41 }, (_, i) => `file${i}.js`);
+  await Promise.all(files.map((file) => fs.writeFile(path.join(root, file), "function f() {}")));
+  const resolver = createResolver(root, {
+    report: { architecture: { projectGraph: { nodes: files.map((path) => ({ path })) } } },
+  });
+  const first = await resolver.source(files[0]);
+  for (const file of files.slice(1)) await resolver.source(file);
+  const graph = await resolver.functionGraph(files[0], first.symbols[0].id);
+  assert.equal(graph.coverage.files.length, 40);
+  assert.equal(graph.coverage.truncated, true);
+});
+
 test("resolves static CommonJS and lexical class calls conservatively", async (t) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "code-shame-commonjs-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
