@@ -1,30 +1,49 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createScanController } from "../public/app/scan-controller.js";
+import { createScanController } from "../public/app/features/scan/scan-controller.js";
 
 function setup(responses) {
   const pending = new Map();
   let timerId = 0;
   const timers = {
-    setTimeout(callback, delay) { pending.set(++timerId, { callback, delay }); return timerId; },
-    clearTimeout(id) { pending.delete(id); },
-    setInterval(callback, delay) { pending.set(++timerId, { callback, delay }); return timerId; },
-    clearInterval(id) { pending.delete(id); }
+    setTimeout(callback, delay) {
+      pending.set(++timerId, { callback, delay });
+      return timerId;
+    },
+    clearTimeout(id) {
+      pending.delete(id);
+    },
+    setInterval(callback, delay) {
+      pending.set(++timerId, { callback, delay });
+      return timerId;
+    },
+    clearInterval(id) {
+      pending.delete(id);
+    },
   };
   const element = () => ({
-    disabled: false, hidden: true, dataset: {},
-    addEventListener() {}, setAttribute() {},
-    classList: { toggle() {} }, style: { setProperty() {} },
-    querySelector: () => ({ textContent: "" })
+    disabled: false,
+    hidden: true,
+    dataset: {},
+    addEventListener() {},
+    setAttribute() {},
+    classList: { toggle() {} },
+    style: { setProperty() {} },
+    querySelector: () => ({ textContent: "" }),
   });
   const elements = {
-    refreshButton: element(), refreshControl: element(), refreshMenu: element(),
-    refreshMenuToggle: element(), refreshMenuOptions: []
+    refreshButton: element(),
+    refreshControl: element(),
+    refreshMenu: element(),
+    refreshMenuToggle: element(),
+    refreshMenuOptions: [],
   };
   const calls = [];
   const payloads = [];
   const errors = [];
-  const controller = createScanController({ elements, timers,
+  const controller = createScanController({
+    elements,
+    timers,
     document: { cookie: "", addEventListener() {} },
     fetch: async (url, options) => {
       calls.push({ url, ...options });
@@ -33,17 +52,22 @@ function setup(responses) {
       return { ok: true, json: async () => value };
     },
     renderPayload: (payload) => payloads.push(payload),
-    showError: (error) => errors.push(error)
+    showError: (error) => errors.push(error),
   });
   return { controller, elements, calls, payloads, errors, pending };
 }
 
 test("starts an idle scan, coalesces requests, and polls until completion", async () => {
   const { controller, elements, calls, pending, payloads } = setup([
-    { state: "idle", running: false }, { state: "running", running: true }, { state: "ready", running: false }
+    { state: "idle", running: false },
+    { state: "running", running: true },
+    { state: "ready", running: false },
   ]);
   await controller.start();
-  assert.deepEqual(calls.map((call) => call.method), ["GET", "POST"]);
+  assert.deepEqual(
+    calls.map((call) => call.method),
+    ["GET", "POST"],
+  );
   assert.equal(elements.refreshButton.disabled, true);
   const poll = [...pending.values()].find((timer) => timer.delay === 1500);
   await poll.callback();
@@ -58,7 +82,8 @@ test("starts an idle scan, coalesces requests, and polls until completion", asyn
 
 test("retries a failed poll and cancels requests and timers on disposal", async () => {
   const { controller, pending, errors, calls } = setup([
-    { state: "ready", running: true }, new Error("offline")
+    { state: "ready", running: true },
+    new Error("offline"),
   ]);
   await controller.start();
   await [...pending.values()].find((timer) => timer.delay === 1500).callback();

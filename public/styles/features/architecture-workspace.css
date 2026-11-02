@@ -1,92 +1,554 @@
-.architecture-controls { display: flex; flex-wrap: wrap; gap: var(--space-md) var(--space-2xl); align-items: start; margin: var(--space-md) 0; }
-.architecture-file-relations button { display: block; max-width: 100%; padding: var(--space-xs) var(--space-7); border: 0; background: transparent; color: var(--link); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.architecture-workspace > div[hidden], .architecture-workspace > section[hidden] { display: none; }
-.architecture-scope { margin: 0 0 var(--space-md); color: var(--muted); font-size: var(--text-small); overflow-wrap: anywhere; }
-.architecture-browser h3 { margin: 0 0 var(--space-sm); color: var(--ink); font-size: var(--text-normal); overflow-wrap: anywhere; }
-.architecture-entry button, .architecture-directory-files button { min-width: 0; padding: var(--space-5) var(--space-7); border: 0; border-radius: var(--radius-small); background: transparent; color: var(--link); font-size: var(--text-small); line-height: 1.4; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.architecture-entry button:hover, .architecture-directory-files button:hover { background: var(--selection); }
-.architecture-browser button:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-.architecture-entry { display: grid; margin-bottom: var(--space-sm); }
-.architecture-entry-list { max-height: 240px; overflow: auto; }
-.architecture-entry-list summary { color: var(--ink); font-size: var(--text-small); cursor: pointer; }
-.architecture-entry small { color: var(--muted); font-size: var(--text-small); line-height: 1.4; overflow-wrap: anywhere; }
-.architecture-entry small { padding: 0 var(--space-7); }
-.architecture-selected-file { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-sm); margin-bottom: var(--space-md); font-size: var(--text-small); overflow-wrap: anywhere; }
-.architecture-selected-file strong { min-width: 0; flex: 1 1 200px; }
-.architecture-selected-file button { min-height: 30px; padding: var(--space-compact) var(--space-9); font-size: var(--text-small); }
-.architecture-map-disclosure { margin-top: var(--space-medium); container-type: inline-size; }
-.architecture-map-disclosure > summary { color: var(--ink); font-size: var(--text-normal); font-weight: var(--weight-semibold); cursor: pointer; }
-.architecture-map-disclosure > .architecture-secondary { margin-top: var(--space-md); }
-@media (max-width: 700px) {
-  .topbar { gap: var(--space-sm); }
-  .toolbar { flex-direction: row; flex-wrap: wrap; gap: var(--space-xs) var(--space-md); }
-  .toolbar-actions { flex-direction: row; align-items: center; gap: var(--space-sm); padding: 0; border: 0; }
-  .architecture-entries { grid-column: 1 / -1; grid-row: 1; }
+.architecture-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-2xl);
+  align-items: start;
+  margin: var(--space-md) 0;
 }
-.architecture-controls[hidden] { display: none; }
-.architecture-map { min-width: 0; }
-.architecture-map-actions { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, minmax(70px, auto)); gap: var(--space-compact); min-height: 38px; }
-.architecture-map-actions > :nth-child(1) { grid-column: 1; justify-self: start; }
-.architecture-map-actions > :nth-child(2) { grid-column: 2; }
-.architecture-map-actions > :nth-child(3) { grid-column: 3; }
-.architecture-map-actions > :nth-child(4) { grid-column: 4; }
-.architecture-map-actions > :nth-child(5) { grid-column: 5; }
-.architecture-action-short { display: none; }
+
+.architecture-file-relations button {
+  display: block;
+  max-width: 100%;
+  padding: var(--space-xs) var(--space-7);
+  border: 0;
+  background: transparent;
+  color: var(--link);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.architecture-workspace > div[hidden],
+.architecture-workspace > section[hidden] {
+  display: none;
+}
+
+.architecture-scope {
+  margin: 0 0 var(--space-md);
+  color: var(--muted);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.architecture-browser h3 {
+  margin: 0 0 var(--space-sm);
+  color: var(--ink);
+  font-size: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.architecture-entry button,
+.architecture-directory-files button {
+  min-width: 0;
+  padding: var(--space-5) var(--space-7);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--link);
+  font-size: var(--text-small);
+  line-height: 1.4;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.architecture-entry button:hover,
+.architecture-directory-files button:hover {
+  background: var(--selection);
+}
+
+.architecture-browser button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.architecture-entry {
+  display: grid;
+  margin-bottom: var(--space-sm);
+}
+
+.architecture-entry-list {
+  max-height: 240px;
+  overflow: auto;
+}
+
+.architecture-entry-list summary {
+  color: var(--ink);
+  font-size: var(--text-small);
+  cursor: pointer;
+}
+
+.architecture-entry small {
+  color: var(--muted);
+  font-size: var(--text-small);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  padding: 0 var(--space-7);
+}
+
+.architecture-selected-file {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+
+.architecture-selected-file strong {
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.architecture-selected-file button {
+  min-height: 30px;
+  padding: var(--space-compact) var(--space-9);
+  font-size: var(--text-small);
+}
+
+.architecture-map-disclosure {
+  margin-top: var(--space-medium);
+  container-type: inline-size;
+}
+
+.architecture-map-disclosure > summary {
+  color: var(--ink);
+  font-size: var(--text-normal);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.architecture-map-disclosure > .architecture-secondary {
+  margin-top: var(--space-md);
+}
+
+@media (width <= 700px) {
+  .topbar {
+    gap: var(--space-sm);
+  }
+
+  .toolbar {
+    flex-flow: row wrap;
+    gap: var(--space-xs) var(--space-md);
+  }
+
+  .toolbar-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: 0;
+    border: 0;
+  }
+
+  .architecture-entries {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+}
+
+.architecture-controls[hidden] {
+  display: none;
+}
+
+.architecture-map {
+  min-width: 0;
+}
+
+.architecture-map-actions {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(4, minmax(70px, auto));
+  gap: var(--space-compact);
+  min-height: 38px;
+}
+
+.architecture-map-actions > :nth-child(1) {
+  grid-column: 1;
+  justify-self: start;
+}
+
+.architecture-map-actions > :nth-child(2) {
+  grid-column: 2;
+}
+
+.architecture-map-actions > :nth-child(3) {
+  grid-column: 3;
+}
+
+.architecture-map-actions > :nth-child(4) {
+  grid-column: 4;
+}
+
+.architecture-map-actions > :nth-child(5) {
+  grid-column: 5;
+}
+
+.architecture-action-short {
+  display: none;
+}
+
 @container (max-width: 700px) {
-  .architecture-map-actions { grid-template-columns: minmax(0, 1fr) repeat(4, 44px); }
-  .architecture-action-full { display: none; }
-  .architecture-action-short { display: inline; }
+  .architecture-map-actions {
+    grid-template-columns: minmax(0, 1fr) repeat(4, 44px);
+  }
+
+  .architecture-action-full {
+    display: none;
+  }
+
+  .architecture-action-short {
+    display: inline;
+  }
 }
-.architecture-map-actions button { min-height: 38px; padding: var(--space-compact) var(--space-base); font-size: var(--text-small); font-weight: var(--weight-semibold); }
-.architecture-map-actions > button[hidden] { display: none; }
-.architecture-secondary { position: relative; z-index: 6; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 52px; gap: var(--space-compact); }
-.architecture-graph-modes { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xs); padding: var(--space-3); border-radius: var(--radius-control); background: var(--graph-modes-surface); }
-.architecture-browser .architecture-graph-modes button { min-width: 0; min-height: 44px; padding: var(--space-sm) var(--space-base); border: 0; border-radius: var(--radius-compact); background: transparent; color: var(--muted); font-size: var(--text-small); font-weight: var(--weight-semibold); }
-.architecture-layer-list { display: flex; flex-wrap: wrap; gap: var(--space-compact); margin-top: var(--space-md); }
-.architecture-layer-list button { min-height: 44px; padding: var(--space-sm) var(--space-base); font-size: var(--text-small); }
-@container (max-width: 500px) { .architecture-graph-modes { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.architecture-browser .architecture-graph-modes button[aria-pressed="true"] { color: var(--ink); background: var(--graph-modes-active); }
-.architecture-graph-settings { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 160px)); grid-template-rows: 52px; gap: var(--space-sm); }
-.architecture-graph-settings > label { min-width: 0; grid-row: 1; }
-.architecture-direction, .architecture-cycle { grid-column: 1; }
-.architecture-depth { grid-column: 2; }
-.architecture-control-hint { grid-column: 1; grid-row: 2; align-self: center; margin: 0; color: var(--muted); font-size: var(--text-small); line-height: 1.4; }
+
+.architecture-map-actions button {
+  min-height: 38px;
+  padding: var(--space-compact) var(--space-base);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+}
+
+.architecture-map-actions > button[hidden] {
+  display: none;
+}
+
+.architecture-secondary {
+  position: relative;
+  z-index: 6;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 52px;
+  gap: var(--space-compact);
+}
+
+.architecture-graph-modes {
+  grid-column: 1;
+  grid-row: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-xs);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--graph-modes-surface);
+}
+
+.architecture-browser .architecture-graph-modes button {
+  min-width: 0;
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-base);
+  border: 0;
+  border-radius: var(--radius-compact);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+}
+
+.architecture-layer-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-compact);
+  margin-top: var(--space-md);
+}
+
+.architecture-layer-list button {
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-base);
+  font-size: var(--text-small);
+}
+
+@container (max-width: 500px) {
+  .architecture-graph-modes {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.architecture-browser .architecture-graph-modes button[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--graph-modes-active);
+}
+
+.architecture-graph-settings {
+  grid-column: 1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 160px));
+  grid-template-rows: 52px;
+  gap: var(--space-sm);
+}
+
+.architecture-graph-settings > label {
+  min-width: 0;
+  grid-row: 1;
+}
+
+.architecture-direction,
+.architecture-cycle {
+  grid-column: 1;
+}
+
+.architecture-depth {
+  grid-column: 2;
+}
+
+.architecture-control-hint {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-small);
+  line-height: 1.4;
+}
+
 .architecture-secondary:has(.architecture-direction:not([hidden])) .architecture-control-hint,
-.architecture-secondary:has(.architecture-cycle:not([hidden])) .architecture-control-hint { display: none; }
-.architecture-diagnostics > summary, .source-explorer-unresolved > summary { display: inline-flex; align-items: center; gap: var(--space-sm); color: var(--muted); font-size: var(--text-small); font-weight: var(--weight-semibold); line-height: 1.4; cursor: pointer; list-style: none; }
-.architecture-diagnostics > summary::-webkit-details-marker, .source-explorer-unresolved > summary::-webkit-details-marker { display: none; }
-.architecture-diagnostics > summary::after, .source-explorer-unresolved > summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
-.architecture-diagnostics[open] > summary::after, .source-explorer-unresolved[open] > summary::after { transform: rotate(225deg) translate(-2px, -1px); }
-.architecture-diagnostics > summary:hover, .source-explorer-unresolved > summary:hover { color: var(--ink); }
-.architecture-diagnostics > summary:focus-visible, .source-explorer-unresolved > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.architecture-diagnostics { margin-top: var(--space-compact); }
-.architecture-graph-help { margin-top: var(--space-md); }
-.architecture-graph-help > summary { color: var(--muted); font-size: var(--text-small); font-weight: var(--weight-semibold); cursor: pointer; }
-.architecture-graph-help > summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.architecture-diagnostics ul { margin: var(--space-compact) 0 0; padding-left: var(--space-xl); color: var(--muted); font-size: var(--text-small); line-height: 1.45; overflow-wrap: anywhere; }
-.architecture-search { position: relative; min-width: 0; width: 240px; max-width: 100%; }
-.architecture-search input { width: 100%; }
-.architecture-search-options { position: absolute; z-index: 10; top: calc(100% + var(--space-xs)); left: 0; width: 420px; max-width: calc(100vw - 64px); max-height: 240px; overflow: auto; padding: var(--space-xs); border: 1px solid var(--control-border); border-radius: var(--radius-button); background: var(--control-surface); box-shadow: var(--shadow-popover); color: var(--ink); font-size: var(--text-small); scrollbar-color: var(--control-border) var(--control-surface); }
-.architecture-search-options[hidden] { display: none; }
-.architecture-search-option { display: block; width: 100%; padding: var(--space-sm) var(--space-base); border: 0; border-radius: var(--radius-small); background: transparent; color: var(--ink); font-size: var(--text-small); font-weight: var(--weight-normal); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
-.architecture-search-option:hover, .architecture-search-option:focus-visible, .architecture-search-option.is-active, .architecture-search-option[aria-selected="true"] { background: var(--selection); }
-.architecture-search-option[aria-disabled="true"] { color: var(--muted); cursor: default; }
-@media (max-width: 600px) { .architecture-secondary { width: 100%; } }
-.architecture-graph-note { color: var(--muted); font-size: var(--text-small); margin: var(--space-sm) 0; }
-.architecture-details details { margin-top: var(--space-md); }
-.architecture-details details summary { display: flex; align-items: center; gap: var(--space-sm); color: var(--muted); font-size: var(--text-small); font-weight: var(--weight-semibold); line-height: 1.4; cursor: pointer; list-style: none; }
-.architecture-details details summary::-webkit-details-marker { display: none; }
-.architecture-details details summary::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); }
-.architecture-details details[open] summary::after { transform: rotate(225deg) translate(-2px, -1px); }
-.architecture-details details summary:hover { color: var(--ink); }
-.architecture-details details summary:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.architecture-details details ul { padding-left: var(--space-xl); }
-.architecture-details details li { overflow-wrap: anywhere; margin: var(--space-sm) 0; }
-.architecture-details .architecture-file-list { padding: 0; list-style: none; font-size: var(--text-small); line-height: 1.45; }
-.architecture-details .architecture-file-list { margin: var(--space-sm) 0 0; }
-.architecture-details .architecture-file-list li { margin: 0; }
-.architecture-file-link, .architecture-back { display: block; width: 100%; padding: var(--space-xs) 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--link); font-size: var(--text-small); line-height: 1.4; font-weight: var(--weight-medium); text-align: left; overflow-wrap: anywhere; }
-.architecture-file-link:hover, .architecture-back:hover { text-decoration: underline; }
-.architecture-file-link:focus-visible, .architecture-back:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-.architecture-back { width: auto; margin-top: var(--space-lg); }
-.architecture-back + details { margin-top: var(--space-lg); }
+.architecture-secondary:has(.architecture-cycle:not([hidden])) .architecture-control-hint {
+  display: none;
+}
+
+.architecture-diagnostics > summary,
+.source-explorer-unresolved > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  line-height: 1.4;
+  cursor: pointer;
+  list-style: none;
+}
+
+.architecture-diagnostics > summary::-webkit-details-marker,
+.source-explorer-unresolved > summary::-webkit-details-marker {
+  display: none;
+}
+
+.architecture-diagnostics > summary::after,
+.source-explorer-unresolved > summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentcolor;
+  border-bottom: 1.5px solid currentcolor;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.architecture-diagnostics[open] > summary::after,
+.source-explorer-unresolved[open] > summary::after {
+  transform: rotate(225deg) translate(-2px, -1px);
+}
+
+.architecture-diagnostics > summary:hover,
+.source-explorer-unresolved > summary:hover {
+  color: var(--ink);
+}
+
+.architecture-diagnostics > summary:focus-visible,
+.source-explorer-unresolved > summary:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.architecture-diagnostics {
+  margin-top: var(--space-compact);
+}
+
+.architecture-graph-help {
+  margin-top: var(--space-md);
+}
+
+.architecture-graph-help > summary {
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.architecture-graph-help > summary:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.architecture-diagnostics ul {
+  margin: var(--space-compact) 0 0;
+  padding-left: var(--space-xl);
+  color: var(--muted);
+  font-size: var(--text-small);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.architecture-search {
+  position: relative;
+  min-width: 0;
+  width: 240px;
+  max-width: 100%;
+}
+
+.architecture-search input {
+  width: 100%;
+}
+
+.architecture-search-options {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + var(--space-xs));
+  left: 0;
+  width: 420px;
+  max-width: calc(100vw - 64px);
+  max-height: 240px;
+  overflow: auto;
+  padding: var(--space-xs);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-button);
+  background: var(--control-surface);
+  box-shadow: var(--shadow-popover);
+  color: var(--ink);
+  font-size: var(--text-small);
+  scrollbar-color: var(--control-border) var(--control-surface);
+}
+
+.architecture-search-options[hidden] {
+  display: none;
+}
+
+.architecture-search-option {
+  display: block;
+  width: 100%;
+  padding: var(--space-sm) var(--space-base);
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-small);
+  font-weight: var(--weight-normal);
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.architecture-search-option:hover,
+.architecture-search-option:focus-visible,
+.architecture-search-option.is-active,
+.architecture-search-option[aria-selected="true"] {
+  background: var(--selection);
+}
+
+.architecture-search-option[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: default;
+}
+
+@media (width <= 600px) {
+  .architecture-secondary {
+    width: 100%;
+  }
+}
+
+.architecture-graph-note {
+  color: var(--muted);
+  font-size: var(--text-small);
+  margin: var(--space-sm) 0;
+}
+
+.architecture-details details {
+  margin-top: var(--space-md);
+}
+
+.architecture-details details summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  line-height: 1.4;
+  cursor: pointer;
+  list-style: none;
+}
+
+.architecture-details details summary::-webkit-details-marker {
+  display: none;
+}
+
+.architecture-details details summary::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentcolor;
+  border-bottom: 1.5px solid currentcolor;
+  transform: rotate(45deg) translateY(-2px);
+}
+
+.architecture-details details[open] summary::after {
+  transform: rotate(225deg) translate(-2px, -1px);
+}
+
+.architecture-details details summary:hover {
+  color: var(--ink);
+}
+
+.architecture-details details summary:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.architecture-details details ul {
+  padding-left: var(--space-xl);
+}
+
+.architecture-details details li {
+  overflow-wrap: anywhere;
+  margin: var(--space-sm) 0;
+}
+
+.architecture-details .architecture-file-list {
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  line-height: 1.45;
+  margin: var(--space-sm) 0 0;
+}
+
+.architecture-details .architecture-file-list li {
+  margin: 0;
+}
+
+.architecture-file-link,
+.architecture-back {
+  display: block;
+  width: 100%;
+  padding: var(--space-xs) 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--link);
+  font-size: var(--text-small);
+  line-height: 1.4;
+  font-weight: var(--weight-medium);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.architecture-file-link:hover,
+.architecture-back:hover {
+  text-decoration: underline;
+}
+
+.architecture-file-link:focus-visible,
+.architecture-back:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.architecture-back {
+  width: auto;
+  margin-top: var(--space-lg);
+}
+
+.architecture-back + details {
+  margin-top: var(--space-lg);
+}

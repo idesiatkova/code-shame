@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { metricRenderState, readMetricHistory, writeMetricHistory } from "../public/app/metric-history.js";
+import {
+  metricRenderState,
+  readMetricHistory,
+  writeMetricHistory,
+} from "../public/app/features/report/metric-history.js";
 
 function storage() {
   const values = new Map();
-  return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  };
 }
 const metrics = (value) => [{ id: "blocking-findings", value }];
 
@@ -32,7 +39,14 @@ test("caps history and tolerates corrupt or unavailable storage", () => {
   assert.equal(readMetricHistory("a", store).series["blocking-findings"].length, 24);
   store.setItem("code-shame:metrics:a", "bad json");
   assert.deepEqual(readMetricHistory("a", store), {});
-  const unavailable = { getItem() { throw Error("denied"); }, setItem() { throw Error("quota"); } };
+  const unavailable = {
+    getItem() {
+      throw Error("denied");
+    },
+    setItem() {
+      throw Error("quota");
+    },
+  };
   assert.deepEqual(readMetricHistory("a", unavailable), {});
   const state = metricRenderState(metrics(2), "scan", {});
   assert.doesNotThrow(() => writeMetricHistory("a", state, "scan", unavailable));

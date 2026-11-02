@@ -16,6 +16,13 @@
   "scripts": {
     "dev": "node src/start.js",
     "test": "node --test test/*.test.js test/*.test.mjs",
+    "lint:js": "eslint . --max-warnings 0",
+    "lint:css": "stylelint 'public/styles/**/*.css'",
+    "lint": "npm run lint:js && npm run lint:css",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:fallow": "fallow --production --fail-on-issues --fail-on-parse-error --format json --quiet",
+    "check": "npm run lint && npm run format:check && npm test && npm run check:fallow",
     "pack:dry": "npm pack --dry-run"
   },
   "keywords": [
@@ -50,5 +57,13 @@
     "graphlib-dot": "0.6.4",
     "lucide": "1.21.0",
     "minimatch": "10.2.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "stylelint": "17.16.0",
+    "stylelint-config-standard": "40.0.0"
   }
 }

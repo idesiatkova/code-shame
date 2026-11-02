@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import * as format from "../public/app/format.js";
+import * as format from "../public/app/shared/utils/format.js";
 
 test("maps metric tones to shame labels", () => {
   assert.equal(format.shameLabel("good"), "No shame");
@@ -14,7 +14,7 @@ test("labels copied output as a Fallow report without dashboard branding", () =>
     generatedAt: "2026-07-20T00:00:00.000Z",
     status: "clear",
     hardFindings: { count: 0, sections: [] },
-    health: { targets: [] }
+    health: { targets: [] },
   };
 
   const text = format.formatReportText(report);

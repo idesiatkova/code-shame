@@ -1,21 +1,10 @@
 {
   "$schema": "./node_modules/fallow/schema.json",
-  "entry": [
-    "src/start.js",
-    "public/index.html"
-  ],
+  "entry": ["src/start.js", "public/index.html"],
   "ignoreUnresolvedImports": [
     "/vendor/cytoscape.js",
+    "/vendor/cytoscape-dagre.js",
     "/vendor/lucide.js"
-  ],
-  "ignoreExports": [
-    {
-      "file": "src/projectArchitecture.js",
-      "exports": [
-        "DEFAULT_NODE_CONTRIBUTORS",
-        "DEFAULT_RELATIONSHIP_PROVIDERS"
-      ]
-    }
   ],
   "health": {
     "maxCrap": 100

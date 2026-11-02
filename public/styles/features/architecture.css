@@ -58,8 +58,16 @@
   color: var(--ink);
   outline: none;
 }
-.architecture-legend-item[aria-pressed="true"] { background: color-mix(in srgb, var(--layer-color) 30%, var(--control)); border-color: var(--layer-color); }
-.architecture-legend-item:focus-visible { outline: 3px solid var(--white); outline-offset: 3px; }
+
+.architecture-legend-item[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--layer-color) 30%, var(--control));
+  border-color: var(--layer-color);
+}
+
+.architecture-legend-item:focus-visible {
+  outline: 3px solid var(--white);
+  outline-offset: 3px;
+}
 
 .architecture-body {
   display: grid;
@@ -73,7 +81,11 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background:
-    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--graph-focus) 6%, transparent), transparent 32%),
+    radial-gradient(
+      circle at 20% 10%,
+      color-mix(in srgb, var(--graph-focus) 6%, transparent),
+      transparent 32%
+    ),
     var(--graph-surface);
 }
 
@@ -139,4 +151,3 @@
   font-weight: var(--weight-semibold);
   text-align: right;
 }
-

@@ -7,35 +7,46 @@ modules directly in tests without changing the backend module format.
 
 ## Module boundaries
 
-| Area | Modules | Responsibility |
-| --- | --- | --- |
-| CLI | `src/start.js` | Reads environment settings, listens on a port, handles shutdown. |
-| HTTP | `src/server.js`, `src/paths.js` | Creates a server, routes API requests, serves the public directory and vendor scripts. |
-| Scan lifecycle | `src/scanService.js` | Owns one project's snapshot, active scan, cancellation, and project identity. |
-| Process adapter | `src/fallowClient.js` | Runs the installed Fallow launcher, parses JSON, enforces command deadlines, terminates its process tree. |
-| Analysis | `src/fallowReport.js`, `src/architectureAnalyzer.js`, `src/concurrency.js` | Normalizes primary results and performs bounded file inspections. |
-| Graph model | `src/projectArchitecture.js` | Builds a canonical file dependency graph and projects a representative subset for the dashboard. |
-| Browser bootstrap | `public/app/main.js` | Connects DOM elements, navigation, renderers, and scan controls. |
-| Scan controls | `public/app/scan-controller.js` | Owns HTTP requests, polling, auto-refresh timers, busy state, and disposal. |
-| Report presentation | `public/app/report.js`, `public/app/overview.js`, `public/app/findings.js`, `public/app/format.js` | Renders report sections, metric charts, and copyable text. |
-| Browser state | `public/app/metric-history.js` | Stores up to 24 metric samples per project in localStorage. |
-| Graph presentation | `public/app/architecture.js`, `public/app/graph/` | Binds focus/details behavior; graph adapters create Cytoscape elements and styles. |
-| Design tokens | `public/styles/tokens.css`, `public/app/design-tokens.js` | Defines visual primitives once; graph adapters read the current computed root tokens. |
-| UI support | `public/app/navigation.js`, `public/app/icons.js`, `public/app/copy.js`, `public/app/html.js` | Provides navigation, vendor icon integration, clipboard handling, and HTML escaping. |
-| Demo | `public/app/demo.js` | Provides sample reports and graph fixtures without writing them to metric history. |
+| Area                | Modules                                                                                                                                                         | Responsibility                                                                                            |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| CLI                 | `src/start.js`                                                                                                                                                  | Reads environment settings, listens on a port, handles shutdown.                                          |
+| HTTP                | `src/server.js`, `src/paths.js`                                                                                                                                 | Creates a server, routes API requests, serves the public directory and vendor scripts.                    |
+| Scan lifecycle      | `src/scanService.js`                                                                                                                                            | Owns one project's snapshot, active scan, cancellation, and project identity.                             |
+| Process adapter     | `src/fallowClient.js`                                                                                                                                           | Runs the installed Fallow launcher, parses JSON, enforces command deadlines, terminates its process tree. |
+| Analysis            | `src/fallowReport.js`, `src/architectureAnalyzer.js`, `src/concurrency.js`                                                                                      | Normalizes primary results and performs bounded file inspections.                                         |
+| Graph model         | `src/projectArchitecture.js`                                                                                                                                    | Builds a canonical file dependency graph and projects a representative subset for the dashboard.          |
+| Browser bootstrap   | `public/app/main.js`                                                                                                                                            | Connects DOM elements, navigation, renderers, and scan controls.                                          |
+| Scan controls       | `public/app/features/scan/scan-controller.js`                                                                                                                   | Owns HTTP requests, polling, auto-refresh timers, busy state, and disposal.                               |
+| Report presentation | `public/app/features/report/report.js`, `public/app/features/report/overview.js`, `public/app/features/report/findings.js`, `public/app/shared/utils/format.js` | Renders report sections, metric charts, and copyable text.                                                |
+| Browser state       | `public/app/features/report/metric-history.js`                                                                                                                  | Stores up to 24 metric samples per project in localStorage.                                               |
+| Graph presentation  | `public/app/features/architecture/architecture.js`, `public/app/features/architecture/graph/`                                                                   | Binds focus/details behavior; graph adapters create Cytoscape elements and styles.                        |
+| Design tokens       | `public/styles/tokens/index.css`, `public/app/shared/design/tokens.js`                                                                                          | Defines visual primitives once; graph adapters read the current computed root tokens.                     |
+| UI support          | `public/app/shell/navigation.js`, `public/app/shared/utils/icons.js`, `public/app/shared/utils/copy.js`, `public/app/shared/utils/html.js`                      | Provides navigation, vendor icon integration, clipboard handling, and HTML escaping.                      |
+| Demo                | `public/app/features/scan/demo.js`                                                                                                                              | Provides sample reports and graph fixtures without writing them to metric history.                        |
 
 Application modules use explicit imports and exports. Cytoscape, Dagre and Lucide are
 vendor UMD scripts; their globals are used only by their presentation adapters.
 The graph model does not depend on Cytoscape or browser APIs.
 
+Browser features live under `app/features/{architecture,explorer,report,scan,source}`.
+Each feature owns its controllers and presentation; `app/shell` owns page navigation.
+Shared components and utilities do not import feature controllers. Source call-graph
+styles live with the source feature; project-graph styles live with architecture.
+
 ### Styles and components
 
 `public/styles/main.css` is the ordered stylesheet entry point. It loads tokens,
 base rules, application layout, shared `components/`, and feature styles in
-`features/`. `styled-select.css` remains the separate shared select stylesheet.
+`features/`. `components/molecules/styled-select.css` is the separate shared select stylesheet.
 Keep import order explicit: responsive rules and later feature overrides depend on it.
 
-Change colors, type, spacing, radii, and shadows in `tokens.css`. Component rules
+Atomic components follow their actual responsibilities: `components/atoms` contains
+control primitives, `components/molecules` owns the accessible select and its styles,
+and `components/organisms` contains composed report panels. Feature-specific organisms,
+such as graph details, stay inside their feature. Reuse the shared component rather
+than recreating its markup, keyboard behavior, or styles in a feature.
+
+Change colors, type, spacing, radii, and shadows in `tokens/index.css`. Component rules
 reference those tokens; viewport breakpoints and graph geometry stay with their
 layout. Canvas graphs read computed tokens when created, so they share the same
 palette and typography as HTML. User-configured boundary colors remain model data.
@@ -153,7 +164,7 @@ Partial graph diagnostics are available below the map statistics.
 
 ## Verification
 
-Run `npm test` for backend CommonJS and frontend ES-module tests. The suite
+Run `npm run check` for ESLint, Stylelint, Prettier, backend/frontend tests, and production Fallow checks. Run `npm test` for backend CommonJS and frontend ES-module tests alone. The suite
 covers scan publication, deadlines, shutdown, process-tree cancellation, port
 conflicts, HTTP routes, report normalization, graph construction, polling, and
 per-project metric history. Frontend tests import modules directly.

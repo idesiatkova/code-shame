@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSymbolContext } from "../public/app/symbol-context.js";
+import { createSymbolContext } from "../public/app/features/source/symbol-context.js";
 
 test("describes duplicate names with their real owners and searchable context", () => {
   const symbols = [

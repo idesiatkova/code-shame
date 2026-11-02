@@ -1,8 +1,8 @@
-@import url("./tokens.css");
+@import url("./tokens/index.css");
 @import url("./base.css");
 @import url("./layout.css");
-@import url("./components/controls.css");
-@import url("./components/report.css");
+@import url("./components/atoms/controls.css");
+@import url("./components/organisms/report.css");
 @import url("./features/architecture.css");
 @import url("./responsive.css");
 @import url("./features/architecture-workspace.css");

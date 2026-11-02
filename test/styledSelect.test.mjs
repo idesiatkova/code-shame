@@ -1,20 +1,54 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createStyledSelect } from "../public/app/styled-select.js";
+import { createStyledSelect } from "../public/app/shared/components/molecules/styled-select.js";
 
 class Element {
-  constructor() { this.children = []; this.attributes = {}; this.listeners = {}; this.classList = { toggle() {} }; }
-  append(...children) { this.children.push(...children); }
-  replaceChildren(...children) { this.children = children; }
-  after(element) { this.afterElement = element; }
-  setAttribute(name, value) { this.attributes[name] = value; }
-  getAttribute(name) { return this.attributes[name] ?? null; }
-  removeAttribute(name) { delete this.attributes[name]; }
-  addEventListener(name, callback) { this.listeners[name] = callback; }
-  dispatchEvent(event) { this.listeners[event.type]?.(event); }
-  focus() { document.activeElement = this; }
-  contains(element) { return this === element || this.children.some((child) => child.contains(element)); }
-  fire(type, key) { const event = { key, preventDefault() { this.prevented = true; } }; this.listeners[type]?.(event); return event; }
+  constructor() {
+    this.children = [];
+    this.attributes = {};
+    this.listeners = {};
+    this.classList = { toggle() {} };
+  }
+  append(...children) {
+    this.children.push(...children);
+  }
+  replaceChildren(...children) {
+    this.children = children;
+  }
+  after(element) {
+    this.afterElement = element;
+  }
+  setAttribute(name, value) {
+    this.attributes[name] = value;
+  }
+  getAttribute(name) {
+    return this.attributes[name] ?? null;
+  }
+  removeAttribute(name) {
+    delete this.attributes[name];
+  }
+  addEventListener(name, callback) {
+    this.listeners[name] = callback;
+  }
+  dispatchEvent(event) {
+    this.listeners[event.type]?.(event);
+  }
+  focus() {
+    document.activeElement = this;
+  }
+  contains(element) {
+    return this === element || this.children.some((child) => child.contains(element));
+  }
+  fire(type, key) {
+    const event = {
+      key,
+      preventDefault() {
+        this.prevented = true;
+      },
+    };
+    this.listeners[type]?.(event);
+    return event;
+  }
 }
 
 test("select-only combobox preserves selection, handles keyboard and disables status options", () => {
@@ -22,7 +56,12 @@ test("select-only combobox preserves selection, handles keyboard and disables st
   globalThis.document = { createElement: () => new Element(), addEventListener() {} };
   try {
     const select = new Element();
-    select.options = [{ text: "No matching files", value: "" }, { text: "src/one.js", value: "one" }, { text: "src/disabled.js", value: "disabled", disabled: true }, { text: "src/two.js", value: "two" }];
+    select.options = [
+      { text: "No matching files", value: "" },
+      { text: "src/one.js", value: "one" },
+      { text: "src/disabled.js", value: "disabled", disabled: true },
+      { text: "src/two.js", value: "two" },
+    ];
     select.value = "one";
     select.setAttribute("aria-label", "Matching files");
     let changes = 0;
@@ -63,5 +102,7 @@ test("select-only combobox preserves selection, handles keyboard and disables st
     dropdown.refresh();
     assert.equal(control.disabled, true);
     assert.equal(list.hidden, true);
-  } finally { globalThis.document = previous; }
+  } finally {
+    globalThis.document = previous;
+  }
 });
