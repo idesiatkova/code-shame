@@ -1,6 +1,5 @@
-import { emptyState, renderPrompt } from "../components/molecules/graph-empty-state.js";
-import { formatNumber } from "../../../shared/utils/format.js";
-import { graphUnavailable } from "./projection-view.js";
+import { emptyState } from "../components/molecules/graph-empty-state.js";
+import { graphEmptyContent } from "./graph-empty-content.js";
 import { directoryGraph } from "./directory-projection.js";
 import { impact } from "./selection.js";
 import { readDesignTokens } from "../../../shared/design/tokens.js";
@@ -74,17 +73,10 @@ function prepareGraph({
   };
 }
 
-const DIRECTION_LABELS = {
-  both: "Imports + imported by",
-  inbound: "Imported by",
-  outbound: "Imports",
-};
-
 function showGraphSurface({
   projection,
-  impactResult,
-  group,
   mapActions,
+  graphHelp,
   back,
   selected,
   directory,
@@ -92,77 +84,41 @@ function showGraphSurface({
   analysis,
   container,
   legend,
-  stats,
   details,
 }) {
   const available = projection.nodes.length && typeof window.cytoscape === "function";
+  const singleEmpty = !available;
+  if (singleEmpty) container.setAttribute("role", "status");
+  else container.removeAttribute("role");
+  container.setAttribute("data-empty", String(singleEmpty));
+  container.setAttribute(
+    "aria-label",
+    singleEmpty
+      ? `${{ impact: "Impact", cycles: "Cycles", project: "Project map", dependencies: "Imports" }[view]} status`
+      : "Interactive project dependency graph",
+  );
+  details.hidden = singleEmpty;
+  graphHelp.hidden = !available;
   [...mapActions.children]
     .filter((item) => item !== back)
     .forEach((button) => {
       button.disabled = !available;
-      button.style.visibility = button.disabled ? "hidden" : "";
+      button.hidden = !available;
     });
   back.hidden = !selected && directory === ".";
   back.disabled = false;
+  mapActions.hidden = !available && back.hidden;
   if (available) return true;
-  const unavailable = graphUnavailable(view, selected, analysis, impactResult, group);
-  const message =
-    unavailable ||
-    (!projection.nodes.length
-      ? "No project files were discovered for the dependency map."
-      : "Cytoscape.js could not be loaded.");
-  container.replaceChildren(emptyState(message));
   legend.replaceChildren();
-  stats.textContent = "";
-  stats.title = "";
-  stats.tabIndex = -1;
-  const title =
-    { cycles: "Cycles", impact: "Impact", project: "Project map" }[view] || "Folder contents";
-  renderPrompt(details, message, title);
+  const { title, description, icon } = graphEmptyContent({
+    projection,
+    analysis,
+    selected,
+    view,
+    directory,
+  });
+  container.replaceChildren(emptyState(title, description, icon));
+  details.replaceChildren();
   return false;
 }
-function updateGraphStats({
-  projection,
-  group,
-  impactResult,
-  missingFile,
-  graphSelected,
-  fileView,
-  directoryView,
-  fullDirectory,
-  stats,
-  view,
-  direction,
-  depth,
-  directory,
-  currentModel,
-}) {
-  const status = projection.complete ? "" : " · partial dependency graph";
-  stats.textContent =
-    group || impactResult || missingFile || (graphSelected && view === "dependencies")
-      ? `${fileView ? `Map: ${DIRECTION_LABELS[direction]} · ${depth} ${depth === "1" ? "step" : "steps"} · ` : ""}${formatNumber(projection.shownFiles)} / ${formatNumber(projection.totalFiles)} files shown · ${formatNumber(projection.shownEdges)} / ${formatNumber(projection.totalEdges)} dependencies shown${status}`
-      : directoryView
-        ? `${formatNumber(projection.fileCount)} listed files in ${directory} · ${projection.nodes.length} / ${fullDirectory.nodes.length} items · ${projection.edges.length} connections drawn · ${projection.boundary.length} cross-page · ${projection.other.length} on other pages${projection.pages > 1 ? ` · page ${projection.page + 1} / ${projection.pages}` : ""}${status}`
-        : `${formatNumber(projection.fileCount)} graph files / ${formatNumber(currentModel.totalFileCount)} listed · ${formatNumber(projection.nodes.length)} layers · ${formatNumber(projection.edgeCount)} file dependencies${status}`;
-  stats.title = stats.textContent;
-  stats.tabIndex = 0;
-}
-
-function renderLegend(element, nodes, selectLayer) {
-  const layers = nodes.filter((node) => node.type === "layer" || node.type === "overview-layer");
-  element.replaceChildren(
-    ...layers.map((layerNode) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "architecture-legend-item";
-      button.dataset.layerId = layerNode.id;
-      button.setAttribute("aria-pressed", "false");
-      button.style.setProperty("--layer-color", layerNode.color);
-      button.textContent = `${layerNode.label} · ${formatNumber(layerNode.fileCount)}`;
-      button.addEventListener("click", () => selectLayer(layerNode.id));
-      return button;
-    }),
-  );
-}
-
-export { renderLegend, prepareGraph, showGraphSurface, updateGraphStats };
+export { prepareGraph, showGraphSurface };

@@ -58,7 +58,11 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     }
     querySelector(selector) {
       if (selector === "button")
-        return this.children.find((child) => child.type === "button") || null;
+        return (
+          this.children.find((child) => child.type === "button") ||
+          this.children.map((child) => child.querySelector?.(selector)).find(Boolean) ||
+          null
+        );
       if (selector === ".architecture-search") return this.searchContainer;
       if (selector === ".architecture-secondary") return this.secondary;
       if (selector.startsWith("."))
@@ -99,15 +103,28 @@ test("renderer keeps focus and refreshes search results across snapshots", async
       this.searchContainer = new Element();
       this.markup = value;
       this.secondary = new Element();
+      const hint = new Element();
+      hint.className = "architecture-control-hint";
+      this.secondary.append(hint);
       this.controls[2].value = "both";
       this.controls[3].value = "1";
       this.controls[3].children = [{ value: "1" }, { value: "2" }];
       this.controls[5].value = "dependencies";
     }
     querySelectorAll(selector) {
+      if (selector.startsWith("."))
+        return this.children.flatMap((child) => [
+          ...(child.className === selector.slice(1) ? [child] : []),
+          ...(child.querySelectorAll?.(selector) || []),
+        ]);
       return selector === "input, select, button"
         ? this.controls
         : this.children.filter((child) => child.type === "button");
+    }
+    closest(selector) {
+      for (let node = this; node; node = node.parent)
+        if (node.className === selector.slice(1)) return node;
+      return null;
     }
     fire(name, event) {
       this.listeners[name]?.(event);
@@ -220,6 +237,8 @@ test("renderer keeps focus and refreshes search results across snapshots", async
       legend = new Element(),
       stats = new Element();
     const fitButton = new Element();
+    const emptyHeading = () => container.children[0].children[1].textContent;
+    const emptyDescription = () => container.children[0].children[2].textContent;
     const renderer = architecture.createRenderer({ container, details, legend, stats, fitButton });
     const model = createDemoModel();
     renderer.render(model);
@@ -231,6 +250,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
       header = workspace.children[0];
     assert.equal(workspace.children[2].className, "source-explorer");
     const tree = inventory.children[2];
+    assert.equal(
+      inventory.children[0].children[1].children[0].attributes["data-lucide"],
+      "list-plus",
+    );
     assert.equal(tree.children[0].attributes["aria-selected"], "true");
     assert.equal(header.children[1].children[0].textContent, "Project overview");
     const controls = created.find((element) => element.className === "architecture-controls");
@@ -285,6 +308,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     );
     header.children[2].children.find((button) => button.dataset.mode === "source").fire("click");
     inventory.children[0].children[1].fire("click");
+    assert.equal(
+      inventory.children[0].children[1].children[0].attributes["data-lucide"],
+      "list-plus",
+    );
     assert.equal(workspace.children[2].hidden, false);
     assert.match(header.children[1].children[0].textContent, /domain\/checkout.ts/);
     header.children[1].children[1].fire("click");
@@ -318,6 +345,21 @@ test("renderer keeps focus and refreshes search results across snapshots", async
       .filter((node) => node.data("path") === "domain")[0];
     assert.ok(folder);
     folder.emit("tap");
+    const directoryItems = details.querySelector(".architecture-directory-list");
+    const directoryConnections = details.querySelector(".architecture-directory-connections");
+    assert.match(directoryItems.children[0].textContent, /^Items \(\d+\)$/);
+    assert.match(directoryConnections.children[0].textContent, /^Connections \(\d+\)$/);
+    const itemLink = directoryItems.children[1].children[0].children[0];
+    assert.equal(itemLink.textContent, itemLink.title.split("/").at(-1));
+    assert.match(itemLink.attributes["aria-label"], /domain\//);
+    assert.ok(["file", "folder"].includes(itemLink.children[0].attributes["data-lucide"]));
+    for (const group of directoryConnections.children[1].children) {
+      assert.equal(group.children[0].textContent, group.children[0].title.split("/").at(-1));
+      for (const row of group.children[1].children) {
+        assert.equal(row.children[1].textContent, row.children[1].title.split("/").at(-1));
+        assert.match(row.children[2].textContent, /^\d+ imports?$/);
+      }
+    }
     assert.equal(map.hidden, false);
     assert.match(location.hash, /directory=domain.*view=map/);
     assert.match(header.children[1].children[0].textContent, /Directory: domain/);
@@ -343,9 +385,11 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.doesNotMatch(controls.markup, /<details|Graph options/);
     assert.notEqual(view.parentElement.hidden, true);
     assert.equal(back.attributes["aria-label"], "Up to directory");
-    assert.equal(back.children[1].textContent, "↑");
-    assert.equal(fitButton.attributes["aria-label"], "Fit entire map");
-    assert.equal(fitButton.children[1].textContent, "Fit");
+    assert.equal(back.children[0].attributes["data-lucide"], "arrow-up");
+    assert.equal(fitButton.attributes["aria-label"], "Fit map");
+    assert.equal(fitButton.children[0].attributes["data-lucide"], "maximize-2");
+    assert.equal(fitButton.children[1].textContent, "Fit map");
+    assert.equal(fitButton.parent.children.length, 4);
     assert.ok(results.children.length > 1);
     assert.equal(direction.disabled, true);
     assert.equal(depth.disabled, true);
@@ -435,16 +479,35 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     back.fire("click");
     view.value = "impact";
     view.fire("change");
-    assert.match(container.children[0].textContent, /Select a file/);
+    assert.match(emptyHeading(), /Choose a file/);
     assert.equal(legend.children.length, 0);
-    assert.equal(stats.textContent, "");
+    assert.match(stats.textContent, /^Impact · project-wide consumers · \d+ graph files/);
+    assert.equal(details.hidden, true);
+    assert.equal(details.children.length, 0);
+    assert.equal(container.attributes["data-empty"], "true");
+    assert.equal(container.attributes.role, "status");
+    assert.equal(container.attributes["aria-label"], "Impact status");
+    assert.equal(
+      created.find((element) => element.className === "architecture-graph-help").hidden,
+      true,
+    );
+    assert.equal(container.children[0].children[0].attributes["data-lucide"], "git-branch");
+    assert.doesNotMatch(stats.textContent, /NaN|undefined|layers/);
     assert.equal(fitButton.disabled, true);
     history.go(-1);
     assert.equal(view.value, "dependencies");
+    assert.equal(details.hidden, false);
+    assert.equal(container.attributes["data-empty"], "false");
+    assert.equal(container.attributes.role, undefined);
+    assert.equal(container.attributes["aria-label"], "Interactive project dependency graph");
+    assert.equal(
+      created.find((element) => element.className === "architecture-graph-help").hidden,
+      false,
+    );
     assert.equal(fitButton.disabled, false);
     history.go(1);
     assert.equal(view.value, "impact");
-    assert.match(container.children[0].textContent, /Select a file/);
+    assert.match(emptyHeading(), /Choose a file/);
     view.value = "dependencies";
     view.fire("change");
     search.value = "checkout";
@@ -519,7 +582,7 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     renderer.render(cyclic);
     view.value = "cycles";
     view.fire("change");
-    assert.match(container.children[0].textContent, /Select a cycle group/);
+    assert.equal(emptyHeading(), "Choose a cycle group");
     assert.equal(fitButton.disabled, true);
     assert.equal(cycle.parentElement.hidden, false);
     assert.ok(cycle.children.length > 1);
@@ -549,7 +612,10 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     assert.equal(details.children[0].textContent, "Cycle group");
     renderer.render(updated);
     assert.equal(cycle.value, "");
-    assert.match(container.children[0].textContent, /No import cycles detected/);
+    assert.match(emptyHeading(), /No import cycles detected/);
+    assert.equal(stats.textContent, "Cycles · project-wide · 0 cycle groups");
+    assert.equal(details.hidden, true);
+    assert.equal(container.children[0].children[0].attributes["data-lucide"], "repeat-2");
     assert.equal(cycle.parentElement.hidden, true);
     assert.equal(fitButton.disabled, true);
     back.focus();
@@ -577,24 +643,24 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     };
     setLocation("/?page=architecture#file=missing.js&view=map&graph=impact");
     renderer.render(partial);
-    assert.match(container.children[0].textContent, /unavailable for this file/);
+    assert.equal(emptyHeading(), "Impact unavailable");
+    assert.match(emptyDescription(), /no dependency data in the current scan/);
+    assert.match(stats.textContent, /Impact · missing.js.*partial dependency graph/);
     view.value = "dependencies";
     view.fire("change");
     assert.equal(direction.parentElement.hidden, true);
     assert.equal(depth.parentElement.hidden, true);
     view.value = "cycles";
     view.fire("change");
-    assert.match(
-      container.children[0].textContent,
-      /partial graph.*Missing imports may hide cycles/,
+    assert.match(emptyDescription(), /graph is partial.*missing imports may hide cycles/);
+    assert.equal(
+      stats.textContent,
+      "Cycles · project-wide · 0 cycle groups · partial dependency graph",
     );
     partial.projectGraph.diagnostics = [];
     partial.projectGraph.edges.push({ source: "domain/checkout.ts", target: "ui/Checkout.tsx" });
     renderer.render(partial);
-    assert.match(
-      container.children[0].textContent,
-      /Select a cycle group.*partial.*missing imports may hide cycles/,
-    );
+    assert.match(emptyDescription(), /Choose a group.*partial.*missing imports may hide cycles/);
     renderer.clear();
     setLocation("/?page=architecture");
     const legacy = structuredClone(model);
@@ -604,14 +670,73 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     results.fire("change");
     view.value = "impact";
     view.fire("change");
-    assert.match(details.children[1].textContent, /unavailable/);
-    assert.match(container.children[0].textContent, /unavailable/);
+    assert.match(emptyDescription(), /needs dependency data/);
+    assert.match(emptyHeading(), /unavailable/);
     assert.equal(legend.children.length, 0);
-    assert.equal(stats.textContent, "");
+    assert.match(stats.textContent, /^Impact .*dependency data unavailable/);
     view.value = "cycles";
     view.fire("change");
-    assert.match(container.children[0].textContent, /Cycles are unavailable/);
+    assert.equal(emptyHeading(), "Cycle analysis unavailable");
+    assert.equal(stats.textContent, "Cycles · project-wide · dependency data unavailable");
     assert.equal(cycle.parentElement.hidden, true);
+    renderer.clear();
+    const noFiles = structuredClone(model);
+    noFiles.nodes = [];
+    noFiles.edges = [];
+    noFiles.totalFileCount = 0;
+    noFiles.projectGraph.nodes = [];
+    noFiles.projectGraph.edges = [];
+    noFiles.overview = { directories: [], entryPoints: [], scope: { listedFileCount: 0 } };
+    setLocation("/?page=architecture#view=map");
+    renderer.render(noFiles);
+    assert.equal(emptyHeading(), "No project files found");
+    assert.equal(details.hidden, true);
+    assert.equal(container.attributes.role, "status");
+    assert.match(emptyDescription(), /Refresh the scan/);
+    for (const [mode, title] of [
+      ["project", "No project map yet"],
+      ["impact", "No files to analyze"],
+      ["cycles", "No files to check for cycles"],
+    ]) {
+      view.value = mode;
+      view.fire("change");
+      assert.equal(emptyHeading(), title);
+      assert.equal(details.hidden, true);
+      assert.match(emptyDescription(), /Refresh the scan/);
+      assert.equal(
+        controls.secondary.querySelector(".architecture-control-hint").textContent,
+        "No graph files available. Add project files or refresh the scan.",
+      );
+      assert.doesNotMatch(stats.textContent, /NaN|undefined/);
+    }
+    const noConsumers = structuredClone(model);
+    noConsumers.projectGraph.edges = [];
+    renderer.clear();
+    setLocation("/?page=architecture#file=domain%2Fcheckout.ts&view=map&graph=impact");
+    renderer.render(noConsumers);
+    assert.ok(
+      details.children.some(
+        (child) => child.textContent === "No other project files import this file.",
+      ),
+    );
+    assert.match(stats.textContent, /1 \/ 1 files shown.*0 \/ 0 dependencies shown/);
+    const loadedCytoscape = window.cytoscape;
+    window.cytoscape = undefined;
+    view.fire("change");
+    assert.equal(emptyHeading(), "Graph could not load");
+    assert.equal(emptyDescription(), "Cytoscape.js could not be loaded.");
+    assert.equal(details.hidden, true);
+    window.cytoscape = loadedCytoscape;
+    view.fire("change");
+    assert.equal(details.hidden, false);
+    assert.equal(container.attributes["data-empty"], "false");
+    noConsumers.projectGraph.complete = false;
+    renderer.render(noConsumers);
+    assert.ok(
+      details.children.some((child) =>
+        child.textContent?.includes("No consumers found in this partial graph"),
+      ),
+    );
     renderer.clear();
     const large = structuredClone(model);
     for (let i = 0; i < 14; i++)
@@ -628,24 +753,32 @@ test("renderer keeps focus and refreshes search results across snapshots", async
     header.children[2].children.at(-1).fire("click");
     assert.equal(lastGraph.nodes().length, 6);
     const boundary = details.querySelector(".architecture-boundary-connections");
-    const boundaryRow = boundary.children.find((row) =>
-      row.children?.[0]?.textContent?.includes("extra00.js → extra13.js"),
-    );
-    assert.match(boundaryRow.children[0].textContent, /1 file import/);
-    assert.match(boundaryRow.children[1].textContent, /extra13.js on page/);
-    boundaryRow.children[1].fire("click");
+    const boundaryRow = boundary
+      .querySelectorAll(".architecture-connection-row")
+      .find((row) => row.attributes["aria-label"]?.includes("extra00.js imports extra13.js"));
+    assert.equal(boundaryRow.children[1].textContent, "extra13.js");
+    assert.equal(boundaryRow.children[2].textContent, "1 import");
+    assert.match(boundaryRow.children[3].textContent, /^Page /);
+    boundaryRow.children[3].fire("click");
     assert.ok(lastGraph.nodes().some((node) => node.data("path") === "extra13.js"));
-    assert.match(globalThis.document.activeElement.textContent, /extra00.js on page 1/);
+    assert.match(
+      globalThis.document.activeElement.attributes["aria-label"],
+      /extra00.js on page 1/,
+    );
     history.go(-1);
     assert.doesNotMatch(location.hash, /page=/);
     assert.ok(lastGraph.nodes().some((node) => node.data("path") === "extra00.js"));
     const incomingRow = details
       .querySelector(".architecture-boundary-connections")
-      .children.find((row) => row.children?.[0]?.textContent?.includes("extra13.js → extra00.js"));
-    incomingRow.children[1].fire("click");
+      .querySelectorAll(".architecture-connection-row")
+      .find((row) => row.attributes["aria-label"]?.includes("extra13.js imports extra00.js"));
+    incomingRow.closest(".architecture-connection-group").querySelector("button").fire("click");
     assert.ok(lastGraph.nodes().some((node) => node.data("path") === "extra13.js"));
     assert.doesNotMatch(location.hash, /file=/);
-    assert.match(globalThis.document.activeElement.textContent, /extra00.js on page 1/);
+    assert.match(
+      globalThis.document.activeElement.attributes["aria-label"],
+      /extra00.js on page 1/,
+    );
     history.go(-1);
     assert.doesNotMatch(location.hash, /page=/);
     details.scrollTop = 30;

@@ -61,6 +61,7 @@ const architectureRenderer = architecture.createRenderer({
   fitButton: elements.architectureFit,
   legend: elements.architectureLegend,
   stats: elements.architectureStats,
+  refreshIcons: icons.refresh,
 });
 
 const isDemo = isDemoMode();

@@ -22,7 +22,7 @@ import {
   createWorkspaceShell,
 } from "./components/organisms/workspace-browser.js";
 
-function createRenderer({ container, details, fitButton, legend, stats }) {
+function createRenderer({ container, details, fitButton, legend, stats, refreshIcons = () => {} }) {
   const syncSourceSelection = (...args) => transitions.syncSourceSelection(...args);
   const showMode = (...args) => transitions.showMode(...args);
   const openSource = (...args) => transitions.openSource(...args);
@@ -78,7 +78,11 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
       collapse.disabled = !hasFolders;
       collapse.title = canCollapse ? "Collapse all folders" : "Expand all folders";
       collapse.setAttribute("aria-label", collapse.title);
-      collapse.textContent = canCollapse ? "⊟" : "⊞";
+      const icon = document.createElement("i");
+      icon.setAttribute("data-lucide", canCollapse ? "list-minus" : "list-plus");
+      icon.setAttribute("aria-hidden", "true");
+      collapse.replaceChildren(icon);
+      refreshIcons(collapse);
     },
     onSelect: ({ path, kind }) => {
       if (kind === "file") {
@@ -183,7 +187,6 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     fitButton,
     onToggleAll: () => explorer.toggleAll(),
     onDraw: draw,
-    onReadable: () => runtime.readable(),
     onZoom: (factor) => runtime.zoom(factor),
   });
   const graphControls = createGraphControls({ view, direction, depth, cycle });
@@ -382,6 +385,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     stats,
     container,
     mapActions,
+    graphHelp,
     back,
     browserHeader,
     readWorkspace: () => ({
@@ -422,6 +426,7 @@ function createRenderer({ container, details, fitButton, legend, stats }) {
     selectOverview,
     openSource,
     refreshSearch,
+    refreshIcons: () => refreshIcons(map),
   });
   function draw() {
     presenter.draw();

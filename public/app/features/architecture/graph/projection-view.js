@@ -51,28 +51,10 @@ function graphHint(view, selected, graphSelected) {
   if (view === "project")
     return "Layers use configured boundaries or automatic classification; select one to browse its files.";
   if (view === "cycles") return "Cycles cover the whole project.";
-  if (view === "impact")
-    return selected
-      ? "Impact shows consumers of the selected file."
-      : "Select a file to see its impact.";
+  if (view === "impact") return "Consumers include direct importers and files that depend on them.";
   return graphSelected
     ? "Direction and Depth apply to the selected file."
     : "Select a file to explore its imports.";
 }
 
-function graphUnavailable(view, selected, analysis, impactResult, group) {
-  if (view === "impact" && !impactResult) {
-    if (!selected) return "Select a file to see its impact.";
-    if (!analysis) return "Impact is unavailable without a project dependency graph.";
-    return "Impact is unavailable for this file in the dependency graph.";
-  }
-  if (view !== "cycles" || group) return "";
-  if (!analysis) return "Cycles are unavailable without a project dependency graph.";
-  if (analysis.cycles.length)
-    return `Select a cycle group to see its dependencies.${analysis.data.graph.complete ? "" : " This graph is partial; missing imports may hide cycles."}`;
-  return analysis.data.graph.complete
-    ? "No import cycles detected."
-    : "No cycles detected in this partial graph. Missing imports may hide cycles.";
-}
-
-export { graphProjection, graphHint, graphUnavailable };
+export { graphProjection, graphHint };

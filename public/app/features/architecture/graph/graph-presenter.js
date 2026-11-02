@@ -3,7 +3,8 @@ import {
   renderGraphInspector,
   renderLayerInspector,
 } from "../components/organisms/graph-inspector.js";
-import { prepareGraph, renderLegend, showGraphSurface, updateGraphStats } from "./graph-view.js";
+import { prepareGraph, showGraphSurface } from "./graph-view.js";
+import { updateGraphStats, renderLegend } from "./graph-labels.js";
 
 function createGraphPresenter({
   runtime,
@@ -12,6 +13,7 @@ function createGraphPresenter({
   stats,
   container,
   mapActions,
+  graphHelp,
   back,
   browserHeader,
   readWorkspace,
@@ -27,9 +29,14 @@ function createGraphPresenter({
   selectOverview,
   openSource,
   refreshSearch,
+  refreshIcons,
 }) {
   let detailsFile = null;
   function draw() {
+    renderGraph();
+    refreshIcons();
+  }
+  function renderGraph() {
     const {
       selected,
       directory,
@@ -74,12 +81,29 @@ function createGraphPresenter({
     if (directoryView) setPage(projection.page);
     const { viewport, restoredCamera } = runtime.retainCamera();
     if (pageChanged && !restoringNavigation) saveNavigation(true);
+    updateGraphStats({
+      projection,
+      group,
+      impactResult,
+      missingFile,
+      graphSelected,
+      fileView,
+      directoryView,
+      fullDirectory,
+      stats,
+      view: view.value,
+      direction: direction.value,
+      depth: depth.value,
+      directory,
+      currentModel,
+      analysis,
+      selected,
+    });
     if (
       !showGraphSurface({
         projection,
-        impactResult,
-        group,
         mapActions,
+        graphHelp,
         back,
         selected,
         directory,
@@ -87,7 +111,6 @@ function createGraphPresenter({
         analysis,
         container,
         legend,
-        stats,
         details,
       })
     )
@@ -133,22 +156,6 @@ function createGraphPresenter({
       [...legend.querySelectorAll("button")]
         .find((button) => button.dataset.layerId === focusedLayer)
         ?.focus();
-    updateGraphStats({
-      projection,
-      group,
-      impactResult,
-      missingFile,
-      graphSelected,
-      fileView,
-      directoryView,
-      fullDirectory,
-      stats,
-      view: view.value,
-      direction: direction.value,
-      depth: depth.value,
-      directory,
-      currentModel,
-    });
     renderGraphInspector({
       details,
       graph,

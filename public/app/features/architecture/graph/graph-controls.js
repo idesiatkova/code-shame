@@ -39,7 +39,6 @@ function createGraphControlElements({
   fitButton,
   onToggleAll,
   onDraw,
-  onReadable,
   onZoom,
 }) {
   const controls = document.createElement("div");
@@ -63,14 +62,17 @@ function createGraphControlElements({
   collapse.className = "architecture-collapse";
   collapse.title = "Collapse all folders";
   collapse.setAttribute("aria-label", "Collapse all folders");
-  collapse.textContent = "⊟";
+  const collapseIcon = document.createElement("i");
+  collapseIcon.setAttribute("data-lucide", "list-minus");
+  collapseIcon.setAttribute("aria-hidden", "true");
+  collapse.append(collapseIcon);
   collapse.addEventListener("click", onToggleAll);
   inventoryHeader.append(inventoryTitle, collapse);
   browserInventory.prepend(inventoryHeader, controls.querySelector(".architecture-search"));
   const graphNote = document.createElement("p");
   graphNote.className = "architecture-graph-note";
   graphNote.textContent =
-    "Arrows show static imports, not HTTP calls or callbacks. Pan and zoom to explore at a readable size; the File tab lists direct relationships.";
+    "Arrows show static imports. Select a file, folder, or arrow to inspect its connections. Drag to pan; use zoom or Fit map to adjust the view. Colors identify layers.";
   legend.before(secondary);
   const graphModes = document.createElement("div");
   graphModes.className = "architecture-graph-modes";
@@ -98,13 +100,7 @@ function createGraphControlElements({
   const mapActions = document.createElement("div");
   mapActions.className = "architecture-map-actions";
   fitButton.before(mapActions);
-  fitButton.textContent = "Fit entire map";
-  const readableMap = document.createElement("button");
-  readableMap.type = "button";
-  readableMap.className = "secondary-button";
-  readableMap.textContent = "Readable map";
-  readableMap.addEventListener("click", onReadable);
-  mapActions.append(back, fitButton, readableMap);
+  mapActions.append(back, fitButton);
   for (const [label, factor] of [
     ["Zoom in", 1.25],
     ["Zoom out", 0.8],
@@ -116,21 +112,19 @@ function createGraphControlElements({
     button.addEventListener("click", () => onZoom(factor));
     mapActions.append(button);
   }
-  for (const [button, label, short] of [
-    [back, "Up to directory", "↑"],
-    [fitButton, "Fit entire map", "Fit"],
-    [readableMap, "Readable map", "1:1"],
-    [mapActions.children[3], "Zoom in", "+"],
-    [mapActions.children[4], "Zoom out", "−"],
+  for (const [button, label, iconName] of [
+    [back, "Up to directory", "arrow-up"],
+    [fitButton, "Fit map", "maximize-2"],
+    [mapActions.children[2], "Zoom in", "zoom-in"],
+    [mapActions.children[3], "Zoom out", "zoom-out"],
   ]) {
     const fullLabel = document.createElement("span");
     fullLabel.className = "architecture-action-full";
     fullLabel.textContent = label;
-    const shortLabel = document.createElement("span");
-    shortLabel.className = "architecture-action-short";
-    shortLabel.textContent = short;
-    shortLabel.setAttribute("aria-hidden", "true");
-    button.replaceChildren(fullLabel, shortLabel);
+    const icon = document.createElement("i");
+    icon.setAttribute("data-lucide", iconName);
+    icon.setAttribute("aria-hidden", "true");
+    button.replaceChildren(icon, fullLabel);
     button.setAttribute("aria-label", label);
     button.title = label;
   }
@@ -211,7 +205,11 @@ function updateGraphControls({
   direction.disabled = depth.disabled = !graphSelected;
   dropdowns.direction.refresh();
   dropdowns.depth.refresh();
-  if (hint) hint.textContent = graphHint(view.value, selected, graphSelected);
+  if (hint)
+    hint.textContent =
+      analysis && !analysis.data.files.size
+        ? "No graph files available. Add project files or refresh the scan."
+        : graphHint(view.value, selected, graphSelected);
   cycle.parentElement.hidden = view.value !== "cycles" || !analysis?.cycles.length;
 }
 

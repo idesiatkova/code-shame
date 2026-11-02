@@ -1,6 +1,10 @@
 import { renderFileDetails } from "./graph-details.js";
 import { renderOverviewLayerDetails, renderLayerDetails } from "./layer-details.js";
-import { renderBoundaryConnections, appendFiles } from "../molecules/detail-lists.js";
+import {
+  renderBoundaryConnections,
+  appendDirectoryConnections,
+  appendFiles,
+} from "../molecules/detail-lists.js";
 import { appendNote, renderDetails } from "../molecules/detail-content.js";
 import { renderPrompt } from "../molecules/graph-empty-state.js";
 
@@ -139,20 +143,7 @@ function renderGraphInspector({
       sourceButton.addEventListener("click", () => openSource());
       details.append(sourceButton);
       if (impactResult) {
-        appendFiles(
-          details,
-          "Direct consumers",
-          impactResult.directIds.map((id) => analysis.data.files.get(id)),
-          explore,
-          true,
-        );
-        appendFiles(
-          details,
-          "Other reachable consumers",
-          impactResult.reachableIds.map((id) => analysis.data.files.get(id)),
-          explore,
-          true,
-        );
+        renderImpactConsumers(impactResult);
       } else {
         appendNote(
           details,
@@ -183,10 +174,33 @@ function renderGraphInspector({
       }
     }
   }
+  function renderImpactConsumers(impactResult) {
+    if (!impactResult.directIds.length)
+      appendNote(
+        details,
+        impactResult.complete
+          ? "No other project files import this file."
+          : "No consumers found in this partial graph; missing imports may hide dependents.",
+      );
+    appendFiles(
+      details,
+      "Direct consumers",
+      impactResult.directIds.map((id) => analysis.data.files.get(id)),
+      explore,
+      true,
+    );
+    appendFiles(
+      details,
+      "Other reachable consumers",
+      impactResult.reachableIds.map((id) => analysis.data.files.get(id)),
+      explore,
+      true,
+    );
+  }
   function renderDirectoryDetails(projection, fullDirectory) {
     renderPrompt(
       details,
-      `Contents of ${directory}. Arrows aggregate imports between these immediate children; imports within a folder are not shown here.`,
+      `Immediate contents of ${directory}. Arrows group imports between these items; imports within a folder are omitted.`,
       "Folder contents",
     );
     if (projection.pages > 1) {
@@ -200,6 +214,10 @@ function renderGraphInspector({
         button.type = "button";
         button.className = "secondary-button";
         button.textContent = label;
+        const icon = document.createElement("i");
+        icon.setAttribute("data-lucide", delta < 0 ? "chevron-left" : "chevron-right");
+        icon.setAttribute("aria-hidden", "true");
+        button.prepend(icon);
         button.disabled =
           projection.page + delta < 0 || projection.page + delta >= projection.pages;
         button.addEventListener("click", () => {
@@ -215,42 +233,66 @@ function renderGraphInspector({
       details.append(pages);
       appendNote(
         details,
-        `Page ${projection.page + 1} of ${projection.pages}: ${projection.nodes.length} of ${fullDirectory.nodes.length} items. Only imports between items on this page are drawn; other pages and cross-page connections are listed below.${projection.edges.length ? "" : " No imports between items on this page; other pages may have connections."}`,
+        `Page ${projection.page + 1} of ${projection.pages} · ${projection.nodes.length} of ${fullDirectory.nodes.length} items. The map shows connections on this page.${projection.edges.length ? "" : " No imports connect these items."}`,
       );
       renderBoundaryConnections(details, projection, (page, edgeId) => {
         const scroll = details.scrollTop;
         onPage(page);
         details.scrollTop = scroll;
         const list = details.querySelector(".architecture-boundary-connections");
-        [...(list?.children || [])]
-          .find((row) => row.dataset.edgeId === edgeId)
-          ?.querySelector("button")
-          ?.focus({ preventScroll: true });
+        const row = [...(list?.querySelectorAll(".architecture-connection-row") || [])].find(
+          (item) => item.dataset.edgeId === edgeId,
+        );
+        const button =
+          row?.querySelector("button") ||
+          row?.closest(".architecture-connection-group")?.querySelector("button");
+        button?.focus({ preventScroll: true });
       });
     }
     const list = document.createElement("details");
     list.className = "architecture-directory-list";
     const summary = document.createElement("summary");
-    summary.textContent = `Browse all ${fullDirectory.nodes.length} items and ${fullDirectory.edges.length} connections`;
+    summary.textContent = `Items (${fullDirectory.nodes.length})`;
     list.append(summary);
+    const items = document.createElement("ul");
+    items.className = "architecture-file-list";
     for (const node of fullDirectory.nodes) {
+      const item = document.createElement("li");
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "secondary-button";
-      button.textContent = `${node.type === "directory" ? "Folder" : "File"}: ${node.path}`;
+      button.className = "architecture-file-link";
+      button.textContent = node.label || node.path.split("/").at(-1);
+      button.title = node.path;
+      button.setAttribute(
+        "aria-label",
+        `Open ${node.type === "directory" ? "folder" : "file"} ${node.path}`,
+      );
+      const icon = document.createElement("i");
+      icon.setAttribute("data-lucide", node.type === "directory" ? "folder" : "file");
+      icon.setAttribute("aria-hidden", "true");
+      button.prepend(icon);
       button.addEventListener("click", () =>
         node.type === "directory" ? selectOverview(node.path) : selectFile(node.path),
       );
-      list.append(button);
+      item.append(button);
+      items.append(item);
     }
-    for (const edge of fullDirectory.edges) {
-      const source = fullDirectory.nodes.find((node) => node.id === edge.source),
-        target = fullDirectory.nodes.find((node) => node.id === edge.target);
-      const row = document.createElement("p");
-      row.textContent = `${source.path} → ${target.path}: ${edge.weight} file imports`;
-      list.append(row);
-    }
+    list.append(items);
     details.append(list);
+    const connections = document.createElement("details");
+    connections.className = "architecture-directory-connections";
+    const connectionSummary = document.createElement("summary");
+    connectionSummary.textContent = `Connections (${fullDirectory.edges.length})`;
+    connections.append(connectionSummary);
+    appendDirectoryConnections(
+      connections,
+      fullDirectory.edges.map((edge) => ({
+        ...edge,
+        sourceNode: fullDirectory.nodes.find((node) => node.id === edge.source),
+        targetNode: fullDirectory.nodes.find((node) => node.id === edge.target),
+      })),
+    );
+    details.append(connections);
   }
   renderGraphDetails(group, projection, graphSelected, impactResult, directoryView, fullDirectory);
 }

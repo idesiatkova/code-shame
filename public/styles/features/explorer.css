@@ -164,10 +164,12 @@
 }
 
 .architecture-directory-list button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
   min-height: 0;
-  margin: var(--space-xs) 0;
-  padding: var(--space-xs) var(--space-compact);
+  margin: 0;
+  padding: var(--space-xs) 0;
   font-size: var(--text-small);
   text-align: left;
   overflow-wrap: anywhere;
@@ -181,30 +183,105 @@
 }
 
 .architecture-directory-pages button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   min-height: 30px;
   padding: var(--space-xs) var(--space-sm);
   font-size: var(--text-small);
 }
 
 .architecture-boundary-connections h3 {
-  margin: var(--space-md) 0 var(--space-xs);
-  font-size: var(--text-normal);
-}
-
-.architecture-boundary-connections p {
-  margin: var(--space-compact) 0;
-  overflow-wrap: anywhere;
+  margin: var(--space-lg) 0 var(--space-sm);
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
 }
 
 .architecture-boundary-connections button {
-  min-height: 30px;
-  padding: var(--space-xs) var(--space-sm);
+  min-height: 0;
+  padding: var(--space-xs) 0;
   font-size: var(--text-small);
 }
 
-.architecture-directory-list p {
-  margin: var(--space-2xs) 0;
+.architecture-directory-list > summary {
+  margin-bottom: var(--space-sm);
+}
+
+.architecture-directory-list svg,
+.architecture-connection-row svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.architecture-details .architecture-connection-groups,
+.architecture-details .architecture-connection-groups ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-small);
+  line-height: 1.45;
+}
+
+.architecture-details .architecture-connection-groups > li {
+  margin: var(--space-md) 0 0;
+}
+
+.architecture-connection-groups h4 {
+  margin: 0 0 var(--space-xs);
+  color: var(--ink);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
   overflow-wrap: anywhere;
+}
+
+.architecture-details .architecture-connection-row {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2xs) var(--space-compact);
+  margin: var(--space-xs) 0;
+}
+
+.architecture-connection-row > svg {
+  margin-top: var(--space-2xs);
+}
+
+.architecture-connection-target {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.architecture-connection-count {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.architecture-connection-row .architecture-connection-page {
+  grid-column: 2 / -1;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-xs);
+  width: auto;
+  padding: 0;
+}
+
+.architecture-connection-groups h4 .architecture-connection-page {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: auto;
+  margin-left: var(--space-sm);
+  padding: 0;
+}
+
+.architecture-connection-page svg {
+  width: 14px;
+  height: 14px;
+  color: currentcolor;
 }
 
 .architecture-workspace > div:first-child {

@@ -14,9 +14,7 @@
 }
 
 .architecture-stats {
-  height: 36px;
-  overflow: auto;
-  margin-top: var(--space-5);
+  margin: var(--space-xs) 0;
   color: var(--muted);
   font-size: var(--text-small);
   line-height: 1.5;
@@ -73,7 +71,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 280px;
   gap: var(--space-medium);
-  margin-top: var(--space-medium);
+  margin-top: var(--space-3xl);
 }
 
 .architecture-graph,
@@ -105,6 +103,83 @@
   min-height: 220px;
   border: 0;
   background: transparent;
+}
+
+.architecture-body:has(.architecture-graph[data-empty="true"]) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.architecture-workspace:has(> .architecture-map-disclosure:not([hidden])) {
+  display: flex;
+  flex-direction: column;
+}
+
+.architecture-workspace:has(> .architecture-map-disclosure:not([hidden])) > * {
+  flex-shrink: 0;
+}
+
+.architecture-map-disclosure:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+}
+
+.architecture-map-disclosure:not([hidden]):has(.architecture-graph[data-empty="true"]),
+.architecture-map:has(> .architecture-graph[data-empty="true"]) {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+
+.architecture-graph[data-empty="true"] {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+  height: auto;
+  border: 0;
+  background: transparent;
+}
+
+.architecture-graph[data-empty="true"] .architecture-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  flex: 1 0 auto;
+  height: auto;
+  min-height: 220px;
+  padding: var(--space-3xl);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+  text-align: center;
+}
+
+.architecture-empty svg {
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.architecture-empty h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-large);
+  font-weight: var(--weight-semibold);
+}
+
+.architecture-empty p {
+  max-width: 52ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-normal);
+  line-height: 1.5;
+}
+
+.architecture-details[hidden] {
+  display: none;
 }
 
 .architecture-details {
